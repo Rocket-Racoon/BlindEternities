@@ -1,0 +1,6 @@
+-r base.txt
+
+gunicorn>=22.0.0
+sentry-sdk>=2.0.0
+django-storages>=1.14.0         # S3 / media files
+boto3>=1.34.0
