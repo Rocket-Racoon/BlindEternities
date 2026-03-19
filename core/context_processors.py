@@ -13,6 +13,6 @@ def magic_formats(request):
 
 def site_settings(request):
     return {
-        "site_name": "BlindEternities",
+        "site_name": "Blind Eternities",
         "site_version": "0.1.0",
     }
