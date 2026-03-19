@@ -24,3 +24,11 @@ def active_url(context, url_name):
     if request and request.resolver_match.url_name == url_name:
         return 'active'
     return ''
+
+
+@register.inclusion_tag("core/partials/paginator.html", takes_context=True)
+def paginator(context, page_obj):
+    return {
+        "page_obj": page_obj,
+        "request": context["request"],
+    }

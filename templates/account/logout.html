@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}End Session — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-sm mx-auto mt-20">
+  <div class="card p-8 text-center">
+    <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
+      Log Out?
+    </h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+      Your session will close on this device.
+    </p>
+    <form method="post">
+      {% csrf_token %}
+      <div class="flex justify-center gap-3">
+        <a href="/" class="btn-secondary">Cancel</a>
+        <button type="submit" class="btn-danger">Log Out</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

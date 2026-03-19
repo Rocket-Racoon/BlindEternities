@@ -1,0 +1,57 @@
+{% if page_obj.has_other_pages %}
+<nav class="flex items-center justify-between mt-6" aria-label="Paginación">
+
+  <!-- Info -->
+  <p class="text-sm text-gray-500 dark:text-gray-400">
+    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+    <span class="text-gray-400 dark:text-gray-600">
+      ({{ page_obj.paginator.count }} results)
+    </span>
+  </p>
+
+  <!-- Controles -->
+  <div class="flex items-center gap-1">
+
+    <!-- Primera -->
+    {% if page_obj.has_previous %}
+    <a href="?page=1{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+       class="px-2 py-1.5 rounded-md text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800 transition-colors"
+       title="First Page">
+      «
+    </a>
+    <a href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+       class="px-3 py-1.5 rounded-md text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800 transition-colors">
+      Before
+    </a>
+    {% endif %}
+
+    <!-- Páginas cercanas -->
+    {% for num in page_obj.paginator.page_range %}
+      {% if page_obj.number == num %}
+      <span class="px-3 py-1.5 rounded-md text-sm font-medium bg-void-600 text-white">
+        {{ num }}
+      </span>
+      {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+      <a href="?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+         class="px-3 py-1.5 rounded-md text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800 transition-colors">
+        {{ num }}
+      </a>
+      {% endif %}
+    {% endfor %}
+
+    <!-- Siguiente -->
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+       class="px-3 py-1.5 rounded-md text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800 transition-colors">
+      Next
+    </a>
+    <a href="?page={{ page_obj.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+       class="px-2 py-1.5 rounded-md text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800 transition-colors"
+       title="Last Page">
+      »
+    </a>
+    {% endif %}
+
+  </div>
+</nav>
+{% endif %}

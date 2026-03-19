@@ -1,1 +1,125 @@
-{% block content %}profile_edit{% endblock %}
+{% extends "base.html" %}
+
+{% block title %}Config — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+
+  <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-6">
+    Profile Config
+  </h1>
+
+  <!-- Avatar -->
+  <div class="card p-6 mb-6">
+    <h2 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">
+      Avatar
+    </h2>
+    <div class="flex items-center gap-6">
+      {% if object.avatar %}
+      <img src="{{ object.avatar.url }}"
+           class="w-20 h-20 rounded-full object-cover" alt="avatar">
+      {% else %}
+      <div class="w-20 h-20 rounded-full bg-void-600 flex items-center justify-center text-white text-2xl font-medium">
+        {{ request.user.username|first|upper }}
+      </div>
+      {% endif %}
+      <form method="post" action="{% url 'nexus:avatar-upload' %}" enctype="multipart/form-data"
+            class="flex items-center gap-3">
+        {% csrf_token %}
+        <label class="cursor-pointer">
+          <span class="btn-secondary text-sm">Select image</span>
+          <input type="file" name="avatar" accept="image/*" class="hidden"
+                 onchange="this.closest('form').submit()">
+        </label>
+      </form>
+    </div>
+  </div>
+
+  <!-- Información -->
+  <div class="card p-6">
+    <h2 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-6">
+      Info
+    </h2>
+    <form method="post">
+      {% csrf_token %}
+      <div class="space-y-5">
+
+        <!-- Display name -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Display Name
+          </label>
+          <input type="text" name="display_name"
+                 value="{{ form.display_name.value|default:'' }}"
+                 placeholder="{{ request.user.username }}"
+                 class="input">
+          {% if form.display_name.errors %}
+          <p class="mt-1 text-xs text-red-500">{{ form.display_name.errors.0 }}</p>
+          {% endif %}
+        </div>
+
+        <!-- Bio -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Bio
+          </label>
+          <textarea name="bio" rows="4"
+                    placeholder="A little bit of you ..."
+                    class="input resize-none">{{ form.bio.value|default:'' }}</textarea>
+          {% if form.bio.errors %}
+          <p class="mt-1 text-xs text-red-500">{{ form.bio.errors.0 }}</p>
+          {% endif %}
+        </div>
+
+        <!-- Location -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Location
+          </label>
+          <input type="text" name="location"
+                 value="{{ form.location.value|default:'' }}"
+                 placeholder="Ciudad, País"
+                 class="input">
+        </div>
+
+        <!-- Preferred format -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Preferred Format
+          </label>
+          <select name="preferred_format" class="input">
+            <option value="">— No Preference —</option>
+            {% for value, label in form.fields.preferred_format.choices %}
+            {% if value %}
+            <option value="{{ value }}"
+              {% if form.preferred_format.value == value %}selected{% endif %}>
+              {{ label }}
+            </option>
+            {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Is public -->
+        <div class="flex items-center gap-3">
+          <input type="checkbox" name="is_public" id="is_public"
+                 {% if form.is_public.value %}checked{% endif %}
+                 class="w-4 h-4 rounded border-gray-300 text-void-600 focus:ring-void-500">
+          <label for="is_public" class="text-sm text-gray-700 dark:text-gray-300">
+            Public Profile — visible for other users
+          </label>
+        </div>
+
+      </div>
+
+      <!-- Actions -->
+      <div class="mt-8 flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-void-700">
+        <a href="{% url 'nexus:profile-detail' request.user.username %}"
+           class="btn-secondary">Cancel</a>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+
+</div>
+{% endblock %}
