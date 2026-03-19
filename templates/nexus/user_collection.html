@@ -1,1 +1,45 @@
-{% block content %}user_collection{% endblock %}
+{% extends "base.html" %}
+
+{% block title %}{{ profile.name }}'s Collection — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+        {{ profile.name }}'s Collection
+      </h1>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+        @{{ profile_user.username }}
+      </p>
+    </div>
+    {% if is_owner %}
+    <a href="#" class="btn-primary text-sm">Add Cards</a>
+    {% endif %}
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex gap-2 mb-6 border-b border-gray-200 dark:border-void-700">
+    <a href="{% url 'nexus:profile-detail' profile_user.username %}"
+       class="px-4 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-void-600 dark:hover:text-void-400">
+      Bio
+    </a>
+    <a href="{% url 'nexus:user-decks' profile_user.username %}"
+       class="px-4 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-void-600 dark:hover:text-void-400">
+      Decks
+    </a>
+    <a href="{% url 'nexus:user-collection' profile_user.username %}"
+       class="px-4 py-2 text-sm font-medium text-void-600 dark:text-void-400 border-b-2 border-void-600 dark:border-void-400 -mb-px">
+      Collection
+    </a>
+  </div>
+
+  <!-- Contenido — se llenará cuando Tolarian esté listo -->
+  <div class="card p-12 text-center text-gray-400 dark:text-gray-600">
+    <p class="text-sm">La colección estará disponible próximamente.</p>
+  </div>
+
+</div>
+{% endblock %}

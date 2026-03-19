@@ -56,25 +56,48 @@
     </div>
   </div>
 
-  <!-- Tabs de contenido -->
-  <div class="flex gap-2 mb-4 border-b border-gray-200 dark:border-void-700">
-    <a href="{% url 'nexus:profile-detail' profile_user.username %}"
-       class="px-4 py-2 text-sm font-medium text-void-600 dark:text-void-400 border-b-2 border-void-600 dark:border-void-400 -mb-px">
-      Bio
-    </a>
-    <a href="{% url 'nexus:user-decks' profile_user.username %}"
-       class="px-4 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-void-600 dark:hover:text-void-400">
-      Decks
-    </a>
-    <a href="{% url 'nexus:user-collection' profile_user.username %}"
-       class="px-4 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-void-600 dark:hover:text-void-400">
-      Collection
-    </a>
-  </div>
+  <!-- Tabs HTMX -->
+  <div x-data="{ active: 'overview' }">
+    <div class="flex gap-2 mb-4 border-b border-gray-200 dark:border-void-700">
+      <button
+        @click="active = 'overview'"
+        hx-get="{% url 'nexus:partial-overview' profile_user.username %}"
+        hx-target="#tab-content"
+        hx-swap="innerHTML"
+        :class="active === 'overview' ? 'text-void-600 dark:text-void-400 border-b-2 border-void-600 dark:border-void-400' : 'text-gray-500 dark:text-gray-400 hover:text-void-600 dark:hover:text-void-400'"
+        class="px-4 py-2 text-sm font-medium -mb-px transition-colors">
+        Bio
+      </button>
+      <button
+        @click="active = 'decks'"
+        hx-get="{% url 'nexus:partial-decks' profile_user.username %}"
+        hx-target="#tab-content"
+        hx-swap="innerHTML"
+        :class="active === 'decks' ? 'text-void-600 dark:text-void-400 border-b-2 border-void-600 dark:border-void-400' : 'text-gray-500 dark:text-gray-400 hover:text-void-600 dark:hover:text-void-400'"
+        class="px-4 py-2 text-sm font-medium -mb-px transition-colors">
+        Decks
+      </button>
+      <button
+        @click="active = 'collection'"
+        hx-get="{% url 'nexus:partial-collection' profile_user.username %}"
+        hx-target="#tab-content"
+        hx-swap="innerHTML"
+        :class="active === 'collection' ? 'text-void-600 dark:text-void-400 border-b-2 border-void-600 dark:border-void-400' : 'text-gray-500 dark:text-gray-400 hover:text-void-600 dark:hover:text-void-400'"
+        class="px-4 py-2 text-sm font-medium -mb-px transition-colors">
+        Collection
+      </button>
+    </div>
 
-  <!-- Contenido vacío por ahora -->
-  <div class="card p-12 text-center text-gray-400 dark:text-gray-600">
-    <p class="text-sm">No Content to Show Yet</p>
+    <!-- Contenedor de tabs — HTMX reemplaza aquí -->
+    <div id="tab-content"
+         hx-get="{% url 'nexus:partial-overview' profile_user.username %}"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+      <!-- Cargando... -->
+      <div class="card p-12 text-center text-gray-400 dark:text-gray-600">
+        <p class="text-sm">Loading...</p>
+      </div>
+    </div>
   </div>
 
 </div>

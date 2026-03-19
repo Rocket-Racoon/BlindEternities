@@ -2,11 +2,25 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import TemplateView, UpdateView, View
 from django.urls import reverse_lazy
 from .models import Profile
 from .forms import ProfileForm
+
+
+def _get_profile_context(request, username):
+    """Helper compartido para vistas de perfil."""
+    user = get_object_or_404(User, username=username)
+    profile = get_object_or_404(Profile, user=user)
+    if not profile.is_public and request.user != user:
+        raise PermissionDenied
+    return {
+        "profile":      profile,
+        "profile_user": user,
+        "is_owner":     request.user == user,
+    }
 
 
 class HomeView(TemplateView):
@@ -85,4 +99,32 @@ class UserCollectionView(TemplateView):
         ctx["profile"] = profile
         ctx["profile_user"] = user
         ctx["is_owner"] = self.request.user == user
+        return ctx
+
+
+# --- Parciales HTMX ---
+class UserOverviewPartialView(TemplateView):
+    template_name = "nexus/partials/overview.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx.update(_get_profile_context(self.request, self.kwargs["username"]))
+        return ctx
+
+
+class UserDecksPartialView(TemplateView):
+    template_name = "nexus/partials/decks.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx.update(_get_profile_context(self.request, self.kwargs["username"]))
+        return ctx
+
+
+class UserCollectionPartialView(TemplateView):
+    template_name = "nexus/partials/collection.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx.update(_get_profile_context(self.request, self.kwargs["username"]))
         return ctx
