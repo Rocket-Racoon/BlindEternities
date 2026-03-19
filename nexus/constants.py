@@ -1,0 +1,1 @@
+# Constantes específicas de Nexus
