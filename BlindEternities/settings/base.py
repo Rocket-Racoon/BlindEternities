@@ -4,15 +4,18 @@ Shared across all environments. Never used directly.
 """
 from pathlib import Path
 from decouple import config, Csv
-from os import environ
+import environ
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-env = environ.Env()
+env = environ.Env(
+    DEBUG=(bool, False),
+    SECRET_KEY=(str, ""),
+)
 environ.Env.read_env(BASE_DIR / ".env")
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env('SECRET_KEY')
-# 'django-insecure-yvfez^134h--rcdk0&65za$9+h6l=s0=9i@f0h&=r1ifef$9)r'
+
 
 # SECURITY WARNING: don't run with debug turned on in production!
 ALLOWED_HOSTS = []
@@ -36,8 +39,8 @@ THIRD_PARTY_APPS = [
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
     'allauth.socialaccount.providers.github',
-    'crispy_forms'
-    'crispy_bootstrap5'
+    'crispy_forms',
+    'crispy_bootstrap5',
     # 'rest_framework',
     # 'rest_framework_simplejwt',
     # 'rest_framework_simplejwt.token_blacklist',
@@ -121,9 +124,8 @@ AUTHENTICATION_BACKENDS = [
 SITE_ID = 1
 
 # -- ALL AUTH --
-ACCOUNT_AUTHENTICATION_METHOD = "email"
-ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_LOGIN_METHODS = {"email"}
+ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
 ACCOUNT_EMAIL_VERIFICATION = "optional"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"

@@ -11,11 +11,11 @@ urlpatterns = [
     # Allauth — login, signup, OAuth callbacks
     path("accounts/", include("allauth.urls")),
     # Apps
-    path("",           include("nexus.urls",      namespace="nexus")),
+    # path("",           include("nexus.urls",      namespace="nexus")),
     # path("cards/",     include("multiverse.urls",  namespace="multiverse")),
     # path("collection/",include("tolarian.urls",    namespace="tolarian")),
     # path("stats/",     include("phyrexian.urls",   namespace="phyrexian")),
-    # path("market/",    include("omentpath.urls",   namespace="omentpath")),
+    # path("market/",    include("omenpath.urls",   namespace="omenpath")),
 ]
 
 
