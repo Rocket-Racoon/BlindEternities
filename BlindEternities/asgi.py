@@ -1,5 +1,5 @@
 """
-ASGI config for BlindEternities project.
+ASGI config for Blind Eternities project.
 """
 import os
 from django.core.asgi import get_asgi_application

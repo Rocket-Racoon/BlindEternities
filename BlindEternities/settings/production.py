@@ -1,5 +1,5 @@
 """
-BlindEternities — Production Development Settings
+Blind Eternities — Production Development Settings
 """
 from .base import *
 

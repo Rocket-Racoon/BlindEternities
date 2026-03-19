@@ -1,5 +1,5 @@
 """
-BlindEternities — Base Settings
+Blind Eternities — Base Settings
 Shared across all environments. Never used directly.
 """
 from pathlib import Path

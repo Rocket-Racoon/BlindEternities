@@ -1,5 +1,5 @@
 """
-URL configuration for BlindEternities project.
+URL configuration for Blind Eternities project.
 """
 from django.contrib import admin
 from django.urls import path, include

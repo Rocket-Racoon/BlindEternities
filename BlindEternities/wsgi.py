@@ -1,5 +1,5 @@
 """
-WSGI config for BlindEternities project.
+WSGI config for Blind Eternities project.
 """
 import os
 from django.core.wsgi import get_wsgi_application
