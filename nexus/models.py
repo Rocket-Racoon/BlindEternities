@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 from core.models import BaseModel
 from core.utils import avatar_upload_path
-from core.constants import MAGIC_FORMATS
+from core.constants import MagicFormat
 
 class Profile(BaseModel):
     user = models.OneToOneField(
@@ -21,8 +21,9 @@ class Profile(BaseModel):
     location         = models.CharField(max_length=100, blank=True)
     preferred_format = models.CharField(
         max_length=20,
-        choices=MAGIC_FORMATS,
+        choices=MagicFormat.choices,
         blank=True,
+        verbose_name='Preferred Format'
     )
     is_public = models.BooleanField(default=True)
 

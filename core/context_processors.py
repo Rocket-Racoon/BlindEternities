@@ -1,5 +1,5 @@
 # core/context_processors.py
-from core.constants import MAGIC_FORMATS
+from core.constants import MagicFormat
 
 def user_profile(request):
     if request.user.is_authenticated:
@@ -8,7 +8,7 @@ def user_profile(request):
 
 
 def magic_formats(request):
-    return {"magic_formats": MAGIC_FORMATS}
+    return {"magic_formats": MagicFormat.choices}
 
 
 def site_settings(request):

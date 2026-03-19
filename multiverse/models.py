@@ -1,7 +1,7 @@
 # multiverse/models.py
 from django.db import models
 from core.models import BaseModel
-
+from core.constants import *
 
 class CardSet(BaseModel):
     # Identifiers
@@ -14,7 +14,7 @@ class CardSet(BaseModel):
 
     # Info
     name            = models.CharField(max_length=200)
-    set_type        = models.CharField(max_length=50, blank=True)
+    set_type        = models.CharField(max_length=50, choices=CardSetType.choices, blank=True)
     released_at     = models.DateField(null=True, blank=True)
     block_code      = models.CharField(max_length=10, blank=True)
     block           = models.CharField(max_length=100, blank=True)
@@ -50,7 +50,7 @@ class Card(BaseModel):
     lang            = models.CharField(max_length=10, default="en")
 
     # Layout
-    layout          = models.CharField(max_length=50, blank=True)
+    layout          = models.CharField(max_length=50, choices=CardLayout.choices, blank=True)
 
     # Gameplay — oracle
     type_line       = models.CharField(max_length=250, blank=True)
@@ -138,7 +138,7 @@ class CardPrint(BaseModel):
     image_status        = models.CharField(max_length=20, blank=True)
 
     # Print info
-    rarity              = models.CharField(max_length=20, blank=True)
+    rarity              = models.CharField(max_length=20, choices=CardRarity.choices, blank=True)
     flavor_text         = models.TextField(blank=True)
     flavor_name         = models.CharField(max_length=250, blank=True)
     printed_name        = models.CharField(max_length=250, blank=True)
@@ -146,12 +146,12 @@ class CardPrint(BaseModel):
     printed_text        = models.TextField(blank=True)
     artist              = models.CharField(max_length=200, blank=True)
     artist_id           = models.UUIDField(null=True, blank=True)
-    border_color        = models.CharField(max_length=20, blank=True)
+    border_color        = models.CharField(max_length=20, choices=BorderColor.choices, blank=True)
     frame               = models.CharField(max_length=20, blank=True)
     frame_effects       = models.JSONField(default=list)
     security_stamp      = models.CharField(max_length=20, blank=True)
     watermark           = models.CharField(max_length=50, blank=True)
-    set_type            = models.CharField(max_length=50, blank=True)
+    set_type            = models.CharField(max_length=50, choices=CardSetType.choices, blank=True)
 
     # Finishes (reemplaza foil/nonfoil en API moderna)
     finishes            = models.JSONField(default=list)  # ["foil", "nonfoil", "etched"]
