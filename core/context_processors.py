@@ -1,17 +1,5 @@
 # core/context_processors.py
-
-MAGIC_FORMATS = [
-    "Standard",
-    "Pioneer",
-    "Modern",
-    "Legacy",
-    "Vintage",
-    "Commander",
-    "Pauper",
-    "Draft",
-    "Sealed",
-]
-
+from core.constants import MAGIC_FORMATS
 
 def user_profile(request):
     if request.user.is_authenticated:
