@@ -1,0 +1,59 @@
+{# templates/base.html #}
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ site_name }}{% endblock %}</title>
+
+  {# Tailwind CSS #}
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/main.css' %}">
+
+  {# Fuentes #}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Cinzel:wght@400;600&display=swap" rel="stylesheet">
+
+  {# Mana font para símbolos de Magic #}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mana-font@latest/css/mana.css">
+
+  {% block extra_css %}{% endblock %}
+</head>
+<body class="h-full flex flex-col">
+
+  {# Navbar #}
+  {% include "partials/navbar.html" %}
+
+  {# Messages #}
+  {% if messages %}
+  <div class="max-w-7xl mx-auto px-4 pt-4 w-full" id="messages">
+    {% for message in messages %}
+    <div x-data="{ show: true }" x-show="show"
+         class="mb-2 px-4 py-3 rounded-lg flex justify-between items-center
+         {% if message.tags == 'error' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+         {% elif message.tags == 'success' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+         {% else %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200{% endif %}">
+      <span>{{ message }}</span>
+      <button @click="show = false" class="ml-4 text-lg font-bold opacity-60 hover:opacity-100">&times;</button>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# Contenido principal #}
+  <main class="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
+    {% block content %}{% endblock %}
+  </main>
+
+  {# Footer #}
+  {% include "partials/footer.html" %}
+
+  {# Scripts #}
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="{% static 'js/main.js' %}"></script>
+
+  {% block extra_js %}{% endblock %}
+</body>
+</html>
