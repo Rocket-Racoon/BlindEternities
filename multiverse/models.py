@@ -123,6 +123,49 @@ class Card(BaseModel):
         return self.prints.select_related("cardset").order_by("-cardset__released_at").first()
 
 
+class CardFace(BaseModel):
+    card            = models.ForeignKey(Card, on_delete=models.CASCADE, related_name="faces")
+    face_index      = models.PositiveSmallIntegerField(default=0)  # 0 = frontal, 1 = trasera
+
+    # Oracle
+    name            = models.CharField(max_length=250)
+    printed_name    = models.CharField(max_length=250, blank=True)
+    type_line       = models.CharField(max_length=250, blank=True)
+    printed_type_line = models.CharField(max_length=250, blank=True)
+    oracle_text     = models.TextField(blank=True)
+    printed_text    = models.TextField(blank=True)
+    mana_cost       = models.CharField(max_length=100, blank=True)
+    cmc             = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True)
+    colors          = models.JSONField(default=list)
+    color_indicator = models.JSONField(default=list)
+
+    # Stats
+    power           = models.CharField(max_length=10, blank=True)
+    toughness       = models.CharField(max_length=10, blank=True)
+    loyalty         = models.CharField(max_length=10, blank=True)
+    defense         = models.CharField(max_length=10, blank=True)
+
+    # Print info por cara
+    artist          = models.CharField(max_length=200, blank=True)
+    artist_id       = models.UUIDField(null=True, blank=True)
+    illustration_id = models.UUIDField(null=True, blank=True)
+    image_uris      = models.JSONField(default=dict)
+    flavor_text     = models.TextField(blank=True)
+    flavor_name     = models.CharField(max_length=250, blank=True)
+    watermark       = models.CharField(max_length=50, blank=True)
+
+    # Layout propio de la cara (reversible_card)
+    layout          = models.CharField(max_length=50, blank=True)
+    oracle_id       = models.UUIDField(null=True, blank=True)
+
+    class Meta:
+        ordering        = ["card", "face_index"]
+        verbose_name    = "card face"
+        verbose_name_plural = "card faces"
+
+    def __str__(self):
+        return f"{self.card.name} — face {self.face_index} ({self.name})"
+
 class CardPrint(BaseModel):
     scryfall_id         = models.UUIDField(unique=True, db_index=True)
     card                = models.ForeignKey(Card, on_delete=models.CASCADE, related_name="prints")
