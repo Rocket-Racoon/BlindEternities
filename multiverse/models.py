@@ -1,6 +1,6 @@
 # multiverse/models.py
 from django.db import models
-from core.models import BaseModel
+from core.models import BaseModel, CreatureType
 from core.constants import *
 
 class CardSet(BaseModel):
@@ -98,6 +98,13 @@ class Card(BaseModel):
     arena_id        = models.IntegerField(null=True, blank=True)
     tcgplayer_id    = models.IntegerField(null=True, blank=True)
     cardmarket_id   = models.IntegerField(null=True, blank=True)
+    
+    # Subtipos de criatura — relación dinámica
+    creature_types = models.ManyToManyField(
+        CreatureType,
+        blank=True,
+        related_name="cards",
+    )
 
     class Meta:
         ordering        = ["name"]
