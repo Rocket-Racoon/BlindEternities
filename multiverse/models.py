@@ -34,6 +34,9 @@ class CardSet(BaseModel):
     search_uri      = models.URLField(blank=True)
     scryfall_uri    = models.URLField(blank=True)
 
+    # Custom Data
+    is_standard_legal = models.BooleanField(default=False)
+    
     class Meta:
         ordering        = ["-released_at"]
         verbose_name    = "set"

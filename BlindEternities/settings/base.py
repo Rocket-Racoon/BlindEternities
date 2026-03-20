@@ -247,5 +247,11 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # ──────────────────────────────────────────────
 SCRYFALL_API_BASE = 'https://api.scryfall.com'
 SCRYFALL_BULK_DATA_URL = 'https://api.scryfall.com/bulk-data'
+HEADERS = {
+    "User-Agent": "BlindEternities/1.0",
+    "Accept": "application/json",
+}
 SCRYFALL_REQUEST_DELAY = 0.1    # 100ms between requests (rate limit)
-
+SCRYFALL_TIMEOUT_SHORT  = 15    # para endpoints simples
+SCRYFALL_TIMEOUT_LONG   = 300   # para bulk data
+SCRYFALL_BATCH_SIZE     = 500   # registros por batch en sync

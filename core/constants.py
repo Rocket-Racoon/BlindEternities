@@ -2,7 +2,6 @@
 from django.db import models
 
 
-
 # --- Formats ---
 class MagicFormat(models.TextChoices):
     STANDARD  = "standard",  "Standard"
@@ -53,6 +52,7 @@ class CardPart(models.TextChoices):
     HANDMOD             = 'hand_modifier',      'Hand Modifier'
     LIFEMOD             = 'life_modifier',      'Life Modifier'
     INFORMATION         = 'information',        'Information'
+
 
 class CardLayout(models.TextChoices):
     NORMAL               = "normal",               "Normal"
@@ -114,6 +114,15 @@ class CardSetType(models.TextChoices):
     SCHEMES          = "schemes_deck", "Scheme Deck"
     SCENE            = "scene_box", "Scene Box"
     CHAMPIONSHIP_DECK = "championship_deck",     "Championship Deck"
+
+
+UNSET_CODES = {
+    "ugl", 
+    "unh", 
+    "ust", 
+    "und", 
+    "unf"
+}
 
 # --- Printing Topics ---
 class BorderColor(models.TextChoices):
@@ -233,6 +242,7 @@ class CardWatermark(models.TextChoices):
     DANGEKI             = "Dengekimaho", "Dengekimaoh"
     NERF                = "Nerf", "Nerf"
     TRUMPKATSUMAI       = "Trumpkatsumai", "Trumpkatsumai"
+
 
 # --- Card Typelines ---
 class CardSupertype(models.TextChoices):
@@ -473,7 +483,6 @@ class PlaneswalkerType(models.TextChoices):
     # HotR
     DEB     = "Deb", "Deb"
     MASTER  = "Master", "Master"
-
 
 
 # --- Game Concepts ---
