@@ -1,0 +1,53 @@
+{% if prints %}
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="border-b border-gray-200 dark:border-void-700">
+        <th class="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">Set</th>
+        <th class="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">#</th>
+        <th class="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">Rareza</th>
+        <th class="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">Artista</th>
+        <th class="text-right py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">USD</th>
+        <th class="text-right py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">USD Foil</th>
+        <th class="text-right py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">EUR</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100 dark:divide-void-800">
+      {% for print in prints %}
+      <tr class="hover:bg-gray-50 dark:hover:bg-void-900 transition-colors">
+        <td class="py-2 px-3">
+          <div class="flex items-center gap-2">
+            {% if print.cardset.icon_svg_uri %}
+            <img src="{{ print.cardset.icon_svg_uri }}"
+                 class="w-4 h-4 opacity-70" alt="">
+            {% endif %}
+            <span class="font-medium text-gray-900 dark:text-gray-100">
+              {{ print.cardset.code|upper }}
+            </span>
+            <span class="text-gray-500 dark:text-gray-400 text-xs truncate max-w-32">
+              {{ print.cardset.name }}
+            </span>
+          </div>
+        </td>
+        <td class="py-2 px-3 text-gray-500 dark:text-gray-400">{{ print.collector_number }}</td>
+        <td class="py-2 px-3 capitalize text-gray-700 dark:text-gray-300">{{ print.rarity }}</td>
+        <td class="py-2 px-3 text-gray-500 dark:text-gray-400 truncate max-w-40">{{ print.artist }}</td>
+        <td class="py-2 px-3 text-right text-gray-900 dark:text-gray-100">
+          {% if print.price_usd %}<span>${{ print.price_usd }}</span>{% else %}<span class="text-gray-300 dark:text-gray-600">—</span>{% endif %}
+        </td>
+        <td class="py-2 px-3 text-right text-gray-900 dark:text-gray-100">
+          {% if print.price_usd_foil %}<span>${{ print.price_usd_foil }}</span>{% else %}<span class="text-gray-300 dark:text-gray-600">—</span>{% endif %}
+        </td>
+        <td class="py-2 px-3 text-right text-gray-900 dark:text-gray-100">
+          {% if print.price_eur %}<span>€{{ print.price_eur }}</span>{% else %}<span class="text-gray-300 dark:text-gray-600">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card p-8 text-center text-gray-400 dark:text-gray-600 text-sm">
+  No hay prints disponibles.
+</div>
+{% endif %}

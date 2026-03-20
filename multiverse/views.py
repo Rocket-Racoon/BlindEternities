@@ -2,53 +2,31 @@
 from django.views.generic import TemplateView
 from django.shortcuts import get_object_or_404
 from core.utils import paginate_queryset
-from core.constants import MagicColor, CardRarity, CardLayout, MagicFormat
+from core.constants import (
+    MagicColor,
+    CardRarity,
+    CardLayout,
+    MagicFormat,
+    CardSetType,
+)
 from .models import Card, CardSet, CardLegality
+from .forms import CardSearchForm, SetSearchForm
 
 
 class CardListView(TemplateView):
     template_name = "multiverse/card_list.html"
 
     def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        qs  = Card.objects.filter(is_active=True)
+        ctx  = super().get_context_data(**kwargs)
+        form = CardSearchForm(self.request.GET or None)
+        qs   = Card.objects.filter(is_active=True).order_by("name")
 
-        # Filtros
-        q          = self.request.GET.get("q", "").strip()
-        color      = self.request.GET.get("color", "")
-        layout     = self.request.GET.get("layout", "")
-        format_key = self.request.GET.get("format", "")
-        rarity     = self.request.GET.get("rarity", "")
-        cmc        = self.request.GET.get("cmc", "")
-        commander  = self.request.GET.get("commander", "")
-
-        if q:
-            qs = qs.filter(name__icontains=q)
-        if color:
-            qs = qs.filter(color_identity__contains=color)
-        if layout:
-            qs = qs.filter(layout=layout)
-        if format_key:
-            qs = qs.filter(legality__data__contains={format_key: "legal"})
-        if rarity:
-            qs = qs.filter(prints__rarity=rarity).distinct()
-        if cmc:
-            try:
-                qs = qs.filter(cmc=float(cmc))
-            except ValueError:
-                pass
-        if commander == "1":
-            qs = qs.filter(can_be_commander=True)
+        if form.is_valid():
+            qs = form.filter_queryset(qs)
 
         ctx.update({
-            "page_obj":   paginate_queryset(qs, self.request.GET.get("page"), per_page=40),
-            "q":          q,
-            "color":      color,
-            "layout":     layout,
-            "format_key": format_key,
-            "rarity":     rarity,
-            "cmc":        cmc,
-            "commander":  commander,
+            "form":     form,
+            "page_obj": paginate_queryset(qs, self.request.GET.get("page"), per_page=40),
             "colors":   MagicColor.choices,
             "rarities": CardRarity.choices,
             "layouts":  CardLayout.choices,
@@ -75,6 +53,7 @@ class CardDetailView(TemplateView):
             "prints":   card.prints.select_related("cardset").order_by("-cardset__released_at"),
             "legality": legality,
             "rulings":  card.rulings.order_by("published_at"),
+            "formats":  MagicFormat.choices,
         })
         return ctx
 
@@ -83,21 +62,17 @@ class SetListView(TemplateView):
     template_name = "multiverse/set_list.html"
 
     def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        qs  = CardSet.objects.filter(is_active=True)
+        ctx  = super().get_context_data(**kwargs)
+        form = SetSearchForm(self.request.GET or None)
+        qs   = CardSet.objects.filter(is_active=True)
 
-        q        = self.request.GET.get("q", "").strip()
-        set_type = self.request.GET.get("type", "")
-
-        if q:
-            qs = qs.filter(name__icontains=q)
-        if set_type:
-            qs = qs.filter(set_type=set_type)
+        if form.is_valid():
+            qs = form.filter_queryset(qs)
 
         ctx.update({
-            "page_obj": paginate_queryset(qs, self.request.GET.get("page"), per_page=40),
-            "q":        q,
-            "set_type": set_type,
+            "form":      form,
+            "page_obj":  paginate_queryset(qs, self.request.GET.get("page"), per_page=40),
+            "set_types": CardSetType.choices,
         })
         return ctx
 
@@ -113,11 +88,11 @@ class SetDetailView(TemplateView):
         ctx.update({
             "cardset":  cardset,
             "page_obj": paginate_queryset(prints, self.request.GET.get("page"), per_page=40),
+            "rarities": CardRarity.choices,
         })
         return ctx
 
 
-# --- Parciales HTMX ---
 class CardRulingsPartialView(TemplateView):
     template_name = "multiverse/partials/rulings.html"
 

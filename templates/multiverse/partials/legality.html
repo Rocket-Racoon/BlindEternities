@@ -1,0 +1,27 @@
+{% load core_tags %}
+{% if legality %}
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+  {% for format_key, format_label in formats %}
+  {% with status=legality.data|get_item:format_key %}
+  <div class="card p-3 flex items-center justify-between gap-2">
+    <span class="text-sm text-gray-700 dark:text-gray-300">{{ format_label }}</span>
+    <span class="text-xs px-2 py-0.5 rounded-full font-medium
+      {% if status == 'legal' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
+      {% elif status == 'banned' %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400
+      {% elif status == 'restricted' %}bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400
+      {% else %}bg-gray-100 text-gray-500 dark:bg-void-800 dark:text-gray-500{% endif %}">
+      {% if status == 'legal' %}Legal
+      {% elif status == 'banned' %}Baneada
+      {% elif status == 'restricted' %}Restringida
+      {% elif status == 'not_legal' %}No legal
+      {% else %}{{ status|capfirst }}{% endif %}
+    </span>
+  </div>
+  {% endwith %}
+  {% endfor %}
+</div>
+{% else %}
+<div class="card p-8 text-center text-gray-400 dark:text-gray-600 text-sm">
+  Sin información de legality.
+</div>
+{% endif %}

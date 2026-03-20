@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load core_tags %}
+
+{% block title %}{{ cardset.name }} — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-start gap-6 mb-8">
+    {% if cardset.icon_svg_uri %}
+    <img src="{{ cardset.icon_svg_uri }}"
+         class="w-16 h-16 shrink-0 opacity-70 dark:invert dark:opacity-50 mt-1"
+         alt="{{ cardset.code }}">
+    {% endif %}
+    <div class="flex-1">
+      <nav class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+        <a href="{% url 'multiverse:set-list' %}"
+           class="hover:text-void-600 dark:hover:text-void-400">Sets</a>
+        <span class="mx-2">›</span>
+        <span class="text-gray-900 dark:text-gray-100">{{ cardset.name }}</span>
+      </nav>
+      <h1 class="text-3xl font-display font-semibold text-gray-900 dark:text-gray-100">
+        {{ cardset.name }}
+      </h1>
+      <div class="flex flex-wrap gap-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
+        <span>{{ cardset.code|upper }}</span>
+        <span>{{ cardset.set_type|capfirst }}</span>
+        <span>{{ cardset.card_count }} cartas</span>
+        {% if cardset.released_at %}<span>{{ cardset.released_at|date:"d M Y" }}</span>{% endif %}
+        {% if cardset.digital %}<span class="text-blue-500">Digital</span>{% endif %}
+        {% if cardset.foil_only %}<span class="text-amber-500">Solo foil</span>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Grid de prints -->
+  {% if page_obj.object_list %}
+  <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+    {% for print in page_obj %}
+    <a href="{% url 'multiverse:card-detail' print.card.oracle_id %}"
+       class="group block">
+      <div class="card overflow-hidden transition-transform duration-150 group-hover:-translate-y-1">
+        {% if print.image_uris.normal %}
+        <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800 overflow-hidden">
+          <img src="{{ print.image_uris.normal }}"
+               alt="{{ print.card.name }}"
+               loading="lazy"
+               class="w-full h-full object-cover">
+        </div>
+        {% else %}
+        <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800 flex items-center justify-center p-2">
+          <span class="text-xs text-gray-400 text-center">{{ print.card.name }}</span>
+        </div>
+        {% endif %}
+        <div class="p-1.5">
+          <p class="text-xs text-gray-500 dark:text-gray-400 text-center">
+            #{{ print.collector_number }}
+          </p>
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
+  {% paginator page_obj %}
+
+  {% else %}
+  <div class="card p-12 text-center text-gray-400 dark:text-gray-600 text-sm">
+    Este set no tiene cartas sincronizadas.
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

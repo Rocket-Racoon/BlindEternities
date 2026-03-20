@@ -32,3 +32,11 @@ def paginator(context, page_obj):
         "page_obj": page_obj,
         "request": context["request"],
     }
+    
+
+@register.filter
+def get_item(dictionary, key):
+    """Permite acceder a un dict por key variable en templates."""
+    if isinstance(dictionary, dict):
+        return dictionary.get(key, "")
+    return ""

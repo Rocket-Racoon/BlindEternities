@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% load static core_tags %}
+
+{% block title %}Cards — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto" x-data="{ filtersOpen: false }">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Cards</h1>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+        {% if page_obj.paginator.count %}
+          {{ page_obj.paginator.count }} card{{ page_obj.paginator.count|pluralize }}
+        {% endif %}
+      </p>
+    </div>
+    <button @click="filtersOpen = true"
+            class="btn-secondary flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
+      </svg>
+      Filters
+      {% if request.GET %}
+      <span class="w-2 h-2 rounded-full bg-void-500"></span>
+      {% endif %}
+    </button>
+  </div>
+
+  <!-- Búsqueda rápida -->
+  <form method="get" class="mb-6" id="search-form">
+    <div class="flex gap-3">
+      <input type="text" name="q" value="{{ request.GET.q }}"
+             placeholder="Search you Sol Ring ..."
+             class="input flex-1"
+             hx-get="{% url 'multiverse:card-list' %}"
+             hx-target="#card-grid"
+             hx-trigger="keyup changed delay:400ms"
+             hx-include="#search-form">
+      <button type="submit" class="btn-primary">Search</button>
+      {% if request.GET %}
+      <a href="{% url 'multiverse:card-list' %}" class="btn-secondary">Clean</a>
+      {% endif %}
+    </div>
+    {% for key, value in request.GET.items %}
+      {% if key != 'q' and key != 'page' %}
+      <input type="hidden" name="{{ key }}" value="{{ value }}">
+      {% endif %}
+    {% endfor %}
+  </form>
+
+  <!-- Filtros activos como pills -->
+  {% if request.GET %}
+  <div class="flex flex-wrap gap-2 mb-4">
+    {% for key, value in request.GET.items %}
+      {% if key != 'page' and value %}
+      <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium
+                   bg-void-100 text-void-800 dark:bg-void-800 dark:text-void-200">
+        {{ key }}: {{ value }}
+        <a href="?{% for k, v in request.GET.items %}{% if k != key and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}"
+           class="ml-1 hover:text-void-600">×</a>
+      </span>
+      {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Grid de cartas -->
+  <div id="card-grid">
+    {% include "multiverse/partials/card_grid.html" %}
+  </div>
+
+</div>
+
+<!-- Modal de filtros -->
+<div x-show="filtersOpen"
+     x-transition:enter="transition ease-out duration-200"
+     x-transition:enter-start="opacity-0"
+     x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-150"
+     x-transition:leave-start="opacity-100"
+     x-transition:leave-end="opacity-0"
+     class="fixed inset-0 z-50 overflow-y-auto"
+     style="display:none;">
+
+  <!-- Backdrop -->
+  <div class="fixed inset-0 bg-black/50" @click="filtersOpen = false"></div>
+
+  <!-- Panel -->
+  <div class="relative min-h-screen flex items-center justify-center p-4">
+    <div class="relative w-full max-w-lg card p-6 shadow-xl"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100">
+
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Filters</h2>
+        <button @click="filtersOpen = false"
+                class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-void-800 text-gray-500">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <form method="get" action="{% url 'multiverse:card-list' %}">
+        {% if request.GET.q %}
+        <input type="hidden" name="q" value="{{ request.GET.q }}">
+        {% endif %}
+
+        <div class="space-y-4">
+
+          <!-- Color -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Color
+            </label>
+            <div class="flex gap-2 flex-wrap">
+              {% for value, label in colors %}
+              <label class="cursor-pointer">
+                <input type="radio" name="color" value="{{ value }}"
+                       {% if request.GET.color == value %}checked{% endif %}
+                       class="sr-only peer">
+                <span class="w-9 h-9 flex items-center justify-center rounded-full border-2
+                             border-gray-200 dark:border-void-700
+                             peer-checked:border-void-500
+                             transition-colors cursor-pointer
+                             ms ms-{{ value|lower }} ms-cost ms-2x"
+                      title="{{ label }}">
+                </span>
+              </label>
+              {% endfor %}
+              <label class="cursor-pointer">
+                <input type="radio" name="color" value=""
+                       {% if not request.GET.color %}checked{% endif %}
+                       class="sr-only peer">
+                <span class="px-3 h-9 flex items-center text-xs rounded-full border-2
+                             border-gray-200 dark:border-void-700
+                             peer-checked:border-void-500 peer-checked:bg-void-50 dark:peer-checked:bg-void-900
+                             text-gray-500 dark:text-gray-400
+                             transition-colors cursor-pointer">
+                  All
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Color match -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Color
+            </label>
+            {{ form.color_match }}
+          </div>
+
+          <!-- Formato -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Format
+            </label>
+            {{ form.format }}
+          </div>
+
+          <!-- Rareza -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Rarity
+            </label>
+            <div class="flex gap-2 flex-wrap">
+              {% for value, label in rarities %}
+              <label class="cursor-pointer">
+                <input type="radio" name="rarity" value="{{ value }}"
+                       {% if request.GET.rarity == value %}checked{% endif %}
+                       class="sr-only peer">
+                <span class="px-3 py-1.5 text-xs rounded-full border
+                             border-gray-200 dark:border-void-700
+                             peer-checked:border-void-500 peer-checked:bg-void-50 dark:peer-checked:bg-void-900
+                             text-gray-600 dark:text-gray-400
+                             transition-colors cursor-pointer capitalize">
+                  {{ label }}
+                </span>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- CMC -->
+          <div class="flex gap-3">
+            <div class="flex-1">
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Mana Value
+              </label>
+              {{ form.cmc }}
+            </div>
+            <div class="w-24">
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Operator
+              </label>
+              {{ form.cmc_op }}
+            </div>
+          </div>
+
+          <!-- Tipo -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Type
+            </label>
+            {{ form.type_line }}
+          </div>
+
+          <!-- Texto oracle -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Text
+            </label>
+            {{ form.oracle_text }}
+          </div>
+
+          <!-- Checkboxes -->
+          <div class="flex gap-6">
+            <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300">
+              {{ form.commander }}
+              Commanders Only
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300">
+              {{ form.has_deck_limit }}
+              Unlimited Copies
+            </label>
+          </div>
+
+        </div>
+
+        <div class="mt-6 flex gap-3 justify-end pt-4 border-t border-gray-200 dark:border-void-700">
+          <a href="{% url 'multiverse:card-list' %}" class="btn-secondary">Clean</a>
+          <button type="submit" @click="filtersOpen = false" class="btn-primary">
+            Apply Filters
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+</div>
+
+{% endblock %}
