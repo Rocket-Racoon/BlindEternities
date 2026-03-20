@@ -560,7 +560,21 @@ class LayerEffect(models.TextChoices):
     LAYER_6   = 'Layer 6', 'Layer 6: Ability Add/Remove effects'
     LAYER_7   = 'Layer 7', 'Layer 7: Power/Toughness effects'
     
-    
+
+# --- Partner ---
+class PartnerKeyword(models.TextChoices):
+    """
+    Tipos de la palabra clave 'Partner'.
+    Referencia: CR 903.10
+    """
+    PARTNER             = 'Partner',                    'Partner'
+    PARTNER_WITH        = 'Partner with',               'Partner with'
+    BACKGROUND          = 'Choose a Background',        'Choose a Background'
+    FRIENDS_FOREVER     = 'Partner-Friends forever',    'Partner—Friends forever'
+    DOCTORS_COMPANION   = "Doctor's Companion",         "Doctor's Companion"
+    CHARACTER_SELECT    = 'Partner-Character select',   'Partner—Character select'
+
+
 # --- Collection ---
 class CardCondition(models.TextChoices):
     NEAR_MINT   = 'NM',  'Near Mint'
@@ -568,3 +582,118 @@ class CardCondition(models.TextChoices):
     MODERATE    = 'MP',  'Moderately Played'
     HEAVILY     = 'HP',  'Heavily Played'
     DAMAGED     = 'DMG', 'Damaged'
+
+
+# --- Classification
+class PowerLevelTier(models.TextChoices):
+    """
+    Categorías basadas en la Honest Commander Power Scale.
+    """
+    PILE        = 'Pile of Cards',      'Pile of Cards (2-7)'
+    CASUAL_LOW  = 'Casual Pleasant',    'Casual Low (8-14)'
+    CASUAL_MID  = 'Casual Mid',         'Casual Mid (15-22)'
+    CASUAL_HIGH = 'Casual High',        'Casual High (23-31)'
+    OPTIMIZED   = 'Optimized',          'Optimized / High Power (32-42)'
+    CEDH        = 'cEDH',               'Competitive Commander (43-50)'
+    
+
+# -- Deck Archtype --
+class DeckArchtype(models.TextChoices):
+    NON         = '', ''
+    AGGRO       = 'aggro', 'Aggro'
+    TEMPO       = 'tempo', 'Tempo (Aggro-Control)'
+    RAMP        = 'ramp', 'Ramp'
+    CONTROL     = 'control', 'Control'
+    STAX        = 'stax', 'Stax'
+    COMBO       = 'combo', 'Combo'
+    AGGROCOMBO  = 'aggro_combo', 'Aggro Combo'
+    MIDRANGE    = 'midrange', 'Midrange'
+    # TYPES
+    ARTIFACTS   = 'artifacts', 'Artifacts'
+    AURAS       = 'auras', 'Auras'
+    BATTLES     = 'battles', 'Battles'
+    CURSES      = 'curses', 'Curses'
+    ENCHANTRESS = 'enchantress', 'Enchantress'
+    EQUIPMENTS  = 'equipments', 'Equipment'
+    HISTORIC    = 'historic', 'Historic'
+    KINDRED     = 'kindred', 'Kindred (Tribe)'
+    LANDMATTER  = 'land_matters', 'Land Matters'
+    LEGENDS     = 'legends', 'Legends'
+    OUTLAWS     = 'outlaws', 'Outlaws'
+    PARTY       = 'party', 'Party'
+    SAGAS       = 'sagas', 'Sagas'
+    SHRINES     = 'shrines', 'Shrines'
+    SLINGER     = 'spellslinger', 'Spellslinger'
+    SNOW        = 'snow', 'Snow'
+    SPACECRAFT  = 'spacecraft', 'Spacecraft'
+    SUPERFRIEND = 'superfriend', 'Superfriends'
+    UNNATURAL   = 'unnatural', 'Unnatural (Artifacts & Enchantments)'
+    VEHICLES    = 'vehicles', 'Vehicles'
+    BLOODTYPAL  = 'blood_typal', 'Blood Tokens'
+    CLUETYPAL   = 'clues_typal', 'Clue Tokens'
+    DUNGEON     = 'dungeons', 'Dungeons'
+    FOODTYPAL   = 'food_typal', 'Food Tokens'
+    LESSONS     = 'lessons', 'Lessons'
+    # THEMES
+    ARISTOCRATS = 'aristocrat', 'Aristocrats'
+    BEATDOWN    = 'beatdown', 'Beatdown'
+    BIGMANA     = 'big_mana', 'Big Mana Spells'
+    BLINKER     = 'blinker', 'Blink/Flicker'
+    BOUNCE      = 'bounce', 'Bounce'
+    BURN        = 'burn', 'Burn'
+    CANTRIP     = 'cantrip', 'Cantrips'
+    CARDDRAW    = 'card_draw', 'Card Draw'
+    CHAOS       = 'chaos', 'Chaos'
+    CHEERIOS    = 'cheerios', 'Cheerios'
+    CLONES      = 'clones', 'Clones'
+    COUNTERPLUS = 'counters_plus', '+1/+1 Counters'
+    COUNTERMIN  = 'counters_minus', '-1/-1 Counters'
+    COUNTERKEY  = 'counters_keywords', 'Keyword Counters'
+    COUNTERTYPE = 'counters_type', 'Type Counters'
+    DISCARD     = 'discard', 'Discard'
+    DONATE      = 'donate', 'Donate'
+    ENERGY      = 'energy', 'Energy'
+    EXILE       = 'exile', 'Exile'
+    EXPERIENCE  = 'experience', 'Experience'
+    EXTRACOMBAT = 'extra_combat', 'Extra Combats'
+    EXTRAUPKEEP = 'extra_upkeeps', 'Extra Upkeep'
+    FORCECOMBAT = 'forced_combat', 'Forced Combat'
+    GOODSTUFF   = 'good_stuff', 'Good Stuff'
+    GRAVEYARD   = 'graveyard', 'Graveyard'
+    GOWIDE      = 'go_wide', 'Go-Wide'
+    GROUPHUG    = 'group_hug', 'Group Hug'
+    GROUPSLUG   = 'group_slug', 'Group Slug'
+    IMPULSE     = 'impulse_draw', 'Impulse Draw'
+    KEYWORD     = 'keyword', 'Keyword (Specific)'
+    LANDFALL    = 'landfall', 'Landfall'
+    LIFEDRAIN   = 'life_drain', 'Life Drain'
+    LIFEGAIN    = 'life_gain', 'Life Gain'
+    MANLAND     = 'man_lands', 'Land Animation'
+    MILL        = 'mill', 'Mill'
+    MODIFIED    = 'modified', 'Modified Creatures'
+    MONARCH     = 'monarch', 'Monarch'
+    MULTICOLOR  = 'multicolor', 'Multicolor Matters'
+    PILLOWFORT  = 'pillow_fort', 'Pillow Fort'
+    PINGER      = 'pingers', 'Pingers'
+    POISON      = 'poison', 'Poison'
+    POLITICS    = 'politics', 'Politics'
+    POWER       = 'power_matters', 'Power Matters'
+    REANIMATE   = 'reanmiator', 'Reanimator'
+    SACRIFICE   = 'sacrifice', 'Sacrifice'
+    SELFMILL    = 'self_mill', 'Self Mill'
+    SLIGH       = 'sligh', 'Sligh'
+    SNEAK       = 'Sneak', 'Sneak'
+    SNEAKATTACK = 'sneak_attack', 'Sneak Attack'
+    STOMPY      = 'stompy', 'Stompy'    
+    TAX         = 'tax', 'Taxes'
+    THEFT       = 'theft', 'Theft'
+    THERING     = 'the_ring', 'The Ring'
+    TOUGHNESS   = 'toughness_matters', 'Toughness Matters'
+    TIMEWALKING = 'timewalking', 'Timewalking (Extra Turns)'
+    TOKENS      = 'tokens', 'Tokens'
+    VILLAINOUS  = 'villainous', 'Villainous Choices'
+    VOLTRON     = 'voltron', 'Voltron'
+    VOTING      = 'vote', 'Voting'
+    WEENIES     = 'weenies', 'Weenies'
+    WHEEL       = 'wheel', 'Wheel'
+    XSPELLS     = 'x_spells', 'X Spells'

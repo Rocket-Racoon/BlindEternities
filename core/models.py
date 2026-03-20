@@ -25,3 +25,20 @@ class BaseModel(models.Model):
 class ActiveManager(models.Manager):
     def get_queryset(self):
         return super().get_queryset().filter(is_active=True)
+    
+    
+class CreatureType(BaseModel):
+    """
+    Catálogo dinámico de subtipos de criatura.
+    Se sincroniza vía Scryfall /catalog/creature-types
+    para evitar mantenimiento manual.
+    """
+    name = models.CharField(max_length=100, unique=True, db_index=True)
+
+    class Meta:
+        ordering        = ["name"]
+        verbose_name    = "creature type"
+        verbose_name_plural = "creature types"
+
+    def __str__(self):
+        return self.name
