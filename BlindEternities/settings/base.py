@@ -3,7 +3,6 @@ Blind Eternities — Base Settings
 Shared across all environments. Never used directly.
 """
 from pathlib import Path
-from decouple import config, Csv
 import environ
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -164,90 +163,19 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # ──────────────────────────────────────────────
 # Crispy Forms
-
 # ──────────────────────────────────────────────
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# ──────────────────────────────────────────────
-# REST Framework
-# ──────────────────────────────────────────────
-# REST_FRAMEWORK = {
-#     'DEFAULT_AUTHENTICATION_CLASSES': [
-#         'rest_framework_simplejwt.authentication.JWTAuthentication',
-#     ],
-#     'DEFAULT_PERMISSION_CLASSES': [
-#         'rest_framework.permissions.IsAuthenticatedOrReadOnly',
-#     ],
-#     'DEFAULT_FILTER_BACKENDS': [
-#         'django_filters.rest_framework.DjangoFilterBackend',
-#         'rest_framework.filters.SearchFilter',
-#         'rest_framework.filters.OrderingFilter',
-#     ],
-#     'DEFAULT_PAGINATION_CLASS': 'core.pagination.StandardResultsPagination',
-#     'PAGE_SIZE': 20,
-#     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-# }
-
-
-# ──────────────────────────────────────────────
-# JWT
-# ──────────────────────────────────────────────
-# from datetime import timedelta
-# SIMPLE_JWT = {
-#     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-#     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-#     'ROTATE_REFRESH_TOKENS': True,
-#     'BLACKLIST_AFTER_ROTATION': True,
-#     'AUTH_HEADER_TYPES': ('Bearer',),
-# }
-
- 
-# ──────────────────────────────────────────────
-# SPECTACULAR (OpenAPI)
-# ──────────────────────────────────────────────
-# SPECTACULAR_SETTINGS = {
-#     'TITLE': 'BlindEternities API',
-#     'DESCRIPTION': 'Magic: The Gathering community platform',
-#     'VERSION': '1.0.0',
-#     'SERVE_INCLUDE_SCHEMA': False,
-#     'COMPONENT_SPLIT_REQUEST': True,
-# }
-
- 
-# ──────────────────────────────────────────────
-# CELERY
-# ──────────────────────────────────────────────
-# CELERY_BROKER_URL = config('REDIS_URL', default='redis://localhost:6379/0')
-# CELERY_RESULT_BACKEND = 'django-db'
-# CELERY_CACHE_BACKEND = 'django-cache'
-# CELERY_TIMEZONE = TIME_ZONE
-# CELERY_TASK_TRACK_STARTED = True
-# CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
-
- 
-# ──────────────────────────────────────────────
-# CACHE
-# ──────────────────────────────────────────────
-# CACHES = {
-#     'default': {
-#         'BACKEND': 'django_redis.cache.RedisCache',
-#         'LOCATION': config('REDIS_URL', default='redis://localhost:6379/1'),
-#         'OPTIONS': {
-#             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-#         },
-#         'KEY_PREFIX': 'be',
-#     }
-# }
  
 # ──────────────────────────────────────────────
 # SCRYFALL
 # ──────────────────────────────────────────────
 SCRYFALL_API_BASE = 'https://api.scryfall.com'
 SCRYFALL_BULK_DATA_URL = 'https://api.scryfall.com/bulk-data'
-HEADERS = {
+SCRYFALL_HEADERS = {
     "User-Agent": "BlindEternities/1.0",
     "Accept": "application/json",
 }

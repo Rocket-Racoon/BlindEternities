@@ -114,6 +114,7 @@ class CardSetType(models.TextChoices):
     SCHEMES          = "schemes_deck", "Scheme Deck"
     SCENE            = "scene_box", "Scene Box"
     CHAMPIONSHIP_DECK = "championship_deck",     "Championship Deck"
+    ART              = "art_series", "Art Series"
 
 
 UNSET_CODES = {
