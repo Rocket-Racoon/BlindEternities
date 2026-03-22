@@ -66,7 +66,7 @@ class Command(BaseCommand):
         filepath     = options["file"]
         dry_run      = options["dry_run"]
         limit        = options["limit"]
-        set_code     = options.get("set_code", "").lower()
+        set_code     = (options.get("set_code") or "").lower()
         skip_faces   = options["skip_faces"]
         skip_legality= options["skip_legality"]
         skip_prints  = options["skip_prints"]

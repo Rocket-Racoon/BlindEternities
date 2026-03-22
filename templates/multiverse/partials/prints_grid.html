@@ -1,0 +1,49 @@
+{% for print in page_obj %}
+<a href="{% url 'multiverse:card-detail' print.card.oracle_id %}"
+   class="group block">
+  <div class="card overflow-hidden transition-transform duration-150
+              group-hover:-translate-y-1 group-hover:shadow-md">
+
+    {% if print.image_normal %}
+    <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800 overflow-hidden">
+      <img src="{{ print.image_normal }}"
+           alt="{{ print.card.name }}"
+           loading="lazy"
+           class="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105">
+    </div>
+    {% else %}
+    <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800 flex items-center justify-center p-2">
+      <span class="text-xs text-gray-400 dark:text-gray-600 text-center">
+        {{ print.card.name }}
+      </span>
+    </div>
+    {% endif %}
+
+    <div class="p-1.5">
+      <p class="text-xs text-gray-500 dark:text-gray-400 text-center">
+        #{{ print.collector_number }}
+      </p>
+    </div>
+
+  </div>
+</a>
+{% endfor %}
+
+{% if page_obj.has_next %}
+<div id="scroll-sentinel"
+     hx-get="?page={{ page_obj.next_page_number }}"
+     hx-trigger="intersect once"
+     hx-target="#scroll-sentinel"
+     hx-swap="outerHTML"
+     class="col-span-full h-20 flex items-center justify-center">
+  <div class="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-600">
+    <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10"
+              stroke="currentColor" stroke-width="4"/>
+      <path class="opacity-75" fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+    </svg>
+    Cargando...
+  </div>
+</div>
+{% endif %}

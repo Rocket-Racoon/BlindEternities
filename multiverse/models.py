@@ -169,6 +169,7 @@ class CardFace(BaseModel):
     def __str__(self):
         return f"{self.card.name} — face {self.face_index} ({self.name})"
 
+
 class CardPrint(BaseModel):
     scryfall_id         = models.UUIDField(unique=True, db_index=True)
     card                = models.ForeignKey(Card, on_delete=models.CASCADE, related_name="prints")
@@ -243,22 +244,33 @@ class CardPrint(BaseModel):
 
     def __str__(self):
         return f"{self.card.name} [{self.cardset.code.upper()}] #{self.collector_number}"
+    
+    def _face_image(self, version):
+        """Busca la imagen en la cara frontal si el print no la tiene."""
+        face = self.card.faces.order_by("face_index").first()
+        if face and face.image_uris:
+            return face.image_uris.get(version, "")
+        return ""
 
     @property
     def image_normal(self):
-        return self.image_uris.get("normal", "")
+        return self.image_uris.get("normal") or self._face_image("normal")
+
+    @property
+    def image_small(self):
+        return self.image_uris.get("small") or self._face_image("small")
 
     @property
     def image_large(self):
-        return self.image_uris.get("large", "")
+        return self.image_uris.get("large") or self._face_image("large")
 
     @property
     def image_art_crop(self):
-        return self.image_uris.get("art_crop", "")
+        return self.image_uris.get("art_crop") or self._face_image("art_crop")
 
     @property
     def image_png(self):
-        return self.image_uris.get("png", "")
+        return self.image_uris.get("png") or self._face_image("png")
 
     @property
     def price_usd(self):

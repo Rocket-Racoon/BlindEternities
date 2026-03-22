@@ -57,7 +57,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         dry_run      = options["dry_run"]
-        set_code     = options.get("set_code", "").lower()
+        set_code     = (options.get("set_code") or "").lower()
         limit        = options["limit"]
         skip_faces   = options["skip_faces"]
         skip_legality= options["skip_legality"]

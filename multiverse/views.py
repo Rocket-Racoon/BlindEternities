@@ -16,10 +16,20 @@ from .forms import CardSearchForm, SetSearchForm
 class CardListView(TemplateView):
     template_name = "multiverse/card_list.html"
 
+    def get_template_names(self):
+        if self.request.headers.get("HX-Request") and self.request.GET.get("page"):
+            return ["multiverse/partials/card_grid.html"]
+        return [self.template_name]
+
     def get_context_data(self, **kwargs):
         ctx  = super().get_context_data(**kwargs)
         form = CardSearchForm(self.request.GET or None)
-        qs   = Card.objects.filter(is_active=True).order_by("name")
+        qs   = (
+            Card.objects
+            .filter(is_active=True)
+            .prefetch_related("prints__cardset", "faces")
+            .order_by("name")
+        )
 
         if form.is_valid():
             qs = form.filter_queryset(qs)
@@ -40,20 +50,29 @@ class CardDetailView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx  = super().get_context_data(**kwargs)
-        card = get_object_or_404(Card, oracle_id=self.kwargs["oracle_id"])
+        card = get_object_or_404(
+            Card.objects.prefetch_related("faces", "prints__cardset", "rulings"),
+            oracle_id=self.kwargs["oracle_id"],
+        )
 
         try:
             legality = card.legality
         except CardLegality.DoesNotExist:
             legality = None
 
+        faces      = list(card.faces.order_by("face_index"))
+        face_front = faces[0] if len(faces) > 0 else None
+        face_back  = faces[1] if len(faces) > 1 else None
+
         ctx.update({
-            "card":     card,
-            "faces":    card.faces.order_by("face_index"),
-            "prints":   card.prints.select_related("cardset").order_by("-cardset__released_at"),
-            "legality": legality,
-            "rulings":  card.rulings.order_by("published_at"),
-            "formats":  MagicFormat.choices,
+            "card":        card,
+            "faces":       faces,
+            "face_front":  face_front,
+            "face_back":   face_back,
+            "prints":      card.prints.select_related("cardset").order_by("-cardset__released_at"),
+            "legality":    legality,
+            "rulings":     card.rulings.order_by("published_at"),
+            "formats":     MagicFormat.choices,
         })
         return ctx
 
@@ -80,10 +99,20 @@ class SetListView(TemplateView):
 class SetDetailView(TemplateView):
     template_name = "multiverse/set_detail.html"
 
+    def get_template_names(self):
+        if self.request.headers.get("HX-Request") and self.request.GET.get("page"):
+            return ["multiverse/partials/prints_grid.html"]
+        return [self.template_name]
+
     def get_context_data(self, **kwargs):
         ctx     = super().get_context_data(**kwargs)
         cardset = get_object_or_404(CardSet, code=self.kwargs["code"].lower())
-        prints  = cardset.prints.select_related("card").order_by("collector_number")
+        prints  = (
+            cardset.prints
+            .select_related("card")
+            .prefetch_related("card__faces")
+            .order_by("collector_number")
+        )
 
         ctx.update({
             "cardset":  cardset,

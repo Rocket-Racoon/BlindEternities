@@ -8,7 +8,7 @@
         <th class="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">Rareza</th>
         <th class="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">Artista</th>
         <th class="text-right py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">USD</th>
-        <th class="text-right py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">USD Foil</th>
+        <th class="text-right py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">Foil</th>
         <th class="text-right py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">EUR</th>
       </tr>
     </thead>
@@ -19,7 +19,7 @@
           <div class="flex items-center gap-2">
             {% if print.cardset.icon_svg_uri %}
             <img src="{{ print.cardset.icon_svg_uri }}"
-                 class="w-4 h-4 opacity-70" alt="">
+                 class="w-4 h-4 opacity-60 dark:invert dark:opacity-40" alt="">
             {% endif %}
             <span class="font-medium text-gray-900 dark:text-gray-100">
               {{ print.cardset.code|upper }}
@@ -29,17 +29,26 @@
             </span>
           </div>
         </td>
-        <td class="py-2 px-3 text-gray-500 dark:text-gray-400">{{ print.collector_number }}</td>
-        <td class="py-2 px-3 capitalize text-gray-700 dark:text-gray-300">{{ print.rarity }}</td>
-        <td class="py-2 px-3 text-gray-500 dark:text-gray-400 truncate max-w-40">{{ print.artist }}</td>
-        <td class="py-2 px-3 text-right text-gray-900 dark:text-gray-100">
-          {% if print.price_usd %}<span>${{ print.price_usd }}</span>{% else %}<span class="text-gray-300 dark:text-gray-600">—</span>{% endif %}
+        <td class="py-2 px-3 text-gray-500 dark:text-gray-400">
+          {{ print.collector_number }}
+        </td>
+        <td class="py-2 px-3 capitalize text-gray-700 dark:text-gray-300">
+          {{ print.rarity }}
+        </td>
+        <td class="py-2 px-3 text-gray-500 dark:text-gray-400 truncate max-w-40">
+          {{ print.artist }}
         </td>
         <td class="py-2 px-3 text-right text-gray-900 dark:text-gray-100">
-          {% if print.price_usd_foil %}<span>${{ print.price_usd_foil }}</span>{% else %}<span class="text-gray-300 dark:text-gray-600">—</span>{% endif %}
+          {% if print.price_usd %}${{ print.price_usd }}
+          {% else %}<span class="text-gray-300 dark:text-gray-600">—</span>{% endif %}
         </td>
         <td class="py-2 px-3 text-right text-gray-900 dark:text-gray-100">
-          {% if print.price_eur %}<span>€{{ print.price_eur }}</span>{% else %}<span class="text-gray-300 dark:text-gray-600">—</span>{% endif %}
+          {% if print.price_usd_foil %}${{ print.price_usd_foil }}
+          {% else %}<span class="text-gray-300 dark:text-gray-600">—</span>{% endif %}
+        </td>
+        <td class="py-2 px-3 text-right text-gray-900 dark:text-gray-100">
+          {% if print.price_eur %}€{{ print.price_eur }}
+          {% else %}<span class="text-gray-300 dark:text-gray-600">—</span>{% endif %}
         </td>
       </tr>
       {% endfor %}

@@ -66,7 +66,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
-        code    = options.get("code", "").lower()
+        code    = (options.get("code") or "").lower()
         start   = timezone.now()
 
         self.stdout.write("Obteniendo sets desde Scryfall...")

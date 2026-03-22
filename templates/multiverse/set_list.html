@@ -1,23 +1,34 @@
 {% extends "base.html" %}
-{% load core_tags %}
+{% load static core_tags %}
 
 {% block title %}Sets — {{ site_name }}{% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto">
+<div class="max-w-4xl mx-auto">
 
+  <!-- Header -->
   <div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Sets</h1>
-    <span class="text-sm text-gray-500 dark:text-gray-400">
-      {{ page_obj.paginator.count }} sets
-    </span>
+    <div>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Sets</h1>
+      {% if page_obj.paginator.count %}
+      <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+        {{ page_obj.paginator.count }} set{{ page_obj.paginator.count|pluralize }}
+      </p>
+      {% endif %}
+    </div>
   </div>
 
   <!-- Filtros -->
-  <form method="get" class="flex gap-3 mb-6 flex-wrap">
-    {{ form.q }}
-    {{ form.set_type }}
-    {{ form.digital }}
+  <form method="get" class="flex flex-wrap gap-3 mb-6">
+    <div class="flex-1 min-w-48">
+      {{ form.q }}
+    </div>
+    <div class="w-48">
+      {{ form.set_type }}
+    </div>
+    <div class="w-40">
+      {{ form.digital }}
+    </div>
     <button type="submit" class="btn-primary">Filtrar</button>
     {% if request.GET %}
     <a href="{% url 'multiverse:set-list' %}" class="btn-secondary">Limpiar</a>
@@ -26,31 +37,71 @@
 
   <!-- Lista de sets -->
   {% if page_obj.object_list %}
-  <div class="space-y-2">
+  <div class="space-y-2" id="sets-list">
     {% for cardset in page_obj %}
     <a href="{% url 'multiverse:set-detail' cardset.code %}"
-       class="card p-4 flex items-center gap-4 hover:border-void-400 transition-colors block">
+       class="card p-4 flex items-center gap-4
+              hover:border-void-400 dark:hover:border-void-500
+              transition-colors block">
+
+      <!-- Ícono del set -->
       {% if cardset.icon_svg_uri %}
       <img src="{{ cardset.icon_svg_uri }}"
-           class="w-8 h-8 shrink-0 opacity-70 dark:invert dark:opacity-50"
+           class="w-8 h-8 shrink-0 opacity-60 dark:invert dark:opacity-40"
            alt="{{ cardset.code }}">
       {% else %}
       <div class="w-8 h-8 shrink-0 rounded bg-gray-100 dark:bg-void-800"></div>
       {% endif %}
+
+      <!-- Info principal -->
       <div class="flex-1 min-w-0">
-        <p class="font-medium text-gray-900 dark:text-gray-100 truncate">{{ cardset.name }}</p>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-          {{ cardset.code|upper }} · {{ cardset.set_type|capfirst }} · {{ cardset.card_count }} cartas
+        <p class="font-medium text-gray-900 dark:text-gray-100 truncate">
+          {{ cardset.name }}
         </p>
+        <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+          <span class="text-xs text-gray-500 dark:text-gray-400">
+            {{ cardset.code|upper }}
+          </span>
+          <span class="text-xs text-gray-400 dark:text-gray-600">·</span>
+          <span class="text-xs text-gray-500 dark:text-gray-400 capitalize">
+            {{ cardset.get_set_type_display|default:cardset.set_type }}
+          </span>
+          <span class="text-xs text-gray-400 dark:text-gray-600">·</span>
+          <span class="text-xs text-gray-500 dark:text-gray-400">
+            {{ cardset.card_count }} cartas
+          </span>
+          {% if cardset.block %}
+          <span class="text-xs text-gray-400 dark:text-gray-600">·</span>
+          <span class="text-xs text-gray-500 dark:text-gray-400">
+            {{ cardset.block }}
+          </span>
+          {% endif %}
+        </div>
       </div>
+
+      <!-- Info secundaria -->
       <div class="text-right shrink-0">
         <p class="text-sm text-gray-500 dark:text-gray-400">
-          {{ cardset.released_at|date:"M Y"|default:"—" }}
+          {{ cardset.released_at|date:"d M Y"|default:"—" }}
         </p>
-        {% if cardset.digital %}
-        <span class="text-xs text-blue-500">Digital</span>
-        {% endif %}
+        <div class="flex gap-2 justify-end mt-1">
+          {% if cardset.digital %}
+          <span class="text-xs px-2 py-0.5 rounded-full
+                       bg-blue-100 text-blue-700
+                       dark:bg-blue-900/30 dark:text-blue-400">
+            Digital
+          </span>
+          {% endif %}
+          {% if cardset.foil_only %}
+          <span class="text-xs px-2 py-0.5 rounded-full
+                       bg-amber-100 text-amber-700
+                       dark:bg-amber-900/30 dark:text-amber-400">
+            Foil
+          </span>
+          {% endif %}
+        </div>
       </div>
+
     </a>
     {% endfor %}
   </div>
@@ -59,8 +110,14 @@
   {% paginator page_obj %}
 
   {% else %}
-  <div class="card p-12 text-center text-gray-400 dark:text-gray-600 text-sm">
-    No se encontraron sets.
+  <div class="card p-12 text-center text-gray-400 dark:text-gray-600">
+    <p class="text-sm">No se encontraron sets.</p>
+    {% if request.GET %}
+    <a href="{% url 'multiverse:set-list' %}"
+       class="mt-4 inline-block text-sm text-void-600 dark:text-void-400 hover:underline">
+      Limpiar filtros
+    </a>
+    {% endif %}
   </div>
   {% endif %}
 

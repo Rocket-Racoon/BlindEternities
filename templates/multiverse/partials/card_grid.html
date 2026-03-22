@@ -1,0 +1,78 @@
+{% load core_tags %}
+
+{% if page_obj.object_list %}
+
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 mb-4">
+  {% for card in page_obj %}
+  <a href="{% url 'multiverse:card-detail' card.oracle_id %}"
+     class="group block">
+    <div class="card overflow-hidden transition-transform duration-150
+                group-hover:-translate-y-1 group-hover:shadow-md">
+
+      {% with print=card.primary_print %}
+      {% if print and print.image_normal %}
+      <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800 overflow-hidden">
+        <img src="{{ print.image_normal }}"
+             alt="{{ card.name }}"
+             loading="lazy"
+             class="w-full h-full object-cover transition-transform duration-200
+                    group-hover:scale-105">
+      </div>
+      {% else %}
+      <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800
+                  flex items-center justify-center p-2">
+        <span class="text-xs text-gray-400 dark:text-gray-600 text-center">
+          {{ card.name }}
+        </span>
+      </div>
+      {% endif %}
+      {% endwith %}
+
+      <div class="p-2">
+        <p class="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">
+          {{ card.name }}
+        </p>
+        <p class="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+          {{ card.type_line }}
+        </p>
+        {% if card.mana_cost %}
+        <p class="mt-1 text-xs">{{ card.mana_cost|mana_cost }}</p>
+        {% endif %}
+      </div>
+
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+{# Sentinel fuera del grid — no hereda grid-cols #}
+{% if page_obj.has_next %}
+<div id="scroll-sentinel"
+     hx-get="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+     hx-trigger="intersect once"
+     hx-target="#cards-container"
+     hx-swap="beforeend"
+     class="h-20 flex items-center justify-center mt-4">
+  <div class="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-600">
+    <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10"
+              stroke="currentColor" stroke-width="4"/>
+      <path class="opacity-75" fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+    </svg>
+    Cargando más cartas...
+  </div>
+</div>
+{% endif %}
+
+{% else %}
+<div class="card p-16 text-center text-gray-400 dark:text-gray-600">
+  <p class="text-sm">No se encontraron cartas.</p>
+  {% if request.GET %}
+  <a href="{% url 'multiverse:card-list' %}"
+     class="mt-4 inline-block text-sm text-void-600 dark:text-void-400 hover:underline">
+    Limpiar filtros
+  </a>
+  {% endif %}
+</div>
+{% endif %}

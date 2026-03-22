@@ -3,99 +3,97 @@
 
 {% block title %}{{ card.name }} — {{ site_name }}{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
+{% endblock %}
+
 {% block content %}
 <div class="max-w-6xl mx-auto">
 
   <!-- Breadcrumb -->
   <nav class="text-sm text-gray-500 dark:text-gray-400 mb-6">
     <a href="{% url 'multiverse:card-list' %}"
-       class="hover:text-void-600 dark:hover:text-void-400">Cartas</a>
+       class="hover:text-void-600 dark:hover:text-void-400 transition-colors">
+      Cartas
+    </a>
     <span class="mx-2">›</span>
     <span class="text-gray-900 dark:text-gray-100">{{ card.name }}</span>
   </nav>
 
-  <!-- Layout principal: imagen | datos -->
-  <div class="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-8 mb-8">
+  <!-- Layout principal -->
+  <div class="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-8 mb-10">
 
-    <!-- Columna izquierda: imagen principal -->
+    <!-- Columna izquierda: imagen -->
     <div class="flex flex-col gap-4">
-      {% if card.is_multiface and faces.count > 1 %}
-      {# --- Carta doble cara con flip 3D --- #}
+
+      {% if card.is_multiface and face_front and face_back %}
+      <!-- Carta doble cara — flip 3D -->
       <div x-data="{ flipped: false }" class="relative">
 
-        {# Botón tap/untap — esquina superior izquierda #}
+        <!-- Botón tap/untap -->
         <button @click="flipped = !flipped"
                 class="absolute top-3 left-3 z-10 w-9 h-9 flex items-center justify-center
-                       rounded-full bg-black/60 hover:bg-black/80 transition-colors
-                       backdrop-blur-sm shadow-lg"
-                :title="flipped ? 'Voltear (Untap)' : 'Voltear (Tap)'">
-          {# Ícono Tap (flecha circular) — se rota 90° cuando está flipped #}
-          <svg :class="flipped ? 'tap-icon tapped' : 'tap-icon'"
-               class="w-5 h-5 text-white"
-               viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                       rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-sm
+                       shadow-lg transition-colors"
+                :title="flipped ? 'Voltear — Untap' : 'Voltear — Tap'">
+          <svg :class="flipped ? 'rotate-90' : 'rotate-0'"
+               class="w-5 h-5 text-white transition-transform duration-300"
+               fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
           </svg>
         </button>
 
-        {# Flip container #}
+        <!-- Flip container -->
         <div class="card-flip-container w-full">
           <div class="card-flip-inner w-full" :class="flipped ? 'flipped' : ''">
 
-            {# Cara frontal #}
+            <!-- Cara frontal -->
             <div class="card-flip-front">
-              {% with face=faces.0 %}
-              {% if face.image_uris.normal %}
-              <img src="{{ face.image_uris.normal }}"
-                   alt="{{ face.name }}"
+              {% if face_front.image_uris.normal %}
+              <img src="{{ face_front.image_uris.normal }}"
+                   alt="{{ face_front.name }}"
                    class="w-full rounded-xl shadow-lg">
               {% else %}
-              <div class="aspect-[63/88] card flex items-center justify-center text-gray-400 rounded-xl">
-                <span class="text-sm">{{ face.name }}</span>
+              <div class="aspect-[63/88] card flex items-center justify-center rounded-xl">
+                <span class="text-sm text-gray-400">{{ face_front.name }}</span>
               </div>
               {% endif %}
-              {% endwith %}
             </div>
 
-            {# Cara trasera #}
+            <!-- Cara trasera -->
             <div class="card-flip-back">
-              {% if faces.count > 1 %}
-              {% with face=faces.1 %}
-              {% if face.image_uris.normal %}
-              <img src="{{ face.image_uris.normal }}"
-                   alt="{{ face.name }}"
+              {% if face_back.image_uris.normal %}
+              <img src="{{ face_back.image_uris.normal }}"
+                   alt="{{ face_back.name }}"
                    class="w-full rounded-xl shadow-lg">
               {% else %}
-              <div class="aspect-[63/88] card flex items-center justify-center text-gray-400 rounded-xl">
-                <span class="text-sm">{{ face.name }}</span>
+              <div class="aspect-[63/88] card flex items-center justify-center rounded-xl">
+                <span class="text-sm text-gray-400">{{ face_back.name }}</span>
               </div>
-              {% endif %}
-              {% endwith %}
               {% endif %}
             </div>
 
           </div>
         </div>
 
-        {# Label de cara actual #}
-        <div class="mt-2 text-center">
-          <span class="text-xs text-gray-500 dark:text-gray-400"
-                x-text="flipped ? '{{ faces.1.name }}' : '{{ faces.0.name }}'">
-          </span>
-        </div>
+        <!-- Label cara actual -->
+        <p class="mt-2 text-center text-xs text-gray-500 dark:text-gray-400"
+           x-text="flipped ? '{{ face_back.name }}' : '{{ face_front.name }}'">
+        </p>
 
       </div>
 
       {% else %}
-      {# --- Carta normal --- #}
+      <!-- Carta normal -->
       {% with print=card.primary_print %}
       {% if print and print.image_normal %}
       <img src="{{ print.image_normal }}"
            alt="{{ card.name }}"
            class="w-full rounded-xl shadow-lg">
       {% else %}
-      <div class="aspect-[63/88] card flex items-center justify-center text-gray-400 rounded-xl">
-        <span class="text-sm">Sin imagen</span>
+      <div class="aspect-[63/88] card flex items-center justify-center rounded-xl">
+        <span class="text-sm text-gray-400">Sin imagen</span>
       </div>
       {% endif %}
       {% endwith %}
@@ -128,32 +126,41 @@
       <!-- Precios -->
       {% if print.prices %}
       <div class="card p-4">
-        <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
+        <p class="text-xs font-medium text-gray-500 dark:text-gray-400
+                  uppercase tracking-wide mb-3">
           Precios
         </p>
-        <div class="grid grid-cols-2 gap-2 text-sm">
+        <div class="grid grid-cols-2 gap-3 text-sm">
           {% if print.price_usd %}
           <div>
             <p class="text-xs text-gray-500 dark:text-gray-400">USD</p>
-            <p class="font-medium text-gray-900 dark:text-gray-100">${{ print.price_usd }}</p>
+            <p class="font-medium text-gray-900 dark:text-gray-100">
+              ${{ print.price_usd }}
+            </p>
           </div>
           {% endif %}
           {% if print.price_usd_foil %}
           <div>
             <p class="text-xs text-gray-500 dark:text-gray-400">USD Foil</p>
-            <p class="font-medium text-gray-900 dark:text-gray-100">${{ print.price_usd_foil }}</p>
+            <p class="font-medium text-gray-900 dark:text-gray-100">
+              ${{ print.price_usd_foil }}
+            </p>
           </div>
           {% endif %}
           {% if print.price_eur %}
           <div>
             <p class="text-xs text-gray-500 dark:text-gray-400">EUR</p>
-            <p class="font-medium text-gray-900 dark:text-gray-100">€{{ print.price_eur }}</p>
+            <p class="font-medium text-gray-900 dark:text-gray-100">
+              €{{ print.price_eur }}
+            </p>
           </div>
           {% endif %}
           {% if print.price_tix %}
           <div>
             <p class="text-xs text-gray-500 dark:text-gray-400">MTGO Tix</p>
-            <p class="font-medium text-gray-900 dark:text-gray-100">{{ print.price_tix }}</p>
+            <p class="font-medium text-gray-900 dark:text-gray-100">
+              {{ print.price_tix }}
+            </p>
           </div>
           {% endif %}
         </div>
@@ -167,7 +174,7 @@
     <!-- Columna derecha: datos -->
     <div class="flex flex-col gap-6">
 
-      <!-- Nombre y tipo -->
+      <!-- Nombre, tipo y coste -->
       <div>
         <div class="flex items-start justify-between gap-4">
           <h1 class="text-3xl font-display font-semibold text-gray-900 dark:text-gray-100">
@@ -183,31 +190,47 @@
       </div>
 
       <!-- Oracle text -->
-      {% if card.is_multiface %}
+      {% if card.is_multiface and faces %}
       {% for face in faces %}
       <div class="card p-4">
-        <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-          {{ face.name }}
-          {% if face.mana_cost %}— {{ face.mana_cost|mana_cost }}{% endif %}
-        </p>
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-xs font-medium text-gray-500 dark:text-gray-400
+                    uppercase tracking-wide">
+            {{ face.name }}
+          </p>
+          {% if face.mana_cost %}
+          <span class="text-sm">{{ face.mana_cost|mana_cost }}</span>
+          {% endif %}
+        </div>
         {% if face.type_line %}
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">{{ face.type_line }}</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+          {{ face.type_line }}
+        </p>
         {% endif %}
+        {% if face.oracle_text %}
         <p class="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-line">
           {{ face.oracle_text }}
         </p>
+        {% endif %}
         {% if face.power %}
         <p class="text-sm font-medium text-gray-900 dark:text-gray-100 mt-2 text-right">
           {{ face.power }}/{{ face.toughness }}
         </p>
         {% endif %}
+        {% if face.loyalty %}
+        <p class="text-sm font-medium text-gray-900 dark:text-gray-100 mt-2 text-right">
+          Loyalty: {{ face.loyalty }}
+        </p>
+        {% endif %}
         {% if face.flavor_text %}
-        <p class="text-xs italic text-gray-400 dark:text-gray-500 mt-3 border-t border-gray-100 dark:border-void-800 pt-3">
+        <p class="text-xs italic text-gray-400 dark:text-gray-500 mt-3
+                  border-t border-gray-100 dark:border-void-800 pt-3">
           {{ face.flavor_text }}
         </p>
         {% endif %}
       </div>
       {% endfor %}
+
       {% else %}
       <div class="card p-4">
         {% if card.oracle_text %}
@@ -225,6 +248,11 @@
           Loyalty: {{ card.loyalty }}
         </p>
         {% endif %}
+        {% if card.defense %}
+        <p class="text-sm font-medium text-gray-900 dark:text-gray-100 mt-3 text-right">
+          Defense: {{ card.defense }}
+        </p>
+        {% endif %}
       </div>
       {% endif %}
 
@@ -233,17 +261,23 @@
         {% if card.cmc is not None %}
         <div class="card p-3 text-center">
           <p class="text-xs text-gray-500 dark:text-gray-400">CMC</p>
-          <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ card.cmc|floatformat:"-0" }}</p>
+          <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            {{ card.cmc|floatformat:"-0" }}
+          </p>
         </div>
         {% endif %}
         {% if card.edhrec_rank %}
         <div class="card p-3 text-center">
           <p class="text-xs text-gray-500 dark:text-gray-400">EDHREC rank</p>
-          <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">#{{ card.edhrec_rank }}</p>
+          <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            #{{ card.edhrec_rank }}
+          </p>
         </div>
         {% endif %}
         {% if card.can_be_commander %}
-        <div class="card p-3 text-center bg-void-50 dark:bg-void-900 border-void-200 dark:border-void-700">
+        <div class="card p-3 text-center
+                    bg-void-50 dark:bg-void-900
+                    border-void-200 dark:border-void-700">
           <p class="text-xs text-void-600 dark:text-void-400">Commander</p>
           <p class="text-sm font-medium text-void-700 dark:text-void-300">Legal</p>
         </div>
@@ -252,12 +286,26 @@
         <div class="card p-3 text-center">
           <p class="text-xs text-gray-500 dark:text-gray-400">Copias en deck</p>
           <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
-            {% if card.max_deck_copies == 0 %}Ilimitadas{% else %}Máx. {{ card.max_deck_copies }}{% endif %}
+            {% if card.max_deck_copies == 0 %}
+              Ilimitadas
+            {% else %}
+              Máx. {{ card.max_deck_copies }}
+            {% endif %}
           </p>
         </div>
         {% endif %}
+        {% if card.banned_as_companion %}
+        <div class="card p-3 text-center
+                    bg-red-50 dark:bg-red-900/20
+                    border-red-200 dark:border-red-800">
+          <p class="text-xs text-red-600 dark:text-red-400">Companion</p>
+          <p class="text-sm font-medium text-red-700 dark:text-red-300">Baneada</p>
+        </div>
+        {% endif %}
         {% if card.reserved %}
-        <div class="card p-3 text-center bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800">
+        <div class="card p-3 text-center
+                    bg-amber-50 dark:bg-amber-900/20
+                    border-amber-200 dark:border-amber-800">
           <p class="text-xs text-amber-600 dark:text-amber-400">Reserved List</p>
           <p class="text-sm font-medium text-amber-700 dark:text-amber-300">Sí</p>
         </div>
@@ -267,7 +315,8 @@
       <!-- Keywords -->
       {% if card.keywords %}
       <div>
-        <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+        <p class="text-xs font-medium text-gray-500 dark:text-gray-400
+                  uppercase tracking-wide mb-2">
           Keywords
         </p>
         <div class="flex flex-wrap gap-2">
@@ -285,50 +334,75 @@
     </div>
   </div>
 
-  <!-- Versiones de la carta (estilo Gatherer) -->
-  <div class="mb-8">
+  <!-- Versiones de la carta -->
+  {% if prints %}
+  <div class="mb-10">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-      Versiones ({{ prints|length }})
+      Versiones
+      <span class="text-sm font-normal text-gray-500 dark:text-gray-400 ml-1">
+        ({{ prints|length }})
+      </span>
     </h2>
     <div class="flex gap-3 flex-wrap">
       {% for print in prints %}
-      <div class="group relative"
+      <div class="relative group"
            x-data="{ show: false }"
            @mouseenter="show = true"
            @mouseleave="show = false">
 
         <!-- Thumbnail -->
-        <div class="w-16 h-22 rounded-lg overflow-hidden border-2 cursor-pointer transition-colors
-                    {% if print == card.primary_print %}border-void-500{% else %}border-gray-200 dark:border-void-700 hover:border-void-400{% endif %}">
-          {% if print.image_uris.small %}
-          <img src="{{ print.image_uris.small }}"
+        <div class="w-16 overflow-hidden rounded-lg border-2 cursor-pointer transition-all
+                    {% if forloop.first %}
+                      border-void-500
+                    {% else %}
+                      border-gray-200 dark:border-void-700
+                      hover:border-void-400 dark:hover:border-void-500
+                    {% endif %}">
+          {% if print.image_small %}
+          <img src="{{ print.image_small }}"
                alt="{{ print.cardset.name }}"
-               class="w-full h-full object-cover">
+               class="w-full object-cover">
           {% else %}
-          <div class="w-full h-full bg-gray-100 dark:bg-void-800 flex items-center justify-center">
-            <span class="text-xs text-gray-400">{{ print.cardset.code|upper }}</span>
+          <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800
+                      flex items-center justify-center">
+            <span class="text-xs text-gray-400">
+              {{ print.cardset.code|upper }}
+            </span>
           </div>
           {% endif %}
         </div>
 
-        <!-- Tooltip con info del print -->
+        <!-- Tooltip -->
         <div x-show="show"
              x-transition
-             class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-10
-                    w-48 card p-3 shadow-lg text-xs"
+             class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20
+                    w-52 card p-3 shadow-lg text-xs"
              style="display:none">
-          <p class="font-medium text-gray-900 dark:text-gray-100">{{ print.cardset.name }}</p>
+          <p class="font-medium text-gray-900 dark:text-gray-100">
+            {{ print.cardset.name }}
+          </p>
           <p class="text-gray-500 dark:text-gray-400 mt-0.5">
             #{{ print.collector_number }} · {{ print.rarity|capfirst }}
           </p>
           {% if print.artist %}
           <p class="text-gray-500 dark:text-gray-400">{{ print.artist }}</p>
           {% endif %}
-          {% if print.price_usd %}
-          <p class="text-gray-900 dark:text-gray-100 mt-1 font-medium">${{ print.price_usd }}</p>
-          {% endif %}
+          <div class="mt-1.5 flex gap-3">
+            {% if print.price_usd %}
+            <span class="font-medium text-gray-900 dark:text-gray-100">
+              ${{ print.price_usd }}
+            </span>
+            {% endif %}
+            {% if print.price_usd_foil %}
+            <span class="text-gray-500 dark:text-gray-400">
+              Foil ${{ print.price_usd_foil }}
+            </span>
+            {% endif %}
+          </div>
           {% if print.released_at %}
-          <p class="text-gray-400 dark:text-gray-500 mt-0.5">{{ print.released_at }}</p>
+          <p class="text-gray-400 dark:text-gray-500 mt-1">
+            {{ print.released_at }}
+          </p>
           {% endif %}
         </div>
 
@@ -336,102 +410,126 @@
       {% endfor %}
     </div>
   </div>
+  {% endif %}
 
-  <!-- Cartas relacionadas (tokens, partners, etc.) -->
+  <!-- Cartas relacionadas — Swiper -->
   {% if card.all_parts %}
-    <div class="mb-8">
-      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-        Cartas relacionadas
-        <span class="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
-          ({{ card.all_parts|length }})
-        </span>
-      </h2>
+  <div class="mb-10">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+      Cartas relacionadas
+      <span class="text-sm font-normal text-gray-500 dark:text-gray-400 ml-1">
+        ({{ card.all_parts|length }})
+      </span>
+    </h2>
 
-      <div class="swiper related-cards-swiper">
-        <div class="swiper-wrapper pb-4">
-          {% for part in card.all_parts %}
-          <div class="swiper-slide !w-40">
-            <a href="{% url 'multiverse:card-detail' part.id %}"
-               class="group block"
-               title="{{ part.name }}">
-              <div class="card overflow-hidden transition-transform duration-150
-                          group-hover:-translate-y-1 group-hover:shadow-md">
-        
-                {# Imagen del print #}
-                <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800 overflow-hidden relative">
-                  {# Intentamos cargar imagen via Scryfall si no la tenemos local #}
-                  <img src="https://api.scryfall.com/cards/{{ part.id }}?format=image&version=normal"
-                       alt="{{ part.name }}"
-                       loading="lazy"
-                       onerror="this.parentElement.innerHTML='<div class=\'w-full h-full flex items-center justify-center p-2\'><span class=\'text-xs text-gray-400 text-center\'>{{ part.name }}</span></div>'"
-                       class="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105">
-                
-                  {# Badge del tipo de relación #}
-                  <div class="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1">
-                    <span class="text-xs text-white/80 capitalize">
-                      {{ part.component|cut:"_" }}
-                    </span>
-                  </div>
+    <div class="swiper related-swiper overflow-hidden">
+      <div class="swiper-wrapper pb-4">
+        {% for part in card.all_parts %}
+        <div class="swiper-slide !w-36">
+          <a href="{% url 'multiverse:card-detail' part.id %}"
+             class="group block"
+             title="{{ part.name }}">
+            <div class="card overflow-hidden transition-transform duration-150
+                        group-hover:-translate-y-1 group-hover:shadow-md">
+              <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800 overflow-hidden relative">
+                <img src="https://api.scryfall.com/cards/{{ part.id }}?format=image&version=normal"
+                     alt="{{ part.name }}"
+                     loading="lazy"
+                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+                     class="w-full h-full object-cover transition-transform duration-200
+                            group-hover:scale-105">
+                <div class="w-full h-full items-center justify-center p-2 hidden">
+                  <span class="text-xs text-gray-400 text-center">{{ part.name }}</span>
                 </div>
-            
-                <div class="p-2">
-                  <p class="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">
-                    {{ part.name }}
-                  </p>
+                <!-- Badge componente -->
+                <div class="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1">
+                  <span class="text-xs text-white/80 capitalize">
+                    {{ part.component|cut:"_" }}
+                  </span>
                 </div>
-            
               </div>
-            </a>
-          </div>
-          {% endfor %}
+              <div class="p-2">
+                <p class="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">
+                  {{ part.name }}
+                </p>
+              </div>
+            </div>
+          </a>
         </div>
-
-        {# Navegación #}
-        {% if card.all_parts|length > 3 %}
-        <div class="swiper-button-prev !text-void-600 dark:!text-void-400 !w-8 !h-8
-                    after:!text-sm !-left-2"></div>
-        <div class="swiper-button-next !text-void-600 dark:!text-void-400 !w-8 !h-8
-                    after:!text-sm !-right-2"></div>
-        {% endif %}
-
-        {# Scrollbar #}
-        <div class="swiper-scrollbar"></div>
+        {% endfor %}
       </div>
 
+      {% if card.all_parts|length > 4 %}
+      <div class="swiper-button-prev !text-void-600 dark:!text-void-400
+                  !w-8 !h-8 after:!text-sm !-left-1"></div>
+      <div class="swiper-button-next !text-void-600 dark:!text-void-400
+                  !w-8 !h-8 after:!text-sm !-right-1"></div>
+      {% endif %}
+      <div class="swiper-scrollbar"></div>
     </div>
-    {% endif %}
+  </div>
+  {% endif %}
 
-  <!-- Tabs: Legality / Rulings -->
+  <!-- Tabs: Legality / Rulings / Prints -->
   <div x-data="{ tab: 'legality' }">
+
     <div class="flex gap-2 border-b border-gray-200 dark:border-void-700 mb-6">
       <button @click="tab = 'legality'"
-              :class="tab === 'legality' ? 'text-void-600 dark:text-void-400 border-b-2 border-void-600 dark:border-void-400' : 'text-gray-500 dark:text-gray-400 hover:text-void-600'"
+              :class="tab === 'legality'
+                ? 'text-void-600 dark:text-void-400 border-b-2 border-void-600 dark:border-void-400'
+                : 'text-gray-500 dark:text-gray-400 hover:text-void-600 dark:hover:text-void-400'"
               class="px-4 py-2 text-sm font-medium -mb-px transition-colors">
         Legality
       </button>
       <button @click="tab = 'rulings';
                       htmx.trigger('#rulings-container', 'load-rulings')"
-              :class="tab === 'rulings' ? 'text-void-600 dark:text-void-400 border-b-2 border-void-600 dark:border-void-400' : 'text-gray-500 dark:text-gray-400 hover:text-void-600'"
+              :class="tab === 'rulings'
+                ? 'text-void-600 dark:text-void-400 border-b-2 border-void-600 dark:border-void-400'
+                : 'text-gray-500 dark:text-gray-400 hover:text-void-600 dark:hover:text-void-400'"
               class="px-4 py-2 text-sm font-medium -mb-px transition-colors">
         Rulings
-        {% if card.rulings.count %}
-        <span class="ml-1 text-xs text-gray-400">({{ card.rulings.count }})</span>
+        {% if rulings %}
+        <span class="ml-1 text-xs text-gray-400 dark:text-gray-600">
+          ({{ rulings|length }})
+        </span>
         {% endif %}
+      </button>
+      <button @click="tab = 'prints';
+                      htmx.trigger('#prints-container', 'load-prints')"
+              :class="tab === 'prints'
+                ? 'text-void-600 dark:text-void-400 border-b-2 border-void-600 dark:border-void-400'
+                : 'text-gray-500 dark:text-gray-400 hover:text-void-600 dark:hover:text-void-400'"
+              class="px-4 py-2 text-sm font-medium -mb-px transition-colors">
+        Todas las versiones
       </button>
     </div>
 
-    <!-- Legality tab -->
+    <!-- Legality -->
     <div x-show="tab === 'legality'">
       {% include "multiverse/partials/legality.html" %}
     </div>
 
-    <!-- Rulings tab — carga con HTMX al hacer clic -->
+    <!-- Rulings — carga lazy con HTMX -->
     <div x-show="tab === 'rulings'" style="display:none">
       <div id="rulings-container"
            hx-get="{% url 'multiverse:partial-rulings' card.oracle_id %}"
            hx-trigger="load-rulings"
            hx-swap="innerHTML">
-        <div class="text-center text-gray-400 py-8 text-sm">Cargando rulings...</div>
+        <div class="text-center text-gray-400 dark:text-gray-600 py-8 text-sm">
+          Cargando rulings...
+        </div>
+      </div>
+    </div>
+
+    <!-- Prints — carga lazy con HTMX -->
+    <div x-show="tab === 'prints'" style="display:none">
+      <div id="prints-container"
+           hx-get="{% url 'multiverse:partial-prints' card.oracle_id %}"
+           hx-trigger="load-prints"
+           hx-swap="innerHTML">
+        <div class="text-center text-gray-400 dark:text-gray-600 py-8 text-sm">
+          Cargando versiones...
+        </div>
       </div>
     </div>
 
@@ -441,11 +539,12 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  const relatedSwiper = document.querySelector('.related-cards-swiper');
-  if (relatedSwiper) {
-    new Swiper('.related-cards-swiper', {
+  const el = document.querySelector('.related-swiper');
+  if (el) {
+    new Swiper('.related-swiper', {
       slidesPerView: 'auto',
       spaceBetween: 12,
       grabCursor: true,
@@ -457,10 +556,6 @@ document.addEventListener('DOMContentLoaded', function () {
       navigation: {
         nextEl: '.swiper-button-next',
         prevEl: '.swiper-button-prev',
-      },
-      breakpoints: {
-        640:  { spaceBetween: 16 },
-        1024: { spaceBetween: 20 },
       },
     });
   }
