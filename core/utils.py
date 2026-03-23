@@ -28,8 +28,13 @@ MANA_SYMBOL_RE = re.compile(r'\{([^}]+)\}')
 
 def format_mana_cost(mana_string):
     if not mana_string:
-        return ''
+        return ""
+
+    from core.symbolmap import ManaSymbol
+
     def replace(match):
-        symbol = match.group(1).lower().replace('/', '')
-        return f'<span class="ms ms-{symbol} ms-cost"></span>'
+        symbol    = match.group(1)
+        css_class = ManaSymbol.to_css(symbol)
+        return f'<abbr class="{css_class}" title="{{{symbol}}}"></abbr>'
+
     return MANA_SYMBOL_RE.sub(replace, mana_string)
