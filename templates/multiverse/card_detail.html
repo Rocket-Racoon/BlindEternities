@@ -209,17 +209,22 @@
         {% endif %}
         {% if face.oracle_text %}
         <p class="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-line">
-          {{ face.oracle_text }}
+          {{ face.oracle_text|oracle_symbols }}
         </p>
         {% endif %}
         {% if face.power %}
-        <p class="text-sm font-medium text-gray-900 dark:text-gray-100 mt-2 text-right">
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-400 mt-2 text-right">
           {{ face.power }}/{{ face.toughness }}
         </p>
         {% endif %}
         {% if face.loyalty %}
-        <p class="text-sm font-medium text-gray-900 dark:text-gray-100 mt-2 text-right">
-          Loyalty: {{ face.loyalty }}
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-400 mt-2 text-right">
+          Loyalty: {{ face.loyalty|oracle_symbols }}
+        </p>
+        {% endif %}
+        {% if face.defense %}
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-400 mt-3 text-right">
+          Defense: {{ face.defense|oracle_symbols }}
         </p>
         {% endif %}
         {% if face.flavor_text %}
@@ -235,7 +240,7 @@
       <div class="card p-4">
         {% if card.oracle_text %}
         <p class="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-line">
-          {{ card.oracle_text }}
+          {{ card.oracle_text|oracle_symbols }}
         </p>
         {% endif %}
         {% if card.power %}
@@ -245,12 +250,12 @@
         {% endif %}
         {% if card.loyalty %}
         <p class="text-sm font-medium text-gray-900 dark:text-gray-100 mt-3 text-right">
-          Loyalty: {{ card.loyalty }}
+          Loyalty: {{ card.loyalty|oracle_symbols }}
         </p>
         {% endif %}
         {% if card.defense %}
         <p class="text-sm font-medium text-gray-900 dark:text-gray-100 mt-3 text-right">
-          Defense: {{ card.defense }}
+          Defense: {{ card.defense|oracle_symbols }}
         </p>
         {% endif %}
       </div>

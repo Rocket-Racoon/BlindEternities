@@ -1,4 +1,5 @@
 # multiverse/views.py
+from django.db.models import Prefetch
 from django.views.generic import TemplateView
 from django.shortcuts import get_object_or_404
 from core.utils import paginate_queryset
@@ -9,7 +10,7 @@ from core.constants import (
     MagicFormat,
     CardSetType,
 )
-from .models import Card, CardSet, CardLegality
+from .models import Card, CardSet, CardLegality, CardPrint
 from .forms import CardSearchForm, SetSearchForm
 
 
@@ -24,26 +25,60 @@ class CardListView(TemplateView):
     def get_context_data(self, **kwargs):
         ctx  = super().get_context_data(**kwargs)
         form = CardSearchForm(self.request.GET or None)
-        qs   = (
+
+        qs = (
             Card.objects
             .filter(is_active=True)
-            .prefetch_related("prints__cardset", "faces")
+            .prefetch_related(
+                Prefetch(
+                    "prints",
+                    queryset=CardPrint.objects
+                        .select_related("cardset")
+                        .order_by("-released_at"),
+                    to_attr="all_prints_prefetched",
+                ),
+                Prefetch(
+                    "faces",
+                    to_attr="faces_prefetched",
+                ),
+            )
             .order_by("name")
         )
 
-        if form.is_valid():
+        qs = self._apply_defaults(qs)
+        
+        if self.request.GET and form.is_valid():
             qs = form.filter_queryset(qs)
 
         ctx.update({
             "form":     form,
-            "page_obj": paginate_queryset(qs, self.request.GET.get("page"), per_page=40),
+            "page_obj": paginate_queryset(qs, self.request.GET.get("page"), per_page=50),
             "colors":   MagicColor.choices,
             "rarities": CardRarity.choices,
             "layouts":  CardLayout.choices,
             "formats":  MagicFormat.choices,
+            "version":  self.request.GET.get("version", "all"),
         })
         return ctx
 
+    def _apply_defaults(self, qs):
+        """
+        Exclusiones que aplican siempre — independiente de los filtros del usuario.
+        """
+        # Sin type_line — cartas de arte, tokens sin tipo, etc.
+        qs = qs.exclude(type_line="")
+        qs = qs.exclude(type_line="Card")
+
+        # Layouts que nunca mostramos por defecto
+        qs = qs.exclude(layout__in=["art_series", "scheme", "planar",
+                                     "vanguard", "emblem", "conspiracy"])
+
+        # Sin cartas digitales por defecto
+        qs = qs.filter(
+            prints__digital=False
+        ).distinct()
+
+        return qs
 
 class CardDetailView(TemplateView):
     template_name = "multiverse/card_detail.html"
@@ -157,3 +192,4 @@ class CardLegalityPartialView(TemplateView):
         ctx["legality"] = legality
         ctx["card"]     = card
         return ctx
+    

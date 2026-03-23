@@ -2,14 +2,14 @@
 
 {% if page_obj.object_list %}
 
-<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 mb-4">
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-4">
   {% for card in page_obj %}
   <a href="{% url 'multiverse:card-detail' card.oracle_id %}"
      class="group block">
     <div class="card overflow-hidden transition-transform duration-150
                 group-hover:-translate-y-1 group-hover:shadow-md">
 
-      {% with print=card.primary_print %}
+      {% with print=card.grid_print %}
       {% if print and print.image_normal %}
       <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800 overflow-hidden">
         <img src="{{ print.image_normal }}"
@@ -45,14 +45,13 @@
   {% endfor %}
 </div>
 
-{# Sentinel fuera del grid — no hereda grid-cols #}
 {% if page_obj.has_next %}
 <div id="scroll-sentinel"
      hx-get="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
      hx-trigger="intersect once"
-     hx-target="#cards-container"
-     hx-swap="beforeend"
-     class="h-20 flex items-center justify-center mt-4">
+     hx-target="#scroll-sentinel"
+     hx-swap="outerHTML"
+     class="h-16 flex items-center justify-center mt-2">
   <div class="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-600">
     <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
       <circle class="opacity-25" cx="12" cy="12" r="10"

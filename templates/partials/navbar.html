@@ -13,14 +13,14 @@
 
       {# Nav links — desktop #}
       <div class="hidden md:flex items-center gap-1">
-        <a href="#"
+        <a href="{% url 'multiverse:card-list' %}"
            class="nav-link {% active_url 'card-list' %}">Search</a>
         {% if request.user.is_authenticated %}
         <a href="#"
            class="nav-link {% active_url 'collection' %}">Collection</a>
         <a href="#"
            class="nav-link {% active_url 'deck-list' %}">Decks</a>
-        <a href="#"
+        <a href="{% url 'multiverse:set-list' %}"
            class="nav-link {% active_url 'stats' %}">Stats</a>
         {% endif %}
         <a href="#"
@@ -99,7 +99,7 @@
 
     {# Mobile menu #}
     <div x-show="mobileOpen" x-transition class="md:hidden pb-3 space-y-1">
-      <a href="#" class="block nav-link">Search</a>
+      <a href="{% url 'multiverse:card-list' %}" class="block nav-link">Search</a>
       {% if request.user.is_authenticated %}
       <a href="#" class="block nav-link">Collection</a>
       <a href="#" class="block nav-link">Decks</a>

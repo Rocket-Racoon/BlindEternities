@@ -125,6 +125,24 @@ class Card(BaseModel):
     def primary_print(self):
         return self.prints.select_related("cardset").order_by("-cardset__released_at").first()
 
+    @property
+    def grid_print(self):
+        """
+        Print para mostrar en el grid.
+        Usa el prefetch si está disponible, si no cae al primary_print.
+        """
+        prefetched = getattr(self, "all_prints_prefetched", None)
+        if prefetched:
+            # Preferir print no digital con imagen
+            for p in prefetched:
+                if not p.digital and p.image_normal:
+                    return p
+            # Si todos son digitales, tomar el primero con imagen
+            for p in prefetched:
+                if p.image_normal:
+                    return p
+            return prefetched[0] if prefetched else None
+        return self.primary_print
 
 class CardFace(BaseModel):
     card            = models.ForeignKey(Card, on_delete=models.CASCADE, related_name="faces")

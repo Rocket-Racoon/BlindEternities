@@ -5,8 +5,8 @@ from .models import CardSet, Card, CardFace, CardPrint, CardLegality, Ruling
 
 @admin.register(CardSet)
 class CardSetAdmin(admin.ModelAdmin):
-    list_display    = ("code", "name", "set_type", "released_at", "card_count", "digital", "foil_only")
-    list_filter     = ("set_type", "digital", "foil_only", "nonfoil_only")
+    list_display    = ("code", "name", "set_type", "released_at", "card_count", "digital", "foil_only", "is_standard_legal")
+    list_filter     = ("set_type", "digital", "foil_only", "nonfoil_only", "is_standard_legal")
     search_fields   = ("code", "name", "block", "arena_code", "mtgo_code")
     readonly_fields = ("id", "scryfall_id", "created_at", "updated_at")
     fieldsets = (
@@ -20,7 +20,7 @@ class CardSetAdmin(admin.ModelAdmin):
             "fields": ("card_count", "printed_size"),
         }),
         ("Flags", {
-            "fields": ("digital", "foil_only", "nonfoil_only"),
+            "fields": ("digital", "foil_only", "nonfoil_only", "is_standard_legal"),
         }),
         ("URIs", {
             "fields": ("icon_svg_uri", "search_uri", "scryfall_uri"),
