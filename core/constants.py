@@ -13,6 +13,9 @@ class MagicFormat(models.TextChoices):
     PAUPER    = "pauper",    "Pauper"
     DRAFT     = "draft",     "Draft"
     SEALED    = "sealed",    "Sealed"
+    OATHBREAKER = "oathbreaker", "Oathbreaker"
+    BRAWL     = "brawl",     "Brawl"
+    OTHER     = "other",     "Other"
 
 
 # --- Colors ---
@@ -135,29 +138,29 @@ class BorderColor(models.TextChoices):
 
 
 class CardFinish(models.TextChoices):
-    NONFOIL         = "nonfoil", "Non-Foil"
-    FOIL            = "foil",    "Foil"
-    PREMODERN       = 'premodern', 'Pre-Modern Foil'
-    AMPERSAND       = 'ampersand', 'Ampersand Foil'
-    CONFETTI        = 'confetti', 'Confetti Foil'
-    DOUBLERAINBOW   = 'doublerainbow', 'Double-Rainbow Foil'
-    FIRSTPLACE      = 'firstplace', 'First Place Foil'
-    FRACTURE        = 'fractur', 'Fractur Foil'
-    ETCHED          = "etched",  "Etched"
-    GALAXY          = 'galaxy', 'Galaxy Foil'
-    GILDED          = 'gilded', 'Gilded Foil'
-    GLOSSY          = "glossy",  "Glossy"
-    HALO            = 'halo', 'Halo Foil'
-    INVISIBLE       = 'invisible', 'Invisible Ink Foil'
-    MANA            = 'mana', 'Mana Foil'
-    NEONINK         = 'neonink', 'Neon Ink Foil'
-    OILSLICK        = 'oilslick', 'Oil Slick Raised Foil'
-    RIPPLE          = 'ripple', 'Ripple Foil'
-    SILVERSCREEN    = 'silverscreen', 'Silver Screen Foil'
-    STEPCOMPLETE    = 'stepcomplete', 'Step & Complete Foil'
-    SURGE           = 'surge', 'Surge Foil'
-    TEXTURED        = 'textured', 'Textured Foil'
-    VAULT           = 'vault', 'From the Vault Foil'
+    NONFOIL         = "nonfoil",        "Non-Foil"
+    FOIL            = "foil",           "Foil"
+    PREMODERN       = 'premodern',      'Pre-Modern Foil'
+    AMPERSAND       = 'ampersand',      'Ampersand Foil'
+    CONFETTI        = 'confetti',       'Confetti Foil'
+    DOUBLERAINBOW   = 'doublerainbow',  'Double-Rainbow Foil'
+    FIRSTPLACE      = 'firstplace',     'First Place Foil'
+    FRACTURE        = 'fractur',        'Fractur Foil'
+    ETCHED          = "etched",         "Etched"
+    GALAXY          = 'galaxy',         'Galaxy Foil'
+    GILDED          = 'gilded',         'Gilded Foil'
+    GLOSSY          = "glossy",         "Glossy"
+    HALO            = 'halo',           'Halo Foil'
+    INVISIBLE       = 'invisible',      'Invisible Ink Foil'
+    MANA            = 'mana',           'Mana Foil'
+    NEONINK         = 'neonink',        'Neon Ink Foil'
+    OILSLICK        = 'oilslick',       'Oil Slick Raised Foil'
+    RIPPLE          = 'ripple',         'Ripple Foil'
+    SILVERSCREEN    = 'silverscreen',   'Silver Screen Foil'
+    STEPCOMPLETE    = 'stepcomplete',   'Step & Complete Foil'
+    SURGE           = 'surge',          'Surge Foil'
+    TEXTURED        = 'textured',       'Textured Foil'
+    VAULT           = 'vault',          'From the Vault Foil'
     
 
 class CardWatermark(models.TextChoices):
