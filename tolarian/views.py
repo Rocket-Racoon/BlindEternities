@@ -12,6 +12,7 @@ from django.views.generic import (
     TemplateView, ListView, DetailView,
     CreateView, UpdateView, DeleteView, View,
 )
+from core.constants import CardCondition, CardFinish
 from core.mixins import OwnerRequiredMixin
 from core.utils import paginate_queryset
 from multiverse.models import Card, CardPrint
@@ -82,10 +83,13 @@ class CollectionDetailView(LoginRequiredMixin, TemplateView):
             items = items.filter(card__name__icontains=q)
 
         ctx.update({
-            "collection": collection,
-            "page_obj":   paginate_queryset(items, self.request.GET.get("page"), per_page=40),
-            "is_owner":   collection.user == self.request.user,
-            "q":          q,
+            "collection":         collection,
+            "page_obj":           paginate_queryset(items, self.request.GET.get("page"), per_page=40),
+            "is_owner":           collection.user == self.request.user,
+            "collection_add_url": reverse("tolarian:collection-add-card", kwargs={"pk": collection.pk}),
+            "condition_choices":  CardCondition.choices,
+            "finish_choices":     CardFinish.choices,
+            "q":                  q,
         })
         return ctx
 
@@ -501,3 +505,45 @@ class DeckStatsPartialView(LoginRequiredMixin, TemplateView):
             "shared":      shared,
         })
         return ctx
+
+
+# ---------------------------------------------------------------------------
+# API JSON — búsqueda de cartas
+# ---------------------------------------------------------------------------
+class CardSearchJSON(LoginRequiredMixin, View):
+    """Return up to 10 cards matching a name query, with their prints."""
+
+    def get(self, request):
+        q = request.GET.get("q", "").strip()
+        if len(q) < 2:
+            return JsonResponse([], safe=False)
+
+        cards = (
+            Card.objects
+            .filter(is_active=True, name__icontains=q)
+            .prefetch_related("prints__cardset")
+            .order_by("name")[:10]
+        )
+
+        results = []
+        for card in cards:
+            prints = [
+                {
+                    "id": str(p.pk),
+                    "set_code": p.cardset.code if p.cardset else "",
+                    "set_name": p.cardset.name if p.cardset else "",
+                    "collector_number": p.collector_number,
+                    "image": p.image_uris.get("small", ""),
+                    "price_usd": p.prices.get("usd"),
+                }
+                for p in card.prints.all()[:20]
+            ]
+            results.append({
+                "id": str(card.pk),
+                "oracle_id": str(card.oracle_id),
+                "name": card.name,
+                "type_line": card.type_line,
+                "prints": prints,
+            })
+
+        return JsonResponse(results, safe=False)

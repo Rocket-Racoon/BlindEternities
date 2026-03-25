@@ -36,5 +36,8 @@ urlpatterns = [
     # Parciales HTMX
     path("decks/<uuid:pk>/curve/",              views.DeckCurvePartialView.as_view(), name="partial-curve"),
     path("decks/<uuid:pk>/stats/",              views.DeckStatsPartialView.as_view(), name="partial-stats"),
+
+    # API JSON
+    path("api/card-search/",                    views.CardSearchJSON.as_view(),       name="card-search"),
 ]
 
