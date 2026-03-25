@@ -15,6 +15,7 @@ urlpatterns = [
 
     # Items de colección
     path("<uuid:pk>/add/",          views.CollectionAddCardView.as_view(),    name="collection-add-card"),
+    path("<uuid:pk>/bulk-add/",     views.CollectionBulkAddView.as_view(),    name="collection-bulk-add"),
     path("items/<uuid:item_pk>/edit/",          views.CollectionItemEditView.as_view(),   name="collection-item-edit"),
     path("items/<uuid:item_pk>/delete/",        views.CollectionItemDeleteView.as_view(), name="collection-item-delete"),
 

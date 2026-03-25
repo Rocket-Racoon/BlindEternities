@@ -92,21 +92,35 @@
     </div>
   </form>
 
-  <!-- Agregar carta — solo owner -->
+  <!-- Agregar cartas — solo owner -->
   {% if is_owner %}
   <div class="card p-4 mb-6"
-       x-data="{ open: false }">
-    <button @click="open = !open"
-            class="flex items-center gap-2 text-sm font-medium
-                   text-void-600 dark:text-void-400">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M12 4v16m8-8H4"/>
-      </svg>
-      Agregar carta
-    </button>
-    <div x-show="open" x-transition class="mt-4">
+       x-data="{ mode: 'none' }">
+    <div class="flex items-center gap-4">
+      <button @click="mode = mode === 'single' ? 'none' : 'single'"
+              class="flex items-center gap-2 text-sm font-medium
+                     text-void-600 dark:text-void-400">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 4v16m8-8H4"/>
+        </svg>
+        Agregar carta
+      </button>
+      <button @click="mode = mode === 'bulk' ? 'none' : 'bulk'"
+              class="flex items-center gap-2 text-sm font-medium
+                     text-void-600 dark:text-void-400">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+        Agregar en lote
+      </button>
+    </div>
+    <div x-show="mode === 'single'" x-transition class="mt-4">
       {% include "tolarian/partials/add_card_form.html" with url=collection_add_url %}
+    </div>
+    <div x-show="mode === 'bulk'" x-transition class="mt-4">
+      {% include "tolarian/partials/bulk_add_form.html" with url=collection_bulk_add_url %}
     </div>
   </div>
   {% endif %}

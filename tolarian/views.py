@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 from django.core.exceptions import PermissionDenied
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
@@ -87,6 +88,7 @@ class CollectionDetailView(LoginRequiredMixin, TemplateView):
             "page_obj":           paginate_queryset(items, self.request.GET.get("page"), per_page=40),
             "is_owner":           collection.user == self.request.user,
             "collection_add_url": reverse("tolarian:collection-add-card", kwargs={"pk": collection.pk}),
+            "collection_bulk_add_url": reverse("tolarian:collection-bulk-add", kwargs={"pk": collection.pk}),
             "condition_choices":  CardCondition.choices,
             "finish_choices":     CardFinish.choices,
             "q":                  q,
@@ -162,6 +164,58 @@ class CollectionAddCardView(CollectionOwnerMixin, View):
         if request.headers.get("HX-Request"):
             return HttpResponse(status=204)
         return redirect("tolarian:collection-detail", pk=pk)
+
+
+class CollectionBulkAddView(CollectionOwnerMixin, View):
+    """Accept a JSON array of cards and add them all in one transaction."""
+
+    def post(self, request, pk):
+        collection = get_object_or_404(Collection, pk=pk)
+
+        try:
+            items_data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "JSON inválido."}, status=400)
+
+        if not isinstance(items_data, list) or not items_data:
+            return JsonResponse({"error": "Se requiere una lista de cartas."}, status=400)
+
+        created = 0
+        updated = 0
+        errors  = []
+
+        with transaction.atomic():
+            for i, entry in enumerate(items_data):
+                form = CollectionItemForm(entry)
+                if not form.is_valid():
+                    errors.append({"index": i, "errors": form.errors})
+                    continue
+
+                item = form.save(commit=False)
+                item.collection = collection
+
+                existing = CollectionItem.objects.filter(
+                    collection=collection,
+                    card=item.card,
+                    print=item.print,
+                    condition=item.condition,
+                    finish=item.finish,
+                    language=item.language,
+                ).first()
+
+                if existing:
+                    existing.quantity += item.quantity
+                    existing.save(update_fields=["quantity", "updated_at"])
+                    updated += 1
+                else:
+                    item.save()
+                    created += 1
+
+        return JsonResponse({
+            "created": created,
+            "updated": updated,
+            "errors":  errors,
+        })
 
 
 class CollectionItemEditView(LoginRequiredMixin, View):
