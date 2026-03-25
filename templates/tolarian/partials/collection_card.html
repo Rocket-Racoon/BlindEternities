@@ -1,0 +1,44 @@
+{% load core_tags %}
+<a href="{% url 'tolarian:collection-detail' collection.pk %}"
+   class="card p-4 flex items-start gap-4 hover:border-void-400
+          dark:hover:border-void-500 transition-colors block">
+
+  <!-- Cover card o placeholder -->
+  <div class="w-16 shrink-0">
+    {% if collection.cover_card %}
+    {% with print=collection.cover_card.primary_print %}
+    {% if print and print.image_normal %}
+    <img src="{{ print.image_normal }}"
+         alt="{{ collection.cover_card.name }}"
+         class="w-full rounded-lg shadow">
+    {% else %}
+    <div class="aspect-[63/88] rounded-lg bg-gray-100 dark:bg-void-800"></div>
+    {% endif %}
+    {% endwith %}
+    {% else %}
+    <div class="aspect-[63/88] rounded-lg bg-gray-100 dark:bg-void-800
+                flex items-center justify-center">
+      <span class="text-xs text-gray-400">?</span>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Info -->
+  <div class="flex-1 min-w-0">
+    <p class="font-medium text-gray-900 dark:text-gray-100 truncate">
+      {{ collection.name }}
+    </p>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+      {{ collection.get_collection_type_display }}
+    </p>
+    <div class="flex gap-3 mt-2 text-xs text-gray-500 dark:text-gray-400">
+      <span>{{ collection.total_qty|default:"0" }} cartas</span>
+      {% if collection.is_public %}
+      <span class="text-green-600 dark:text-green-400">Pública</span>
+      {% else %}
+      <span>Privada</span>
+      {% endif %}
+    </div>
+  </div>
+
+</a>

@@ -27,6 +27,22 @@ VERSION_CHOICES = [
     ("latest", "Solo versión más reciente"),
 ]
 
+NORMAL_LAYOUTS = {
+    "normal", "split", "flip", "transform", "modal_dfc",
+    "meld", "leveler", "class", "case", "saga", "adventure",
+    "battle", "reversible_card", "augment", "host",
+}
+
+KIND_LAYOUTS = {
+    "token":      ["token", "double_faced_token"],
+    "planar":     ["planar"],
+    "scheme":     ["scheme"],
+    "conspiracy": ["conspiracy"],
+    "vanguard":   ["vanguard"],
+    "emblem":     ["emblem"],
+    "art_series": ["art_series"]  
+}
+
 
 class CardSearchForm(forms.Form):
     q = forms.CharField(
@@ -139,21 +155,7 @@ class CardSearchForm(forms.Form):
         widget=forms.CheckboxInput(attrs={"class": "w-4 h-4 rounded"}),
     )
     
-    NORMAL_LAYOUTS = {
-        "normal", "split", "flip", "transform", "modal_dfc",
-        "meld", "leveler", "class", "case", "saga", "adventure",
-        "battle", "reversible_card", "augment", "host",
-    }
     
-    KIND_LAYOUTS = {
-        "token":      ["token", "double_faced_token"],
-        "planar":     ["planar"],
-        "scheme":     ["scheme"],
-        "conspiracy": ["conspiracy"],
-        "vanguard":   ["vanguard"],
-        "emblem":     ["emblem"],
-        "art_series": ["art_series"]  
-    }
 
     def filter_queryset(self, qs):
         if not self.is_valid():
@@ -221,9 +223,9 @@ class CardSearchForm(forms.Form):
         kind = data.get("card_kind", "")
         if kind == "normal":
             # Solo layouts normales — excluye arte, tokens, planes, etc.
-            qs = qs.filter(layout__in=self.NORMAL_LAYOUTS)
-        elif kind in self.KIND_LAYOUTS:
-            qs = qs.filter(layout__in=self.KIND_LAYOUTS[kind])
+            qs = qs.filter(layout__in=NORMAL_LAYOUTS)
+        elif kind in KIND_LAYOUTS:
+            qs = qs.filter(layout__in=KIND_LAYOUTS[kind])
             
         if data.get("digital"):
             qs = qs.filter(prints__digital=True).distinct()
@@ -233,7 +235,7 @@ class CardSearchForm(forms.Form):
 
 class SetSearchForm(forms.Form):
     q = forms.CharField(
-        required=False,
+        required=False, 
         label="Buscar",
         widget=forms.TextInput(attrs={
             "placeholder": "Nombre del set...",
@@ -312,10 +314,10 @@ class SetSearchForm(forms.Form):
         # card_kind — sobreescribe exclusiones de defecto si el usuario elige uno
         kind = data.get("card_kind", "")
         if kind == "normal":
-            qs = qs.filter(layout__in=self.NORMAL_LAYOUTS)
-        elif kind in self.KIND_LAYOUTS:
+            qs = qs.filter(layout__in=NORMAL_LAYOUTS)
+        elif kind in KIND_LAYOUTS:
             # Re-incluir el layout especial que el usuario quiere ver
-            qs = qs.filter(layout__in=self.KIND_LAYOUTS[kind])
+            qs = qs.filter(layout__in=KIND_LAYOUTS[kind])
     
         # Digital — re-incluir si el usuario lo pide
         if data.get("digital"):

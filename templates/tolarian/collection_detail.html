@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% load static core_tags %}
+
+{% block title %}{{ collection.name }} — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto"
+     x-data="{ view: localStorage.getItem('collection-view') || 'grid' }"
+     x-init="$watch('view', v => localStorage.setItem('collection-view', v))">
+
+  <!-- Header -->
+  <div class="flex items-start justify-between gap-4 mb-6">
+    <div>
+      <nav class="text-sm text-gray-500 dark:text-gray-400 mb-1">
+        <a href="{% url 'tolarian:collection-list' %}"
+           class="hover:text-void-600 dark:hover:text-void-400">
+          Colecciones
+        </a>
+        <span class="mx-2">›</span>
+        <span class="text-gray-900 dark:text-gray-100">{{ collection.name }}</span>
+      </nav>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+        {{ collection.name }}
+      </h1>
+      <div class="flex gap-3 mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <span>{{ collection.get_collection_type_display }}</span>
+        <span>{{ collection.card_count }} cartas</span>
+        {% if collection.total_value %}
+        <span>${{ collection.total_value }} USD</span>
+        {% endif %}
+        {% if collection.is_public %}
+        <span class="text-green-600 dark:text-green-400">Pública</span>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if is_owner %}
+    <div class="flex gap-2 shrink-0">
+      <!-- Toggle vista -->
+      <div class="flex rounded-lg border border-gray-200 dark:border-void-700 overflow-hidden">
+        <button @click="view = 'grid'"
+                :class="view === 'grid'
+                  ? 'bg-void-600 text-white'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800'"
+                class="px-3 py-1.5 text-sm transition-colors"
+                title="Vista grid">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+          </svg>
+        </button>
+        <button @click="view = 'table'"
+                :class="view === 'table'
+                  ? 'bg-void-600 text-white'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800'"
+                class="px-3 py-1.5 text-sm transition-colors"
+                title="Vista tabla">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M3 10h18M3 14h18M10 3v18"/>
+          </svg>
+        </button>
+      </div>
+
+      <a href="{% url 'tolarian:collection-export' collection.pk %}"
+         class="btn-secondary text-sm">
+        Exportar CSV
+      </a>
+      <a href="{% url 'tolarian:collection-import' collection.pk %}"
+         class="btn-secondary text-sm">
+        Importar
+      </a>
+      <a href="{% url 'tolarian:collection-edit' collection.pk %}"
+         class="btn-secondary text-sm">
+        Editar
+      </a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Búsqueda -->
+  <form method="get" class="mb-6">
+    <div class="flex gap-3">
+      <input type="text" name="q" value="{{ q }}"
+             placeholder="Buscar en la colección..."
+             class="input flex-1">
+      <button type="submit" class="btn-primary">Buscar</button>
+      {% if q %}
+      <a href="{% url 'tolarian:collection-detail' collection.pk %}"
+         class="btn-secondary">Limpiar</a>
+      {% endif %}
+    </div>
+  </form>
+
+  <!-- Agregar carta — solo owner -->
+  {% if is_owner %}
+  <div class="card p-4 mb-6"
+       x-data="{ open: false }">
+    <button @click="open = !open"
+            class="flex items-center gap-2 text-sm font-medium
+                   text-void-600 dark:text-void-400">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 4v16m8-8H4"/>
+      </svg>
+      Agregar carta
+    </button>
+    <div x-show="open" x-transition class="mt-4">
+      {% include "tolarian/partials/add_card_form.html" with url=collection_add_url %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Grid view -->
+  <div x-show="view === 'grid'">
+    {% include "tolarian/partials/collection_grid.html" %}
+  </div>
+
+  <!-- Table view -->
+  <div x-show="view === 'table'">
+    {% include "tolarian/partials/collection_table.html" %}
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}
+{% if object %}Editar colección{% else %}Nueva colección{% endif %} — {{ site_name }}
+{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto">
+  <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-6">
+    {% if object %}Editar colección{% else %}Nueva colección{% endif %}
+  </h1>
+
+  <div class="card p-6">
+    <form method="post">
+      {% csrf_token %}
+      <div class="space-y-4">
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Nombre
+          </label>
+          {{ form.name }}
+          {% if form.name.errors %}
+          <p class="mt-1 text-xs text-red-500">{{ form.name.errors.0 }}</p>
+          {% endif %}
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Tipo
+          </label>
+          {{ form.collection_type }}
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Descripción
+          </label>
+          {{ form.description }}
+        </div>
+
+        <div class="flex items-center gap-2">
+          {{ form.is_public }}
+          <label class="text-sm text-gray-700 dark:text-gray-300">
+            Colección pública
+          </label>
+        </div>
+
+      </div>
+
+      <div class="mt-6 flex gap-3 justify-end pt-4
+                  border-t border-gray-200 dark:border-void-700">
+        <a href="{% url 'tolarian:collection-list' %}"
+           class="btn-secondary">Cancelar</a>
+        <button type="submit" class="btn-primary">
+          {% if object %}Guardar cambios{% else %}Crear colección{% endif %}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
