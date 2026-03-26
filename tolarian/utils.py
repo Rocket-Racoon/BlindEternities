@@ -276,6 +276,128 @@ def parse_collection_csv(file, collection):
     return {"created": created, "updated": updated, "errors": errors}
 
 
+# Regex para bulk de colección:
+#   4x Lightning Bolt (M10) NM foil
+#   2 Counterspell LP etched
+#   1 Sol Ring
+# Grupos: qty, name, set_code (opcional), extras (condición/finish opcionales)
+COLLECTION_LINE_RE = re.compile(
+    r"^\s*(?P<qty>\d+)\s*[xX]?\s+"
+    r"(?P<name>.+?)"
+    r"(?:\s+\((?P<set>[^)]+)\))?"
+    r"(?P<extras>(?:\s+(?:" + "|".join([
+        "NM", "LP", "MP", "HP", "DMG",
+        "foil", "nonfoil", "etched", "glossy",
+        "surge", "textured", "gilded", "galaxy",
+        "ripple", "halo", "oilslick", "neonink",
+        "confetti", "doublerainbow", "premodern",
+        "ampersand", "firstplace", "fractur",
+        "invisible", "mana", "silverscreen",
+        "stepcomplete", "vault",
+    ]) + r"))*)"
+    r"\s*$",
+    re.IGNORECASE,
+)
+
+CONDITION_TOKENS = {v.upper(): v for v in CardCondition.values}   # NM, LP, MP, HP, DMG
+FINISH_TOKENS    = {v.lower(): v for v in CardFinish.values}      # foil, etched, glossy, ...
+
+
+def _parse_extras(extras_str):
+    """Extract condition and finish from trailing tokens like 'NM foil'."""
+    condition = CardCondition.NEAR_MINT
+    finish    = CardFinish.NONFOIL
+
+    for token in extras_str.split():
+        upper = token.upper()
+        lower = token.lower()
+        if upper in CONDITION_TOKENS:
+            condition = CONDITION_TOKENS[upper]
+        elif lower in FINISH_TOKENS:
+            finish = FINISH_TOKENS[lower]
+
+    return condition, finish
+
+
+@transaction.atomic
+def parse_collection_text(text, collection):
+    """
+    Parsea una lista de cartas en texto plano y las agrega a la colección.
+
+    Formato:
+        4x Lightning Bolt
+        4x Lightning Bolt (M10) NM foil
+        2 Counterspell LP etched
+
+    Retorna: {"created": int, "updated": int, "not_found": list[str]}
+    """
+    created   = 0
+    updated   = 0
+    not_found = []
+
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("//"):
+            continue
+
+        match = COLLECTION_LINE_RE.match(line)
+        if not match:
+            # Fallback al regex simple
+            simple = DECKLIST_LINE_RE.match(line)
+            if not simple:
+                continue
+            qty  = int(simple.group("qty"))
+            name = re.sub(r"\s*\([^)]+\)\s*$", "", simple.group("name")).strip()
+            set_code  = None
+            condition = CardCondition.NEAR_MINT
+            finish    = CardFinish.NONFOIL
+        else:
+            qty      = int(match.group("qty"))
+            name     = match.group("name").strip()
+            set_code = (match.group("set") or "").strip().lower() or None
+            condition, finish = _parse_extras(match.group("extras") or "")
+
+        card = Card.objects.filter(name__iexact=name, is_active=True).first()
+        if not card:
+            not_found.append(name)
+            continue
+
+        # Intentar encontrar el print específico por set code
+        print_obj = None
+        if set_code:
+            print_obj = CardPrint.objects.filter(
+                card=card,
+                cardset__code=set_code,
+            ).first()
+
+        existing = CollectionItem.objects.filter(
+            collection=collection,
+            card=card,
+            print=print_obj,
+            condition=condition,
+            finish=finish,
+            language="en",
+        ).first()
+
+        if existing:
+            existing.quantity += qty
+            existing.save(update_fields=["quantity", "updated_at"])
+            updated += 1
+        else:
+            CollectionItem.objects.create(
+                collection=collection,
+                card=card,
+                print=print_obj,
+                quantity=qty,
+                condition=condition,
+                finish=finish,
+                language="en",
+            )
+            created += 1
+
+    return {"created": created, "updated": updated, "not_found": not_found}
+
+
 # ---------------------------------------------------------------------------
 # Exporters
 # ---------------------------------------------------------------------------

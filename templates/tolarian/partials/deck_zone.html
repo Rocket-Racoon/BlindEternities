@@ -1,0 +1,133 @@
+{% load core_tags %}
+
+<div class="card mb-4 overflow-hidden"
+     x-data="{ collapsed: false }">
+
+  <!-- Header de zona -->
+  <div class="flex items-center justify-between px-4 py-3
+              border-b border-gray-200 dark:border-void-700
+              bg-gray-50 dark:bg-void-900/50 cursor-pointer"
+       @click="collapsed = !collapsed">
+    <div class="flex items-center gap-3">
+      <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">
+        {{ zone.label }}
+      </h3>
+      <span class="text-xs px-2 py-0.5 rounded-full
+                   bg-gray-200 dark:bg-void-700
+                   text-gray-600 dark:text-gray-400">
+        {% with total=0 %}
+        {% for entry in entries %}
+        {% endfor %}
+        {{ entries|length }}
+        {% endwith %}
+      </span>
+    </div>
+    <svg :class="collapsed ? 'rotate-180' : ''"
+         class="w-4 h-4 text-gray-400 transition-transform"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M19 9l-7 7-7-7"/>
+    </svg>
+  </div>
+
+  <!-- Lista de cartas -->
+  <div x-show="!collapsed"
+       x-transition
+       class="deck-zone-list divide-y divide-gray-100 dark:divide-void-800">
+    {% for entry in entries %}
+    <div class="deck-card-row flex items-center gap-3 px-4 py-2.5
+                hover:bg-gray-50 dark:hover:bg-void-900 transition-colors"
+         draggable="{% if is_owner %}true{% else %}false{% endif %}">
+
+      <!-- Thumbnail -->
+      <div class="w-8 shrink-0">
+        {% with print=entry.print %}
+        {% if print and print.image_small %}
+        <img src="{{ print.image_small }}"
+             alt="{{ entry.card.name }}"
+             class="w-full rounded shadow-sm">
+        {% else %}
+        {% with fallback=entry.card.primary_print %}
+        {% if fallback and fallback.image_small %}
+        <img src="{{ fallback.image_small }}"
+             alt="{{ entry.card.name }}"
+             class="w-full rounded shadow-sm">
+        {% else %}
+        <div class="aspect-[63/88] rounded bg-gray-100 dark:bg-void-800"></div>
+        {% endif %}
+        {% endwith %}
+        {% endif %}
+        {% endwith %}
+      </div>
+
+      <!-- Cantidad -->
+      <span class="text-sm font-medium text-gray-500 dark:text-gray-400 w-6 text-center shrink-0">
+        {{ entry.quantity }}
+      </span>
+
+      <!-- Nombre -->
+      <a href="{% url 'multiverse:card-detail' entry.card.oracle_id %}"
+         class="flex-1 text-sm font-medium text-gray-900 dark:text-gray-100
+                hover:text-void-600 dark:hover:text-void-400 truncate">
+        {{ entry.card.name }}
+      </a>
+
+      <!-- Tipo -->
+      <span class="text-xs text-gray-400 dark:text-gray-600 truncate max-w-32 hidden sm:block">
+        {{ entry.card.type_line }}
+      </span>
+
+      <!-- Maná -->
+      {% if entry.card.mana_cost %}
+      <span class="text-xs shrink-0 hidden md:block">
+        {{ entry.card.mana_cost|mana_cost }}
+      </span>
+      {% endif %}
+
+      <!-- Owned badge -->
+      {% if entry.owned %}
+      <span class="text-xs px-1.5 py-0.5 rounded
+                   bg-green-100 text-green-700
+                   dark:bg-green-900/30 dark:text-green-400
+                   shrink-0">
+        ✓
+      </span>
+      {% endif %}
+
+      <!-- En otros decks -->
+      {% with others=entry.is_in_other_decks %}
+      {% if others %}
+      <span class="text-xs text-amber-600 dark:text-amber-400 shrink-0"
+            title="También en: {% for o in others %}{{ o.deck.name }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+        {{ others.count }} deck{{ others.count|pluralize }}
+      </span>
+      {% endif %}
+      {% endwith %}
+
+      <!-- Acciones — solo owner -->
+      {% if is_owner %}
+      <div class="flex gap-1 shrink-0">
+        <form method="post"
+              action="{% url 'tolarian:deck-card-delete' entry.pk %}"
+              class="inline">
+          {% csrf_token %}
+          <button type="submit"
+                  class="w-6 h-6 flex items-center justify-center rounded
+                         text-gray-400 hover:text-red-500
+                         dark:text-gray-600 dark:hover:text-red-400
+                         transition-colors"
+                  onclick="return confirm('¿Eliminar {{ entry.card.name }}?')">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </form>
+      </div>
+      {% endif %}
+
+    </div>
+    {% endfor %}
+  </div>
+
+</div>

@@ -16,7 +16,7 @@
       </p>
     </div>
     {% if is_owner %}
-    <a href="#" class="btn-primary text-sm">Add Cards</a>
+    <a href="{% url 'tolarian:collection-create' %}" class="btn-primary text-sm">Add Cards</a>
     {% endif %}
   </div>
 

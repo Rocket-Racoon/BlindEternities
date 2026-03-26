@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Importar a {{ deck.name }} — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+  <nav class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+    <a href="{% url 'tolarian:deck-detail' deck.pk %}"
+       class="hover:text-void-600 dark:hover:text-void-400">
+      {{ deck.name }}
+    </a>
+    <span class="mx-2">›</span>
+    <span>Importar</span>
+  </nav>
+
+  <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-6">
+    Importar cartas
+  </h1>
+
+  <div class="card p-6 mb-4">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="space-y-5">
+
+        <!-- Texto plano -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Pegar lista de cartas
+          </label>
+          {{ form.text }}
+          {% if form.text.errors %}
+          <p class="mt-1 text-xs text-red-500">{{ form.text.errors.0 }}</p>
+          {% endif %}
+        </div>
+
+        <div class="relative">
+          <div class="absolute inset-0 flex items-center">
+            <div class="w-full border-t border-gray-200 dark:border-void-700"></div>
+          </div>
+          <div class="relative flex justify-center text-xs">
+            <span class="px-3 bg-white dark:bg-void-900 text-gray-400">o</span>
+          </div>
+        </div>
+
+        <!-- Archivo -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Importar desde archivo
+          </label>
+          {{ form.file }}
+          <p class="mt-1 text-xs text-gray-400">
+            CSV de Moxfield, Archidekt, o archivo .txt
+          </p>
+        </div>
+
+      </div>
+
+      {% if form.non_field_errors %}
+      <div class="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20
+                  text-sm text-red-600 dark:text-red-400">
+        {{ form.non_field_errors.0 }}
+      </div>
+      {% endif %}
+
+      <div class="mt-6 flex gap-3 justify-end">
+        <a href="{% url 'tolarian:deck-detail' deck.pk %}"
+           class="btn-secondary">Cancelar</a>
+        <button type="submit" class="btn-primary">Importar</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Formato esperado -->
+  <div class="card p-4">
+    <p class="text-xs font-medium text-gray-500 dark:text-gray-400
+              uppercase tracking-wide mb-3">
+      Formato de texto plano
+    </p>
+    <pre class="text-xs text-gray-600 dark:text-gray-400 font-mono">// Commander
+1 Yawgmoth, Thran Physician
+
+// Maindeck
+4 Dark Ritual
+4x Lightning Bolt
+
+// Sideboard
+2 Surgical Extraction</pre>
+  </div>
+</div>
+{% endblock %}

@@ -1,10 +1,8 @@
 import csv
 import io
-import json
 from django.core.exceptions import PermissionDenied
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
-from django.db import transaction
 from django.db.models import Sum, Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -30,6 +28,7 @@ from .forms import (
 from .utils import (
     parse_decklist_text,
     parse_collection_csv,
+    parse_collection_text,
     deck_to_csv,
     collection_to_csv,
 )
@@ -167,55 +166,36 @@ class CollectionAddCardView(CollectionOwnerMixin, View):
 
 
 class CollectionBulkAddView(CollectionOwnerMixin, View):
-    """Accept a JSON array of cards and add them all in one transaction."""
+    """Parse a text list of cards (e.g. '4x Lightning Bolt') and add them."""
 
     def post(self, request, pk):
         collection = get_object_or_404(Collection, pk=pk)
+        text = request.POST.get("text", "").strip()
 
-        try:
-            items_data = json.loads(request.body)
-        except (json.JSONDecodeError, ValueError):
-            return JsonResponse({"error": "JSON inválido."}, status=400)
+        if not text:
+            messages.error(request, "Pega una lista de cartas.")
+            return redirect("tolarian:collection-detail", pk=pk)
 
-        if not isinstance(items_data, list) or not items_data:
-            return JsonResponse({"error": "Se requiere una lista de cartas."}, status=400)
+        results = parse_collection_text(text, collection)
 
-        created = 0
-        updated = 0
-        errors  = []
+        parts = []
+        if results["created"]:
+            parts.append(f"{results['created']} nueva(s)")
+        if results["updated"]:
+            parts.append(f"{results['updated']} actualizada(s)")
+        if results["not_found"]:
+            parts.append(f"{len(results['not_found'])} no encontrada(s)")
 
-        with transaction.atomic():
-            for i, entry in enumerate(items_data):
-                form = CollectionItemForm(entry)
-                if not form.is_valid():
-                    errors.append({"index": i, "errors": form.errors})
-                    continue
+        messages.success(request, f"Lote agregado — {', '.join(parts)}.")
 
-                item = form.save(commit=False)
-                item.collection = collection
+        if results["not_found"]:
+            messages.warning(
+                request,
+                f"No encontradas: {', '.join(results['not_found'][:10])}"
+                + (" ..." if len(results["not_found"]) > 10 else ""),
+            )
 
-                existing = CollectionItem.objects.filter(
-                    collection=collection,
-                    card=item.card,
-                    print=item.print,
-                    condition=item.condition,
-                    finish=item.finish,
-                    language=item.language,
-                ).first()
-
-                if existing:
-                    existing.quantity += item.quantity
-                    existing.save(update_fields=["quantity", "updated_at"])
-                    updated += 1
-                else:
-                    item.save()
-                    created += 1
-
-        return JsonResponse({
-            "created": created,
-            "updated": updated,
-            "errors":  errors,
-        })
+        return redirect("tolarian:collection-detail", pk=pk)
 
 
 class CollectionItemEditView(LoginRequiredMixin, View):

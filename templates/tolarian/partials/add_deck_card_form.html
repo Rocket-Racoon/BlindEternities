@@ -1,0 +1,50 @@
+<form method="post"
+      action="{% url 'tolarian:deck-add-card' deck.pk %}"
+      hx-post="{% url 'tolarian:deck-add-card' deck.pk %}"
+      hx-swap="none"
+      hx-on::after-request="this.reset(); window.location.reload()">
+  {% csrf_token %}
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+
+    <div class="sm:col-span-3">
+      <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+        Nombre de carta
+      </label>
+      <input type="text" name="card_name"
+             placeholder="Buscar carta..."
+             class="input"
+             autocomplete="off">
+      <input type="hidden" name="card" id="selected-deck-card-id">
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+        Zona
+      </label>
+      <select name="zone" class="input">
+        <option value="main">Maindeck</option>
+        <option value="sideboard">Sideboard</option>
+        <option value="commander">Commander</option>
+        <option value="companion">Companion</option>
+        <option value="maybeboard">Maybeboard</option>
+        <option value="reserve">Reserve</option>
+        <option value="extras">Tokens & More</option>
+      </select>
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+        Cantidad
+      </label>
+      <input type="number" name="quantity" value="1" min="1"
+             class="input">
+    </div>
+
+    <div class="flex items-end">
+      <button type="submit" class="btn-primary text-sm w-full justify-center">
+        Agregar
+      </button>
+    </div>
+
+  </div>
+</form>

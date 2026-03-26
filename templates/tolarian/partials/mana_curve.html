@@ -1,0 +1,26 @@
+{% if curve %}
+<div class="space-y-2">
+  {% with max_count=0 %}
+  {% for cmc, count in curve.items %}
+  <div class="flex items-center gap-2">
+    <span class="text-xs text-gray-500 dark:text-gray-400 w-4 text-right shrink-0">
+      {% if cmc == 7 %}7+{% else %}{{ cmc }}{% endif %}
+    </span>
+    <div class="flex-1 bg-gray-100 dark:bg-void-800 rounded-full h-4 overflow-hidden">
+      <div class="h-full bg-void-500 dark:bg-void-400 rounded-full transition-all"
+           style="width: {{ count|floatformat:0 }}%"
+           title="{{ count }} carta{{ count|pluralize }}">
+      </div>
+    </div>
+    <span class="text-xs text-gray-500 dark:text-gray-400 w-4 shrink-0">
+      {{ count }}
+    </span>
+  </div>
+  {% endfor %}
+  {% endwith %}
+</div>
+{% else %}
+<p class="text-xs text-gray-400 dark:text-gray-600 text-center py-4">
+  Sin cartas en el maindeck.
+</p>
+{% endif %}

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% load static core_tags %}
+
+{% block title %}Mis Decks — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+      Mis Decks
+    </h1>
+    <a href="{% url 'tolarian:deck-create' %}" class="btn-primary">
+      Nuevo deck
+    </a>
+  </div>
+
+  <!-- Filtro por formato -->
+  <form method="get" class="mb-6 flex gap-2 flex-wrap">
+    <a href="{% url 'tolarian:deck-list' %}"
+       class="px-3 py-1.5 rounded-full text-xs border transition-colors
+              {% if not format %}border-void-500 bg-void-50 dark:bg-void-900 text-void-700 dark:text-void-300
+              {% else %}border-gray-200 dark:border-void-700 text-gray-500 dark:text-gray-400 hover:border-void-400{% endif %}">
+      Todos
+    </a>
+    {% for value, label in decks.0.get_format_display|default:'' %}
+    {% endfor %}
+    {% for deck in decks %}
+    {% if deck.format not in seen_formats %}
+    <a href="?format={{ deck.format }}"
+       class="px-3 py-1.5 rounded-full text-xs border transition-colors
+              {% if format == deck.format %}border-void-500 bg-void-50 dark:bg-void-900 text-void-700 dark:text-void-300
+              {% else %}border-gray-200 dark:border-void-700 text-gray-500 dark:text-gray-400 hover:border-void-400{% endif %}">
+      {{ deck.get_format_display }}
+    </a>
+    {% endif %}
+    {% endfor %}
+  </form>
+
+  {% if not decks %}
+  <div class="card p-16 text-center text-gray-400 dark:text-gray-600">
+    <p class="text-sm">No tienes decks todavía.</p>
+    <a href="{% url 'tolarian:deck-create' %}"
+       class="mt-4 inline-block text-sm text-void-600 dark:text-void-400 hover:underline">
+      Crear tu primer deck
+    </a>
+  </div>
+  {% else %}
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for deck in decks %}
+    <a href="{% url 'tolarian:deck-detail' deck.pk %}"
+       class="card p-4 flex items-start gap-4
+              hover:border-void-400 dark:hover:border-void-500
+              transition-colors block">
+
+      <!-- Cover card -->
+      <div class="w-16 shrink-0">
+        {% if deck.cover_card %}
+        {% with print=deck.cover_card.primary_print %}
+        {% if print and print.image_normal %}
+        <img src="{{ print.image_normal }}"
+             alt="{{ deck.cover_card.name }}"
+             class="w-full rounded-lg shadow">
+        {% else %}
+        <div class="aspect-[63/88] rounded-lg bg-gray-100 dark:bg-void-800"></div>
+        {% endif %}
+        {% endwith %}
+        {% else %}
+        <div class="aspect-[63/88] rounded-lg bg-gray-100 dark:bg-void-800
+                    flex items-center justify-center">
+          <span class="text-xs text-gray-400">?</span>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Info -->
+      <div class="flex-1 min-w-0">
+        <p class="font-medium text-gray-900 dark:text-gray-100 truncate">
+          {{ deck.name }}
+        </p>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+          {{ deck.get_format_display }}
+        </p>
+        <div class="flex gap-3 mt-2 text-xs text-gray-500 dark:text-gray-400">
+          <span>{{ deck.card_count|default:"0" }} cartas</span>
+          {% if deck.is_public %}
+          <span class="text-green-600 dark:text-green-400">Público</span>
+          {% endif %}
+        </div>
+        <p class="text-xs text-gray-400 dark:text-gray-600 mt-1">
+          {{ deck.updated_at|date:"d M Y" }}
+        </p>
+      </div>
+
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

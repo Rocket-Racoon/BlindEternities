@@ -1,0 +1,20 @@
+{% if illegal %}
+<div class="space-y-2">
+  {% for item in illegal %}
+  <div class="flex items-center justify-between text-sm">
+    <a href="{% url 'multiverse:card-detail' item.card.oracle_id %}"
+       class="text-gray-900 dark:text-gray-100 hover:text-void-600 dark:hover:text-void-400">
+      {{ item.card.name }}
+    </a>
+    <span class="text-xs px-2 py-0.5 rounded-full
+                 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 capitalize">
+      {{ item.status|cut:"_" }}
+    </span>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-sm text-green-600 dark:text-green-400 text-center py-2">
+  Todas las cartas son legales en {{ deck.get_format_display }}.
+</p>
+{% endif %}

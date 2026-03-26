@@ -16,7 +16,7 @@
       </p>
     </div>
     {% if is_owner %}
-    <a href="#" class="btn-primary text-sm">New Deck</a>
+    <a href="{% url 'tolarian:deck-create' %}" class="btn-primary text-sm">New Deck</a>
     {% endif %}
   </div>
 

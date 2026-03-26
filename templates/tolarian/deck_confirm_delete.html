@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Eliminar deck — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-sm mx-auto mt-20">
+  <div class="card p-8 text-center">
+    <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
+      ¿Eliminar "{{ object.name }}"?
+    </h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+      Se eliminarán todas las cartas del deck.
+      Esta acción no se puede deshacer.
+    </p>
+    <form method="post">
+      {% csrf_token %}
+      <div class="flex justify-center gap-3">
+        <a href="{% url 'tolarian:deck-detail' object.pk %}"
+           class="btn-secondary">Cancelar</a>
+        <button type="submit" class="btn-danger">Eliminar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
