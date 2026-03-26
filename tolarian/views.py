@@ -5,7 +5,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
 from django.db.models import Sum, Count, Q
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy, reverse
 from django.views.generic import (
     TemplateView, ListView, DetailView,
@@ -200,17 +200,51 @@ class CollectionBulkAddView(CollectionOwnerMixin, View):
 
 
 class CollectionItemEditView(LoginRequiredMixin, View):
+    def get(self, request, item_pk):
+        item = get_object_or_404(
+            CollectionItem.objects.select_related("card", "print__cardset")
+                .prefetch_related("card__faces", "card__prints__cardset"),
+            pk=item_pk,
+        )
+        if item.collection.user != request.user:
+            raise PermissionDenied
+
+        form   = CollectionItemForm(instance=item)
+        prints = item.card.prints.select_related("cardset").order_by("-cardset__released_at")
+        faces  = list(item.card.faces.order_by("face_index"))
+
+        return render(request, "tolarian/partials/collection_item_modal.html", {
+            "item":    item,
+            "form":    form,
+            "prints":  prints,
+            "faces":   faces,
+        })
+
     def post(self, request, item_pk):
-        item = get_object_or_404(CollectionItem, pk=item_pk)
+        item = get_object_or_404(
+            CollectionItem.objects.select_related("card", "print__cardset")
+                .prefetch_related("card__faces", "card__prints__cardset"),
+            pk=item_pk,
+        )
         if item.collection.user != request.user:
             raise PermissionDenied
         form = CollectionItemForm(request.POST, instance=item)
         if form.is_valid():
             form.save()
             messages.success(request, "Item actualizado.")
-        if request.headers.get("HX-Request"):
-            return HttpResponse(status=204)
-        return redirect("tolarian:collection-detail", pk=item.collection.pk)
+            if request.headers.get("HX-Request"):
+                return HttpResponse(status=204)
+            return redirect("tolarian:collection-detail", pk=item.collection.pk)
+
+        # Validation failed — re-render modal with errors
+        prints = item.card.prints.select_related("cardset").order_by("-cardset__released_at")
+        faces  = list(item.card.faces.order_by("face_index"))
+        return render(request, "tolarian/partials/collection_item_modal.html", {
+            "item":   item,
+            "form":   form,
+            "prints": prints,
+            "faces":  faces,
+        })
 
 
 class CollectionItemDeleteView(LoginRequiredMixin, View):

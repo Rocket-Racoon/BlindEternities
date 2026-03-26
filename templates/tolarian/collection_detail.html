@@ -137,4 +137,25 @@
   </div>
 
 </div>
+
+<!-- Modal container for item editing -->
+<div id="item-modal"></div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('item-modal').addEventListener('change', function(e) {
+  if (e.target.name !== 'print') return;
+  var opt = e.target.options[e.target.selectedIndex];
+  var img = document.getElementById('modal-card-img');
+  var label = document.getElementById('modal-print-label');
+  if (img) img.src = opt.dataset.img || '';
+  if (label) label.textContent = opt.dataset.label || '';
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') document.getElementById('item-modal').innerHTML = '';
+});
+</script>
 {% endblock %}

@@ -9,7 +9,15 @@
        @mouseenter="hover = true"
        @mouseleave="hover = false">
 
-    <div class="card overflow-hidden">
+    {% if is_owner %}
+    <div class="card overflow-hidden cursor-pointer"
+         hx-get="{% url 'tolarian:collection-item-edit' item.pk %}"
+         hx-target="#item-modal"
+         hx-swap="innerHTML">
+    {% else %}
+    <a href="{% url 'multiverse:card-detail' item.card.oracle_id %}"
+       class="card overflow-hidden cursor-pointer block">
+    {% endif %}
 
       {% with print=item.print faces=item.card.faces.all %}
       {% if print and print.image_small %}
@@ -61,7 +69,7 @@
           {% endif %}
         </div>
       </div>
-    </div>
+    {% if is_owner %}</div>{% else %}</a>{% endif %}
 
     <!-- Hover actions — solo owner -->
     {% if is_owner %}

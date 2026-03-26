@@ -138,6 +138,17 @@ def build_face_defaults(data):
     }
 
 
+def _resolve_image_uris(data):
+    """Return image_uris from top-level, or from first card_face for multi-face cards."""
+    uris = data.get("image_uris")
+    if uris:
+        return uris
+    faces = data.get("card_faces", [])
+    if faces and faces[0].get("image_uris"):
+        return faces[0]["image_uris"]
+    return {}
+
+
 def build_print_defaults(card, cardset, data):
     return {
         "card":                 card,
@@ -152,7 +163,7 @@ def build_print_defaults(card, cardset, data):
         "tcgplayer_etched_id":  data.get("tcgplayer_etched_id"),
         "cardmarket_id":        data.get("cardmarket_id"),
         "illustration_id":      parse_uuid(data.get("illustration_id")),
-        "image_uris":           data.get("image_uris", {}),
+        "image_uris":           _resolve_image_uris(data),
         "image_status":         data.get("image_status", ""),
         "rarity":               data.get("rarity", ""),
         "flavor_text":          data.get("flavor_text", ""),

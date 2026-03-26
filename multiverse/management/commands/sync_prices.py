@@ -1,4 +1,8 @@
 # multiverse/management/commands/sync_prices.py
+"""
+Updates prices on existing CardPrint records from Scryfall bulk data.
+Only touches the prices field — does not create or delete prints.
+"""
 import uuid
 import requests
 from django.conf import settings
@@ -7,68 +11,64 @@ from django.utils import timezone
 from multiverse.models import CardPrint
 
 
-SCRYFALL_BULK_PRICES = f"{settings.SCRYFALL_API_BASE}/bulk-data/all-cards"
-HEADERS = settings.SCRYFALL_HEADERS
-TIMEOUT = settings.SCRYFALL_TIMEOUT_SHORT
-BATCH_SIZE = settings.SCRYFALL_BATCH_SIZE 
+BULK_URL   = f"{settings.SCRYFALL_API_BASE}/bulk-data/default-cards"
+HEADERS    = settings.SCRYFALL_HEADERS
+BATCH_SIZE = settings.SCRYFALL_BATCH_SIZE
 
 
 class Command(BaseCommand):
-    help = "Sincroniza precios diarios desde Scryfall"
+    help = "Actualiza precios de CardPrint desde Scryfall (default-cards)"
 
     def handle(self, *args, **options):
         start = timezone.now()
-        self.stdout.write("Obteniendo URL de bulk data (all-cards)...")
+        self.stdout.write("Obteniendo URL de default-cards bulk data...")
 
         try:
-            meta     = requests.get(SCRYFALL_BULK_PRICES, headers=HEADERS, timeout=15)
+            meta = requests.get(BULK_URL, headers=HEADERS, timeout=15)
             meta.raise_for_status()
             data_url = meta.json().get("download_uri")
-
-            self.stdout.write(f"Descargando precios desde {data_url}...")
-            response = requests.get(data_url, headers=HEADERS, timeout=600)
-            response.raise_for_status()
-            all_cards = response.json()
+            self.stdout.write(f"Descargando desde {data_url}...")
+            resp = requests.get(data_url, headers=HEADERS, timeout=600)
+            resp.raise_for_status()
+            all_cards = resp.json()
         except requests.RequestException as e:
             self.stderr.write(self.style.ERROR(f"Error: {e}"))
             return
 
-        total    = len(all_cards)
-        updated  = 0
-        skipped  = 0
-
+        total   = len(all_cards)
+        updated = skipped = 0
         self.stdout.write(f"Actualizando precios de {total} prints...")
 
-        # Procesar en batches para no saturar la DB
         batches = [all_cards[i:i+BATCH_SIZE] for i in range(0, total, BATCH_SIZE)]
 
         for i, batch in enumerate(batches, 1):
-            self.stdout.write(f"  Batch {i}/{len(batches)}...")
-            ids_in_batch = []
-            prices_map   = {}
+            if i % 20 == 1 or i == len(batches):
+                self.stdout.write(f"  Batch {i}/{len(batches)} — actualizados: {updated}")
 
+            # Build scryfall_id → prices map
+            prices_map = {}
             for card_data in batch:
-                scryfall_id = card_data.get("id")
-                prices      = card_data.get("prices", {})
-                if scryfall_id and prices:
+                sid    = card_data.get("id")
+                prices = card_data.get("prices")
+                if sid and prices:
                     try:
-                        sid = uuid.UUID(scryfall_id)
-                        ids_in_batch.append(sid)
-                        prices_map[sid] = prices
+                        prices_map[uuid.UUID(sid)] = prices
                     except (ValueError, AttributeError):
                         continue
 
-            # Bulk fetch de prints existentes
-            prints = CardPrint.objects.filter(scryfall_id__in=ids_in_batch)
+            # Bulk fetch existing prints
+            prints = CardPrint.objects.filter(scryfall_id__in=prices_map.keys())
+            to_update = []
+            for p in prints:
+                new_prices = prices_map.get(p.scryfall_id)
+                if new_prices and new_prices != p.prices:
+                    p.prices = new_prices
+                    to_update.append(p)
 
-            for print_obj in prints:
-                new_prices = prices_map.get(print_obj.scryfall_id)
-                if new_prices and new_prices != print_obj.prices:
-                    print_obj.prices = new_prices
-                    print_obj.save(update_fields=["prices", "updated_at"])
-                    updated += 1
-                else:
-                    skipped += 1
+            if to_update:
+                CardPrint.objects.bulk_update(to_update, ["prices", "updated_at"])
+                updated += len(to_update)
+            skipped += len(batch) - len(to_update)
 
         elapsed = (timezone.now() - start).total_seconds()
         self.stdout.write(self.style.SUCCESS(

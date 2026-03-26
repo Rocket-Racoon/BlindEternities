@@ -1,0 +1,145 @@
+{% load core_tags %}
+
+<div class="fixed inset-0 z-50 overflow-y-auto">
+  <div class="fixed inset-0 bg-black/50"
+       onclick="document.getElementById('item-modal').innerHTML=''"></div>
+
+  <div class="relative min-h-screen flex items-center justify-center p-4">
+    <div class="relative w-full max-w-2xl card p-6 shadow-xl"
+         onclick="event.stopPropagation()">
+
+      <!-- Header -->
+      <div class="flex items-center justify-between mb-5">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate pr-4">
+          {{ item.card.name }}
+        </h2>
+        <button onclick="document.getElementById('item-modal').innerHTML=''"
+                class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-void-800
+                       text-gray-500 dark:text-gray-400 transition-colors shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-[200px_1fr] gap-6">
+
+        <!-- Card image -->
+        <div>
+          <div class="aspect-[63/88] overflow-hidden rounded-lg bg-gray-100 dark:bg-void-800">
+            <img id="modal-card-img"
+                 src="{{ item.print.image_normal|default:'' }}"
+                 alt="{{ item.card.name }}"
+                 class="w-full h-full object-cover">
+          </div>
+          <p id="modal-print-label" class="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+            {% if item.print and item.print.cardset %}
+              {{ item.print.cardset.name }} #{{ item.print.collector_number }}
+            {% endif %}
+          </p>
+        </div>
+
+        <!-- Edit form (plain POST — no JS needed) -->
+        <form method="post"
+              action="{% url 'tolarian:collection-item-edit' item.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="card" value="{{ item.card.pk }}">
+
+          <div class="space-y-4">
+
+            <!-- Version (print) -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Versión
+              </label>
+              <select name="print" class="input">
+                <option value="" data-img="" data-label="">— Sin versión —</option>
+                {% for p in prints %}
+                <option value="{{ p.pk }}"
+                        data-img="{{ p.image_normal }}"
+                        data-label="{{ p.cardset.name }} #{{ p.collector_number }}"
+                        {% if item.print_id == p.pk %}selected{% endif %}>
+                  {{ p.cardset.name }} · #{{ p.collector_number }}
+                  {% if p.lang != "en" %}({{ p.lang }}){% endif %}
+                  {% if p.price_usd %}— ${{ p.price_usd }}{% endif %}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <!-- Quantity + Condition -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Cantidad
+                </label>
+                {{ form.quantity }}
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Condición
+                </label>
+                {{ form.condition }}
+              </div>
+            </div>
+
+            <!-- Finish + Language -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Finish
+                </label>
+                {{ form.finish }}
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Idioma
+                </label>
+                {{ form.language }}
+              </div>
+            </div>
+
+            <!-- Purchase price -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Precio de compra (USD)
+              </label>
+              {{ form.purchase_price }}
+            </div>
+
+            <!-- Notes -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Notas
+              </label>
+              {{ form.notes }}
+            </div>
+
+          </div>
+
+          <!-- Actions -->
+          <div class="mt-5 flex gap-3 justify-between items-center pt-4
+                      border-t border-gray-200 dark:border-void-700">
+            <a href="{% url 'multiverse:card-detail' item.card.oracle_id %}"
+               class="text-sm text-void-600 dark:text-void-400 hover:underline">
+              Ver carta completa
+            </a>
+            <div class="flex gap-3">
+              <button type="button"
+                      onclick="document.getElementById('item-modal').innerHTML=''"
+                      class="btn-secondary">
+                Cancelar
+              </button>
+              <button type="submit" class="btn-primary">
+                Guardar
+              </button>
+            </div>
+          </div>
+
+        </form>
+      </div>
+
+    </div>
+  </div>
+</div>
