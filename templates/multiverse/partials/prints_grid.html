@@ -4,20 +4,17 @@
   <div class="card overflow-hidden transition-transform duration-150
               group-hover:-translate-y-1 group-hover:shadow-md">
 
-    {% if print.image_normal %}
-    <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800 overflow-hidden">
-      <img src="{{ print.image_normal }}"
-           alt="{{ print.card.name }}"
-           loading="lazy"
-           class="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105">
-    </div>
+    {% with faces=print.card.faces.all %}
+    {% with img_sm=print.image_small img_md=print.image_normal img_lg=print.image_large card_name=print.card.name lazy="lazy" %}
+    {% if faces|length > 1 %}
+    {% with img_back_sm=faces.1.image_uris.small img_back_md=faces.1.image_uris.normal img_back_lg=faces.1.image_uris.large %}
+    {% include "multiverse/partials/_card_image.html" %}
+    {% endwith %}
     {% else %}
-    <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800 flex items-center justify-center p-2">
-      <span class="text-xs text-gray-400 dark:text-gray-600 text-center">
-        {{ print.card.name }}
-      </span>
-    </div>
+    {% include "multiverse/partials/_card_image.html" %}
     {% endif %}
+    {% endwith %}
+    {% endwith %}
 
     <div class="p-1.5">
       <p class="text-xs text-gray-500 dark:text-gray-400 text-center">

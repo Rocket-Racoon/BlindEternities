@@ -4,7 +4,9 @@
 {% block title %}{{ cardset.name }} — {{ site_name }}{% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto">
+<div class="max-w-7xl mx-auto"
+     x-data="{ cardSize: localStorage.getItem('card-size') || 'md' }"
+     x-init="$watch('cardSize', v => localStorage.setItem('card-size', v))">
 
   <!-- Header -->
   <div class="flex items-start gap-6 mb-8">
@@ -72,9 +74,15 @@
     </div>
   </div>
 
+  <!-- Toolbar -->
+  <div class="flex items-center justify-end mb-4">
+    {% include "partials/card_size_toggle.html" %}
+  </div>
+
   <!-- Grid de prints -->
   {% if page_obj.object_list %}
-  <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+  <div class="grid gap-4"
+       :style="'grid-template-columns: repeat(' + (cardSize === 'sm' ? 6 : cardSize === 'lg' ? 4 : 5) + ', minmax(0, 1fr))'"
        id="prints-grid">
     {% include "multiverse/partials/prints_grid.html" %}
   </div>

@@ -1,0 +1,20 @@
+<div class="flex rounded-lg border border-gray-200 dark:border-void-700 overflow-hidden">
+  <button @click="cardSize = 'sm'"
+          :class="cardSize === 'sm'
+            ? 'bg-void-600 text-white'
+            : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800'"
+          class="px-2.5 py-1.5 text-xs font-medium transition-colors"
+          title="Imagen pequeña">S</button>
+  <button @click="cardSize = 'md'"
+          :class="cardSize === 'md'
+            ? 'bg-void-600 text-white'
+            : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800'"
+          class="px-2.5 py-1.5 text-xs font-medium transition-colors"
+          title="Imagen normal">M</button>
+  <button @click="cardSize = 'lg'"
+          :class="cardSize === 'lg'
+            ? 'bg-void-600 text-white'
+            : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800'"
+          class="px-2.5 py-1.5 text-xs font-medium transition-colors"
+          title="Imagen grande">L</button>
+</div>

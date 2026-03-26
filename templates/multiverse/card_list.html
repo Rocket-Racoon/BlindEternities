@@ -5,7 +5,10 @@
 
 {% block content %}
 {# Alpine scope en el bloque exterior — nunca tocado por HTMX #}
-<div class="max-w-7xl mx-auto" x-data="cardList()">
+<div class="max-w-7xl mx-auto"
+     x-data="{ cardSize: localStorage.getItem('card-size') || 'md' }"
+     x-init="$watch('cardSize', v => localStorage.setItem('card-size', v))"
+     x-ref="cardList">
 
   <!-- Header -->
   <div class="flex items-center justify-between mb-6">
@@ -17,17 +20,20 @@
       </p>
       {% endif %}
     </div>
-    <button @click="openFilters()"
-            class="btn-secondary flex items-center gap-2">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
-      </svg>
-      Filtros
-      {% if request.GET %}
-      <span class="w-2 h-2 rounded-full bg-void-500 shrink-0"></span>
-      {% endif %}
-    </button>
+    <div class="flex items-center gap-2">
+      {% include "partials/card_size_toggle.html" %}
+      <button @click="openFilters()"
+              class="btn-secondary flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
+        </svg>
+        Filtros
+        {% if request.GET %}
+        <span class="w-2 h-2 rounded-full bg-void-500 shrink-0"></span>
+        {% endif %}
+      </button>
+    </div>
   </div>
 
   <!-- Búsqueda rápida -->
@@ -279,8 +285,6 @@ function closeFilters() {
   document.body.style.overflow = '';
 }
 
-function cardList() {
-  return {};
-}
+function cardList() {}
 </script>
 {% endblock %}

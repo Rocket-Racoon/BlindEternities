@@ -263,64 +263,18 @@ class SetSearchForm(forms.Form):
     def filter_queryset(self, qs):
         if not self.is_valid():
             return qs
-    
+
         data = self.cleaned_data
-    
+
         if data.get("q"):
             qs = qs.filter(name__icontains=data["q"])
-    
-        if data.get("color"):
-            color       = data["color"]
-            color_match = data.get("color_match", "identity")
-            if color_match == "exact":
-                qs = qs.filter(colors=[color])
-            elif color_match == "includes":
-                qs = qs.filter(colors__contains=color)
-            else:
-                qs = qs.filter(color_identity__contains=color)
-    
-        if data.get("rarity"):
-            qs = qs.filter(prints__rarity=data["rarity"]).distinct()
-    
-        if data.get("layout"):
-            qs = qs.filter(layout=data["layout"])
-    
-        if data.get("format"):
-            qs = qs.filter(
-                legality__data__contains={data["format"]: "legal"}
-            )
-    
-        if data.get("cmc") is not None:
-            op = data.get("cmc_op", "eq")
-            if op == "lte":
-                qs = qs.filter(cmc__lte=data["cmc"])
-            elif op == "gte":
-                qs = qs.filter(cmc__gte=data["cmc"])
-            else:
-                qs = qs.filter(cmc=data["cmc"])
-    
-        if data.get("type_line"):
-            qs = qs.filter(type_line__icontains=data["type_line"])
-    
-        if data.get("oracle_text"):
-            qs = qs.filter(oracle_text__icontains=data["oracle_text"])
-    
-        if data.get("commander"):
-            qs = qs.filter(can_be_commander=True)
-    
-        if data.get("has_deck_limit"):
-            qs = qs.filter(has_deck_limit=True)
-    
-        # card_kind — sobreescribe exclusiones de defecto si el usuario elige uno
-        kind = data.get("card_kind", "")
-        if kind == "normal":
-            qs = qs.filter(layout__in=NORMAL_LAYOUTS)
-        elif kind in KIND_LAYOUTS:
-            # Re-incluir el layout especial que el usuario quiere ver
-            qs = qs.filter(layout__in=KIND_LAYOUTS[kind])
-    
-        # Digital — re-incluir si el usuario lo pide
-        if data.get("digital"):
-            qs = qs.filter(prints__digital=True).distinct()
-    
+
+        if data.get("set_type"):
+            qs = qs.filter(set_type=data["set_type"])
+
+        if data.get("digital") == "0":
+            qs = qs.filter(digital=False)
+        elif data.get("digital") == "1":
+            qs = qs.filter(digital=True)
+
         return qs

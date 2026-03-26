@@ -5,8 +5,8 @@
 
 {% block content %}
 <div class="max-w-7xl mx-auto"
-     x-data="{ view: localStorage.getItem('collection-view') || 'grid' }"
-     x-init="$watch('view', v => localStorage.setItem('collection-view', v))">
+     x-data="{ view: localStorage.getItem('collection-view') || 'grid', cardSize: localStorage.getItem('card-size') || 'md' }"
+     x-init="$watch('view', v => localStorage.setItem('collection-view', v)); $watch('cardSize', v => localStorage.setItem('card-size', v))">
 
   <!-- Header -->
   <div class="flex items-start justify-between gap-4 mb-6">
@@ -36,6 +36,7 @@
 
     {% if is_owner %}
     <div class="flex gap-2 shrink-0">
+      {% include "partials/card_size_toggle.html" %}
       <!-- Toggle vista -->
       <div class="flex rounded-lg border border-gray-200 dark:border-void-700 overflow-hidden">
         <button @click="view = 'grid'"

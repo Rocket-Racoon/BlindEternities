@@ -1,7 +1,8 @@
 {% load core_tags %}
 
 {% if page_obj.object_list %}
-<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+<div class="grid gap-4"
+     :style="'grid-template-columns: repeat(' + (cardSize === 'sm' ? 6 : cardSize === 'lg' ? 4 : 5) + ', minmax(0, 1fr))'">
   {% for item in page_obj %}
   <div class="group relative"
        x-data="{ hover: false }"
@@ -9,30 +10,33 @@
        @mouseleave="hover = false">
 
     <div class="card overflow-hidden">
-      {% with print=item.print %}
-      {% if print and print.image_normal %}
-      <div class="aspect-[63/88] overflow-hidden">
-        <img src="{{ print.image_normal }}"
-             alt="{{ item.card.name }}"
-             loading="lazy"
-             class="w-full h-full object-cover transition-transform duration-200
-                    group-hover:scale-105">
-      </div>
+
+      {% with print=item.print faces=item.card.faces.all %}
+      {% if print and print.image_small %}
+      {% with img_sm=print.image_small img_md=print.image_normal img_lg=print.image_large card_name=item.card.name lazy="lazy" %}
+      {% if faces|length > 1 %}
+      {% with img_back_sm=faces.1.image_uris.small img_back_md=faces.1.image_uris.normal img_back_lg=faces.1.image_uris.large %}
+      {% include "multiverse/partials/_card_image.html" %}
+      {% endwith %}
+      {% else %}
+      {% include "multiverse/partials/_card_image.html" %}
+      {% endif %}
+      {% endwith %}
       {% else %}
       {% with fallback=item.card.primary_print %}
-      {% if fallback and fallback.image_normal %}
-      <div class="aspect-[63/88] overflow-hidden">
-        <img src="{{ fallback.image_normal }}"
-             alt="{{ item.card.name }}"
-             loading="lazy"
-             class="w-full h-full object-cover">
-      </div>
+      {% if fallback %}
+      {% with img_sm=fallback.image_small img_md=fallback.image_normal img_lg=fallback.image_large card_name=item.card.name lazy="lazy" %}
+      {% if faces|length > 1 %}
+      {% with img_back_sm=faces.1.image_uris.small img_back_md=faces.1.image_uris.normal img_back_lg=faces.1.image_uris.large %}
+      {% include "multiverse/partials/_card_image.html" %}
+      {% endwith %}
       {% else %}
-      <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800
-                  flex items-center justify-center p-2">
-        <span class="text-xs text-gray-400 text-center">
-          {{ item.card.name }}
-        </span>
+      {% include "multiverse/partials/_card_image.html" %}
+      {% endif %}
+      {% endwith %}
+      {% else %}
+      <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800 flex items-center justify-center p-2">
+        <span class="text-xs text-gray-400 text-center">{{ item.card.name }}</span>
       </div>
       {% endif %}
       {% endwith %}

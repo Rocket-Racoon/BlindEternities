@@ -2,28 +2,28 @@
 
 {% if page_obj.object_list %}
 
-<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-4">
+<div class="grid gap-4 mb-4"
+     :style="'grid-template-columns: repeat(' + (cardSize === 'sm' ? 6 : cardSize === 'lg' ? 4 : 5) + ', minmax(0, 1fr))'">
   {% for card in page_obj %}
   <a href="{% url 'multiverse:card-detail' card.oracle_id %}"
      class="group block">
     <div class="card overflow-hidden transition-transform duration-150
                 group-hover:-translate-y-1 group-hover:shadow-md">
 
-      {% with print=card.grid_print %}
-      {% if print and print.image_normal %}
-      <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800 overflow-hidden">
-        <img src="{{ print.image_normal }}"
-             alt="{{ card.name }}"
-             loading="lazy"
-             class="w-full h-full object-cover transition-transform duration-200
-                    group-hover:scale-105">
-      </div>
+      {% with print=card.grid_print faces=card.faces_prefetched %}
+      {% if print %}
+      {% with img_sm=print.image_small img_md=print.image_normal img_lg=print.image_large card_name=card.name lazy="lazy" %}
+      {% if faces and faces|length > 1 %}
+      {% with img_back_sm=faces.1.image_uris.small img_back_md=faces.1.image_uris.normal img_back_lg=faces.1.image_uris.large %}
+      {% include "multiverse/partials/_card_image.html" %}
+      {% endwith %}
       {% else %}
-      <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800
-                  flex items-center justify-center p-2">
-        <span class="text-xs text-gray-400 dark:text-gray-600 text-center">
-          {{ card.name }}
-        </span>
+      {% include "multiverse/partials/_card_image.html" %}
+      {% endif %}
+      {% endwith %}
+      {% else %}
+      <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800 flex items-center justify-center p-2">
+        <span class="text-xs text-gray-400 dark:text-gray-600 text-center">{{ card.name }}</span>
       </div>
       {% endif %}
       {% endwith %}

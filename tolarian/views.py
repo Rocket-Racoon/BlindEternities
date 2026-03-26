@@ -76,6 +76,7 @@ class CollectionDetailView(LoginRequiredMixin, TemplateView):
         items      = (
             collection.items
             .select_related("card", "print__cardset")
+            .prefetch_related("card__faces")
             .order_by("card__name")
         )
         q = self.request.GET.get("q", "")
