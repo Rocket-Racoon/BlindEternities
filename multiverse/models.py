@@ -36,6 +36,7 @@ class CardSet(BaseModel):
 
     # Custom Data
     is_standard_legal = models.BooleanField(default=False)
+    is_universe_beyond = models.BooleanField(default=False)
     
     class Meta:
         ordering        = ["-released_at"]
