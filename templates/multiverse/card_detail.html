@@ -8,7 +8,8 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto">
+<div class="max-w-6xl mx-auto"
+     x-data="cardDetail()"
 
   <!-- Breadcrumb -->
   <nav class="text-sm text-gray-500 dark:text-gray-400 mb-6">
@@ -27,7 +28,7 @@
     <div class="flex flex-col gap-4">
 
       {% if card.is_multiface and face_front and face_back %}
-      <!-- Carta doble cara — flip 3D -->
+      <!-- Carta doble cara — flip 3D con imagen reactiva -->
       <div x-data="{ flipped: false }" class="relative">
 
         <!-- Botón tap/untap -->
@@ -50,28 +51,16 @@
 
             <!-- Cara frontal -->
             <div class="card-flip-front">
-              {% if face_front.image_uris.normal %}
-              <img src="{{ face_front.image_uris.normal }}"
+              <img :src="frontImage"
                    alt="{{ face_front.name }}"
                    class="w-full rounded-xl shadow-lg">
-              {% else %}
-              <div class="aspect-[63/88] card flex items-center justify-center rounded-xl">
-                <span class="text-sm text-gray-400">{{ face_front.name }}</span>
-              </div>
-              {% endif %}
             </div>
 
             <!-- Cara trasera -->
             <div class="card-flip-back">
-              {% if face_back.image_uris.normal %}
-              <img src="{{ face_back.image_uris.normal }}"
+              <img :src="backImage"
                    alt="{{ face_back.name }}"
                    class="w-full rounded-xl shadow-lg">
-              {% else %}
-              <div class="aspect-[63/88] card flex items-center justify-center rounded-xl">
-                <span class="text-sm text-gray-400">{{ face_back.name }}</span>
-              </div>
-              {% endif %}
             </div>
 
           </div>
@@ -85,18 +74,10 @@
       </div>
 
       {% else %}
-      <!-- Carta normal -->
-      {% with print=card.primary_print %}
-      {% if print and print.image_normal %}
-      <img src="{{ print.image_normal }}"
+      <!-- Carta normal — imagen reactiva al seleccionar versión -->
+      <img :src="mainImage"
            alt="{{ card.name }}"
            class="w-full rounded-xl shadow-lg">
-      {% else %}
-      <div class="aspect-[63/88] card flex items-center justify-center rounded-xl">
-        <span class="text-sm text-gray-400">Sin imagen</span>
-      </div>
-      {% endif %}
-      {% endwith %}
       {% endif %}
 
       <!-- Links externos -->
@@ -123,49 +104,43 @@
         {% endif %}
       </div>
 
-      <!-- Precios -->
-      {% if print.prices %}
-      <div class="card p-4">
+      <!-- Precios — reactivo al cambiar versión -->
+      <div class="card p-4" x-show="currentPrint">
         <p class="text-xs font-medium text-gray-500 dark:text-gray-400
                   uppercase tracking-wide mb-3">
           Precios
         </p>
         <div class="grid grid-cols-2 gap-3 text-sm">
-          {% if print.price_usd %}
-          <div>
-            <p class="text-xs text-gray-500 dark:text-gray-400">USD</p>
-            <p class="font-medium text-gray-900 dark:text-gray-100">
-              ${{ print.price_usd }}
-            </p>
-          </div>
-          {% endif %}
-          {% if print.price_usd_foil %}
-          <div>
-            <p class="text-xs text-gray-500 dark:text-gray-400">USD Foil</p>
-            <p class="font-medium text-gray-900 dark:text-gray-100">
-              ${{ print.price_usd_foil }}
-            </p>
-          </div>
-          {% endif %}
-          {% if print.price_eur %}
-          <div>
-            <p class="text-xs text-gray-500 dark:text-gray-400">EUR</p>
-            <p class="font-medium text-gray-900 dark:text-gray-100">
-              €{{ print.price_eur }}
-            </p>
-          </div>
-          {% endif %}
-          {% if print.price_tix %}
-          <div>
-            <p class="text-xs text-gray-500 dark:text-gray-400">MTGO Tix</p>
-            <p class="font-medium text-gray-900 dark:text-gray-100">
-              {{ print.price_tix }}
-            </p>
-          </div>
-          {% endif %}
+          <template x-if="currentPrint?.usd">
+            <div>
+              <p class="text-xs text-gray-500 dark:text-gray-400">USD</p>
+              <p class="font-medium text-gray-900 dark:text-gray-100"
+                 x-text="'$' + currentPrint.usd"></p>
+            </div>
+          </template>
+          <template x-if="currentPrint?.usd_foil">
+            <div>
+              <p class="text-xs text-gray-500 dark:text-gray-400">USD Foil</p>
+              <p class="font-medium text-gray-900 dark:text-gray-100"
+                 x-text="'$' + currentPrint.usd_foil"></p>
+            </div>
+          </template>
+          <template x-if="currentPrint?.eur">
+            <div>
+              <p class="text-xs text-gray-500 dark:text-gray-400">EUR</p>
+              <p class="font-medium text-gray-900 dark:text-gray-100"
+                 x-text="'€' + currentPrint.eur"></p>
+            </div>
+          </template>
+          <template x-if="currentPrint?.tix">
+            <div>
+              <p class="text-xs text-gray-500 dark:text-gray-400">MTGO Tix</p>
+              <p class="font-medium text-gray-900 dark:text-gray-100"
+                 x-text="currentPrint.tix"></p>
+            </div>
+          </template>
         </div>
       </div>
-      {% endif %}
       {% endif %}
       {% endwith %}
 
@@ -339,7 +314,7 @@
     </div>
   </div>
 
-  <!-- Versiones de la carta -->
+  <!-- Versiones de la carta — Swiper carousel -->
   {% if prints %}
   <div class="mb-10">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
@@ -348,71 +323,52 @@
         ({{ prints|length }})
       </span>
     </h2>
-    <div class="flex gap-3 flex-wrap">
-      {% for print in prints %}
-      <div class="relative group"
-           x-data="{ show: false }"
-           @mouseenter="show = true"
-           @mouseleave="show = false">
 
-        <!-- Thumbnail -->
-        <div class="w-16 overflow-hidden rounded-lg border-2 cursor-pointer transition-all
-                    {% if forloop.first %}
-                      border-void-500
-                    {% else %}
-                      border-gray-200 dark:border-void-700
-                      hover:border-void-400 dark:hover:border-void-500
-                    {% endif %}">
-          {% if print.image_small %}
-          <img src="{{ print.image_small }}"
-               alt="{{ print.cardset.name }}"
-               class="w-full object-cover">
-          {% else %}
-          <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800
-                      flex items-center justify-center">
-            <span class="text-xs text-gray-400">
-              {{ print.cardset.code|upper }}
-            </span>
+    <div class="swiper versions-swiper overflow-hidden">
+      <div class="swiper-wrapper pb-4">
+        {% for print in prints %}
+        <div class="swiper-slide" style="width:240px">
+          <div class="cursor-pointer group"
+               data-print-id="{{ print.id }}"
+               @click="selectVersion('{{ print.id }}')">
+            <div class="overflow-hidden rounded-xl border-2 transition-all duration-200"
+                 :class="activePrint === '{{ print.id }}'
+                   ? 'border-void-500 shadow-lg shadow-void-500/20'
+                   : 'border-gray-200 dark:border-void-700 hover:border-void-400 dark:hover:border-void-500'">
+              {% if print.image_normal %}
+              <img src="{{ print.image_normal }}"
+                   alt="{{ print.cardset.name }}"
+                   loading="lazy"
+                   class="w-full rounded-xl">
+              {% else %}
+              <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800
+                          flex items-center justify-center">
+                <span class="text-xs text-gray-400">
+                  {{ print.cardset.code|upper }}
+                </span>
+              </div>
+              {% endif %}
+            </div>
+            <div class="mt-2 text-center">
+              <p class="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">
+                {{ print.cardset.name }}
+              </p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                #{{ print.collector_number }} · {{ print.rarity|capfirst }}
+              </p>
+            </div>
           </div>
-          {% endif %}
         </div>
-
-        <!-- Tooltip -->
-        <div x-show="show"
-             x-transition
-             class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20
-                    w-52 card p-3 shadow-lg text-xs"
-             style="display:none">
-          <p class="font-medium text-gray-900 dark:text-gray-100">
-            {{ print.cardset.name }}
-          </p>
-          <p class="text-gray-500 dark:text-gray-400 mt-0.5">
-            #{{ print.collector_number }} · {{ print.rarity|capfirst }}
-          </p>
-          {% if print.artist %}
-          <p class="text-gray-500 dark:text-gray-400">{{ print.artist }}</p>
-          {% endif %}
-          <div class="mt-1.5 flex gap-3">
-            {% if print.price_usd %}
-            <span class="font-medium text-gray-900 dark:text-gray-100">
-              ${{ print.price_usd }}
-            </span>
-            {% endif %}
-            {% if print.price_usd_foil %}
-            <span class="text-gray-500 dark:text-gray-400">
-              Foil ${{ print.price_usd_foil }}
-            </span>
-            {% endif %}
-          </div>
-          {% if print.released_at %}
-          <p class="text-gray-400 dark:text-gray-500 mt-1">
-            {{ print.released_at }}
-          </p>
-          {% endif %}
-        </div>
-
+        {% endfor %}
       </div>
-      {% endfor %}
+
+      {% if prints|length > 5 %}
+      <div class="swiper-button-prev versions-prev !text-void-600 dark:!text-void-400
+                  !w-8 !h-8 after:!text-sm !-left-1"></div>
+      <div class="swiper-button-next versions-next !text-void-600 dark:!text-void-400
+                  !w-8 !h-8 after:!text-sm !-right-1"></div>
+      {% endif %}
+      <div class="swiper-scrollbar versions-scrollbar"></div>
     </div>
   </div>
   {% endif %}
@@ -430,34 +386,35 @@
     <div class="swiper related-swiper overflow-hidden">
       <div class="swiper-wrapper pb-4">
         {% for part in card.all_parts %}
-        <div class="swiper-slide !w-36">
+        <div class="swiper-slide !w-52">
           <a href="{% url 'multiverse:card-detail' part.id %}"
              class="group block"
              title="{{ part.name }}">
-            <div class="card overflow-hidden transition-transform duration-150
-                        group-hover:-translate-y-1 group-hover:shadow-md">
+            <div class="overflow-hidden rounded-xl transition-transform duration-150
+                        group-hover:-translate-y-1 group-hover:shadow-lg">
               <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800 overflow-hidden relative">
                 <img src="https://api.scryfall.com/cards/{{ part.id }}?format=image&version=normal"
                      alt="{{ part.name }}"
                      loading="lazy"
                      onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
                      class="w-full h-full object-cover transition-transform duration-200
-                            group-hover:scale-105">
+                            group-hover:scale-105 rounded-xl">
                 <div class="w-full h-full items-center justify-center p-2 hidden">
                   <span class="text-xs text-gray-400 text-center">{{ part.name }}</span>
                 </div>
                 <!-- Badge componente -->
-                <div class="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1">
-                  <span class="text-xs text-white/80 capitalize">
+                <div class="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm
+                            px-2 py-1.5 rounded-b-xl">
+                  <span class="text-xs text-white/90 capitalize font-medium">
                     {{ part.component|cut:"_" }}
                   </span>
                 </div>
               </div>
-              <div class="p-2">
-                <p class="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">
-                  {{ part.name }}
-                </p>
-              </div>
+            </div>
+            <div class="mt-2 text-center">
+              <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                {{ part.name }}
+              </p>
             </div>
           </a>
         </div>
@@ -465,12 +422,12 @@
       </div>
 
       {% if card.all_parts|length > 4 %}
-      <div class="swiper-button-prev !text-void-600 dark:!text-void-400
+      <div class="swiper-button-prev related-prev !text-void-600 dark:!text-void-400
                   !w-8 !h-8 after:!text-sm !-left-1"></div>
-      <div class="swiper-button-next !text-void-600 dark:!text-void-400
+      <div class="swiper-button-next related-next !text-void-600 dark:!text-void-400
                   !w-8 !h-8 after:!text-sm !-right-1"></div>
       {% endif %}
-      <div class="swiper-scrollbar"></div>
+      <div class="swiper-scrollbar related-scrollbar"></div>
     </div>
   </div>
   {% endif %}
@@ -546,21 +503,90 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
 <script>
+// Print data for reactive version switching
+const PRINTS_DATA = {
+  {% for print in prints %}
+  "{{ print.id }}": {
+    scryfall_id: "{{ print.scryfall_id }}",
+    image: "{{ print.image_normal|default:'' }}",
+    usd: "{{ print.price_usd|default:'' }}",
+    usd_foil: "{{ print.price_usd_foil|default:'' }}",
+    eur: "{{ print.price_eur|default:'' }}",
+    tix: "{{ print.price_tix|default:'' }}"
+  },
+  {% endfor %}
+};
+
+const DEFAULT_PRINT_ID = "{{ card.primary_print.id|default:'' }}";
+const IS_MULTIFACE = {{ card.is_multiface|yesno:"true,false" }};
+
+function scryfallImg(scryfallId, face) {
+  let url = 'https://api.scryfall.com/cards/' + scryfallId + '?format=image&version=normal';
+  if (face) url += '&face=' + face;
+  return url;
+}
+
+function cardDetail() {
+  const defaultPrint = PRINTS_DATA[DEFAULT_PRINT_ID] || null;
+  const sid = defaultPrint ? defaultPrint.scryfall_id : '';
+
+  return {
+    activePrint: DEFAULT_PRINT_ID,
+    currentPrint: defaultPrint,
+    // Single-face
+    mainImage: defaultPrint ? defaultPrint.image : '',
+    // Multi-face
+    frontImage: IS_MULTIFACE && sid ? scryfallImg(sid, 'front') : '',
+    backImage: IS_MULTIFACE && sid ? scryfallImg(sid, 'back') : '',
+
+    selectVersion(id) {
+      const p = PRINTS_DATA[id];
+      if (!p) return;
+      this.activePrint = id;
+      this.currentPrint = p;
+      if (IS_MULTIFACE) {
+        this.frontImage = scryfallImg(p.scryfall_id, 'front');
+        this.backImage = scryfallImg(p.scryfall_id, 'back');
+      } else {
+        this.mainImage = p.image;
+      }
+    }
+  };
+}
+
 document.addEventListener('DOMContentLoaded', function () {
-  const el = document.querySelector('.related-swiper');
-  if (el) {
-    new Swiper('.related-swiper', {
+  // Versions carousel
+  if (document.querySelector('.versions-swiper')) {
+    new Swiper('.versions-swiper', {
       slidesPerView: 'auto',
       spaceBetween: 12,
       grabCursor: true,
       scrollbar: {
-        el: '.swiper-scrollbar',
+        el: '.versions-scrollbar',
         draggable: true,
         hide: true,
       },
       navigation: {
-        nextEl: '.swiper-button-next',
-        prevEl: '.swiper-button-prev',
+        nextEl: '.versions-next',
+        prevEl: '.versions-prev',
+      },
+    });
+  }
+
+  // Related cards carousel
+  if (document.querySelector('.related-swiper')) {
+    new Swiper('.related-swiper', {
+      slidesPerView: 'auto',
+      spaceBetween: 16,
+      grabCursor: true,
+      scrollbar: {
+        el: '.related-scrollbar',
+        draggable: true,
+        hide: true,
+      },
+      navigation: {
+        nextEl: '.related-next',
+        prevEl: '.related-prev',
       },
     });
   }
