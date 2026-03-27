@@ -76,7 +76,9 @@
   {% endif %}
 
   <!-- Contenedor del grid -->
-  <div id="cards-container">
+  <div id="cards-container"
+       class="grid gap-4 mb-4"
+       :style="'grid-template-columns: repeat(' + (cardSize === 'sm' ? 6 : cardSize === 'lg' ? 4 : 5) + ', minmax(0, 1fr))'">
     {% include "multiverse/partials/card_grid.html" %}
   </div>
 

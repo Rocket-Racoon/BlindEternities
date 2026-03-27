@@ -2,9 +2,6 @@
 
 {% if page_obj.object_list %}
 
-<div class="grid gap-4 mb-4"
-     :style="'grid-template-columns: repeat(' + (cardSize === 'sm' ? 6 : cardSize === 'lg' ? 4 : 5) + ', minmax(0, 1fr))'">
-
   {% for item in page_obj %}
 
   {% if version == "all" %}
@@ -14,19 +11,59 @@
     <div class="card overflow-hidden transition-transform duration-150
                 group-hover:-translate-y-1 group-hover:shadow-md">
 
-      {% if item.image_small %}
-      <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800 overflow-hidden">
-        <img :src="cardSize === 'sm' ? '{{ item.image_small }}' : cardSize === 'lg' ? '{{ item.image_large }}' : '{{ item.image_normal }}'"
-             alt="{{ item.card.name }}" loading="lazy"
-             class="w-full h-full object-cover transition-transform duration-200
-                    group-hover:scale-105">
+      {% with faces=item.card.faces.all %}
+      {% if faces and faces|length > 1 %}
+      {# Multiface — use Scryfall API URLs per print scryfall_id #}
+      {% with sid=item.scryfall_id %}
+      <div x-data="{ flipped: false }" class="aspect-[63/88] relative">
+        <button @click.prevent.stop="flipped = !flipped"
+                class="absolute top-2 left-2 z-10 w-9 h-9 flex items-center justify-center
+                       rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-sm
+                       shadow-lg transition-colors"
+                :title="flipped ? 'Voltear — Untap' : 'Voltear — Tap'">
+          <svg :class="flipped ? 'rotate-90' : 'rotate-0'"
+               class="w-5 h-5 text-white transition-transform duration-300"
+               fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+        </button>
+        <div class="card-flip-container w-full h-full">
+          <div class="card-flip-inner w-full h-full" :class="flipped ? 'flipped' : ''">
+            <div class="card-flip-front">
+              <img :src="cardSize === 'sm'
+                     ? 'https://api.scryfall.com/cards/{{ sid }}?format=image&version=small&face=front'
+                     : cardSize === 'lg'
+                     ? 'https://api.scryfall.com/cards/{{ sid }}?format=image&version=large&face=front'
+                     : 'https://api.scryfall.com/cards/{{ sid }}?format=image&version=normal&face=front'"
+                   alt="{{ item.card.name }}" loading="lazy"
+                   class="w-full h-full object-cover">
+            </div>
+            <div class="card-flip-back">
+              <img :src="cardSize === 'sm'
+                     ? 'https://api.scryfall.com/cards/{{ sid }}?format=image&version=small&face=back'
+                     : cardSize === 'lg'
+                     ? 'https://api.scryfall.com/cards/{{ sid }}?format=image&version=large&face=back'
+                     : 'https://api.scryfall.com/cards/{{ sid }}?format=image&version=normal&face=back'"
+                   alt="{{ item.card.name }} (back)" loading="lazy"
+                   class="w-full h-full object-cover">
+            </div>
+          </div>
+        </div>
       </div>
+      {% endwith %}
+      {% elif item.image_small %}
+      {# Single-face #}
+      {% with img_sm=item.image_small img_md=item.image_normal img_lg=item.image_large card_name=item.card.name lazy="lazy" %}
+      {% include "multiverse/partials/_card_image.html" %}
+      {% endwith %}
       {% else %}
       <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800
                   flex items-center justify-center p-2">
         <span class="text-xs text-gray-400 dark:text-gray-600 text-center">{{ item.card.name }}</span>
       </div>
       {% endif %}
+      {% endwith %}
 
       <div class="p-2">
         <p class="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">
@@ -85,10 +122,10 @@
   {% endif %}
 
   {% endfor %}
-</div>
 
 {% if page_obj.has_next %}
 <div id="scroll-sentinel"
+     style="grid-column: 1 / -1"
      hx-get="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
      hx-trigger="intersect once"
      hx-target="#scroll-sentinel"
@@ -107,7 +144,8 @@
 {% endif %}
 
 {% else %}
-<div class="card p-16 text-center text-gray-400 dark:text-gray-600">
+<div class="p-16 text-center text-gray-400 dark:text-gray-600"
+     style="grid-column: 1 / -1">
   <p class="text-sm">No se encontraron cartas.</p>
   {% if request.GET %}
   <a href="{% url 'multiverse:card-list' %}"

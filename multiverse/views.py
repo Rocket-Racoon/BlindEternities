@@ -18,7 +18,7 @@ class CardListView(TemplateView):
     template_name = "multiverse/card_list.html"
 
     def get_template_names(self):
-        if self.request.headers.get("HX-Request") and self.request.GET.get("page"):
+        if self.request.headers.get("HX-Request"):
             return ["multiverse/partials/card_grid.html"]
         return [self.template_name]
 
@@ -58,7 +58,9 @@ class CardListView(TemplateView):
             print_qs = (
                 CardPrint.objects
                 .filter(card__in=card_qs, digital=False)
+                .exclude(cardset__set_type__in=self.EXCLUDED_SET_TYPES)
                 .select_related("card", "cardset")
+                .prefetch_related("card__faces")
                 .order_by("card__name", "-released_at")
             )
             page_obj = paginate_queryset(
@@ -76,6 +78,9 @@ class CardListView(TemplateView):
         })
         return ctx
 
+    # Set types to exclude by default
+    EXCLUDED_SET_TYPES = ["un_set", "funny", "minigame", "token"]
+
     def _apply_defaults(self, qs):
         """
         Exclusiones que aplican siempre — independiente de los filtros del usuario.
@@ -87,6 +92,9 @@ class CardListView(TemplateView):
         # Layouts que nunca mostramos por defecto
         qs = qs.exclude(layout__in=["art_series", "scheme", "planar",
                                      "vanguard", "emblem", "conspiracy"])
+
+        # Excluir tipos de set no deseados (un-sets, funny, minigame, token)
+        qs = qs.exclude(prints__cardset__set_type__in=self.EXCLUDED_SET_TYPES)
 
         # Sin cartas digitales por defecto
         qs = qs.filter(
