@@ -25,11 +25,22 @@ class CardListView(TemplateView):
     def get_context_data(self, **kwargs):
         ctx  = super().get_context_data(**kwargs)
         form = CardSearchForm(self.request.GET or None)
+        version = self.request.GET.get("version", "all")
 
-        qs = (
+        # Base Card queryset with filters
+        card_qs = (
             Card.objects
             .filter(is_active=True)
-            .prefetch_related(
+            .order_by("name")
+        )
+        card_qs = self._apply_defaults(card_qs)
+
+        if self.request.GET and form.is_valid():
+            card_qs = form.filter_queryset(card_qs)
+
+        if version == "latest":
+            # One entry per card (original behaviour)
+            card_qs = card_qs.prefetch_related(
                 Prefetch(
                     "prints",
                     queryset=CardPrint.objects
@@ -37,27 +48,31 @@ class CardListView(TemplateView):
                         .order_by("-released_at"),
                     to_attr="all_prints_prefetched",
                 ),
-                Prefetch(
-                    "faces",
-                    to_attr="faces_prefetched",
-                ),
+                Prefetch("faces", to_attr="faces_prefetched"),
             )
-            .order_by("name")
-        )
-
-        qs = self._apply_defaults(qs)
-        
-        if self.request.GET and form.is_valid():
-            qs = form.filter_queryset(qs)
+            page_obj = paginate_queryset(
+                card_qs, self.request.GET.get("page"), per_page=50,
+            )
+        else:
+            # All printed versions (default)
+            print_qs = (
+                CardPrint.objects
+                .filter(card__in=card_qs, digital=False)
+                .select_related("card", "cardset")
+                .order_by("card__name", "-released_at")
+            )
+            page_obj = paginate_queryset(
+                print_qs, self.request.GET.get("page"), per_page=50,
+            )
 
         ctx.update({
             "form":     form,
-            "page_obj": paginate_queryset(qs, self.request.GET.get("page"), per_page=50),
+            "page_obj": page_obj,
             "colors":   MagicColor.choices,
             "rarities": CardRarity.choices,
             "layouts":  CardLayout.choices,
             "formats":  MagicFormat.choices,
-            "version":  self.request.GET.get("version", "all"),
+            "version":  version,
         })
         return ctx
 

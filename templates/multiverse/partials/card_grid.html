@@ -4,15 +4,55 @@
 
 <div class="grid gap-4 mb-4"
      :style="'grid-template-columns: repeat(' + (cardSize === 'sm' ? 6 : cardSize === 'lg' ? 4 : 5) + ', minmax(0, 1fr))'">
-  {% for card in page_obj %}
-  <a href="{% url 'multiverse:card-detail' card.oracle_id %}"
+
+  {% for item in page_obj %}
+
+  {% if version == "all" %}
+  {# item is a CardPrint #}
+  <a href="{% url 'multiverse:card-detail' item.card.oracle_id %}"
      class="group block">
     <div class="card overflow-hidden transition-transform duration-150
                 group-hover:-translate-y-1 group-hover:shadow-md">
 
-      {% with print=card.grid_print faces=card.faces_prefetched %}
+      {% if item.image_small %}
+      <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800 overflow-hidden">
+        <img :src="cardSize === 'sm' ? '{{ item.image_small }}' : cardSize === 'lg' ? '{{ item.image_large }}' : '{{ item.image_normal }}'"
+             alt="{{ item.card.name }}" loading="lazy"
+             class="w-full h-full object-cover transition-transform duration-200
+                    group-hover:scale-105">
+      </div>
+      {% else %}
+      <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800
+                  flex items-center justify-center p-2">
+        <span class="text-xs text-gray-400 dark:text-gray-600 text-center">{{ item.card.name }}</span>
+      </div>
+      {% endif %}
+
+      <div class="p-2">
+        <p class="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">
+          {{ item.card.name }}
+        </p>
+        <p class="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+          {{ item.cardset.name }} #{{ item.collector_number }}
+        </p>
+        {% if item.card.mana_cost %}
+        <p class="mt-1 text-xs">{{ item.card.mana_cost|mana_cost }}</p>
+        {% endif %}
+      </div>
+
+    </div>
+  </a>
+
+  {% else %}
+  {# item is a Card (version=latest) #}
+  <a href="{% url 'multiverse:card-detail' item.oracle_id %}"
+     class="group block">
+    <div class="card overflow-hidden transition-transform duration-150
+                group-hover:-translate-y-1 group-hover:shadow-md">
+
+      {% with print=item.grid_print faces=item.faces_prefetched %}
       {% if print %}
-      {% with img_sm=print.image_small img_md=print.image_normal img_lg=print.image_large card_name=card.name lazy="lazy" %}
+      {% with img_sm=print.image_small img_md=print.image_normal img_lg=print.image_large card_name=item.name lazy="lazy" %}
       {% if faces and faces|length > 1 %}
       {% with img_back_sm=faces.1.image_uris.small img_back_md=faces.1.image_uris.normal img_back_lg=faces.1.image_uris.large %}
       {% include "multiverse/partials/_card_image.html" %}
@@ -23,25 +63,27 @@
       {% endwith %}
       {% else %}
       <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800 flex items-center justify-center p-2">
-        <span class="text-xs text-gray-400 dark:text-gray-600 text-center">{{ card.name }}</span>
+        <span class="text-xs text-gray-400 dark:text-gray-600 text-center">{{ item.name }}</span>
       </div>
       {% endif %}
       {% endwith %}
 
       <div class="p-2">
         <p class="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">
-          {{ card.name }}
+          {{ item.name }}
         </p>
         <p class="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
-          {{ card.type_line }}
+          {{ item.type_line }}
         </p>
-        {% if card.mana_cost %}
-        <p class="mt-1 text-xs">{{ card.mana_cost|mana_cost }}</p>
+        {% if item.mana_cost %}
+        <p class="mt-1 text-xs">{{ item.mana_cost|mana_cost }}</p>
         {% endif %}
       </div>
 
     </div>
   </a>
+  {% endif %}
+
   {% endfor %}
 </div>
 
