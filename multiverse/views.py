@@ -197,12 +197,35 @@ class CardDetailView(TemplateView):
         face_front = faces[0] if len(faces) > 0 else None
         face_back  = faces[1] if len(faces) > 1 else None
 
+        # Resolve related cards: map scryfall_id → oracle_id
+        related_parts = []
+        if card.all_parts:
+            from uuid import UUID
+            scryfall_ids = [p["id"] for p in card.all_parts if p.get("id")]
+            scryfall_to_oracle = {
+                str(sid): str(oid)
+                for sid, oid in CardPrint.objects
+                .filter(scryfall_id__in=scryfall_ids)
+                .values_list("scryfall_id", "card__oracle_id")
+            }
+            current_oracle = str(card.oracle_id)
+            for part in card.all_parts:
+                oracle_id = scryfall_to_oracle.get(part.get("id", ""))
+                # Skip the current card
+                if oracle_id == current_oracle:
+                    continue
+                related_parts.append({
+                    **part,
+                    "oracle_id": oracle_id or "",
+                })
+
         ctx.update({
             "card":        card,
             "faces":       faces,
             "face_front":  face_front,
             "face_back":   face_back,
             "prints":      card.prints.select_related("cardset").order_by("-cardset__released_at"),
+            "related_parts": related_parts,
             "legality":    legality,
             "rulings":     card.rulings.order_by("published_at"),
             "formats":     MagicFormat.choices,
