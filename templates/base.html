@@ -9,6 +9,7 @@
   {# Tailwind CSS #}
   {% load static %}
   <link rel="stylesheet" href="{% static 'css/main.css' %}">
+  <style>[x-cloak]{display:none!important}</style>
 
   {# Fuentes #}
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,6 +17,8 @@
 
   {# Mana font para símbolos de Magic #}
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mana-font@latest/css/mana.css">
+  {# Keyrune para iconos de set/rareza #}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/keyrune@latest/css/keyrune.css">
   
   {# Swiper.js #}
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
@@ -54,6 +57,7 @@
 
   {# Scripts #}
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <script src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js" defer></script>
   <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="{% static 'js/main.js' %}"></script>

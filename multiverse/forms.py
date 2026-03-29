@@ -6,6 +6,8 @@ from core.constants import (
     CardRarity,
     CardLayout,
     CardSetType,
+    CardType,
+    CardSupertype,
 )
 
 
@@ -27,6 +29,13 @@ VERSION_CHOICES = [
     ("latest", "Solo versión más reciente"),
 ]
 
+SORT_CHOICES = [
+    ("date_desc", "Fecha ↓ (más reciente)"),
+    ("date_asc",  "Fecha ↑ (más antiguo)"),
+    ("name_asc",  "Nombre A → Z"),
+    ("name_desc", "Nombre Z → A"),
+]
+
 NORMAL_LAYOUTS = {
     "normal", "split", "flip", "transform", "modal_dfc",
     "meld", "leveler", "class", "case", "saga", "adventure",
@@ -40,7 +49,7 @@ KIND_LAYOUTS = {
     "conspiracy": ["conspiracy"],
     "vanguard":   ["vanguard"],
     "emblem":     ["emblem"],
-    "art_series": ["art_series"]  
+    "art_series": ["art_series"]
 }
 
 
@@ -54,28 +63,34 @@ class CardSearchForm(forms.Form):
             "autofocus":   True,
         }),
     )
-    color = forms.ChoiceField(
+    sort = forms.ChoiceField(
+        required=False,
+        label="Ordenar por",
+        choices=SORT_CHOICES,
+        widget=forms.Select(attrs={"class": "input"}),
+        initial="date_desc",
+    )
+    color = forms.MultipleChoiceField(
         required=False,
         label="Color",
-        choices=EMPTY + MagicColor.choices,
-        widget=forms.Select(attrs={"class": "input"}),
+        choices=MagicColor.choices,
+        widget=forms.CheckboxSelectMultiple,
     )
-    color_match = forms.ChoiceField(
+    color_identity = forms.BooleanField(
         required=False,
-        label="Coincidencia",
-        choices=[
-            ("",         "— Cualquiera —"),
-            ("identity", "Color identity"),
-            ("exact",    "Exacto"),
-            ("includes", "Incluye"),
-        ],
-        widget=forms.Select(attrs={"class": "input"}),
+        label="Buscar por identidad de color",
+        widget=forms.CheckboxInput(attrs={"class": "w-4 h-4 rounded"}),
     )
-    rarity = forms.ChoiceField(
+    color_exact = forms.BooleanField(
+        required=False,
+        label="Solo estos colores (excluir otros)",
+        widget=forms.CheckboxInput(attrs={"class": "w-4 h-4 rounded"}),
+    )
+    rarity = forms.MultipleChoiceField(
         required=False,
         label="Rareza",
-        choices=EMPTY + CardRarity.choices,
-        widget=forms.Select(attrs={"class": "input"}),
+        choices=CardRarity.choices,
+        widget=forms.CheckboxSelectMultiple,
     )
     layout = forms.ChoiceField(
         required=False,
@@ -110,7 +125,17 @@ class CardSearchForm(forms.Form):
         ],
         widget=forms.Select(attrs={"class": "input"}),
     )
-    type_line = forms.CharField(
+    # Set filter
+    set_code = forms.CharField(
+        required=False,
+        label="Set",
+        widget=forms.TextInput(attrs={
+            "placeholder": "Nombre del set...",
+            "class":       "input",
+        }),
+    )
+    # Type (autocomplete from CardType enum)
+    card_type = forms.CharField(
         required=False,
         label="Tipo",
         widget=forms.TextInput(attrs={
@@ -118,12 +143,49 @@ class CardSearchForm(forms.Form):
             "class":       "input",
         }),
     )
+    # Supertype (autocomplete from CardSupertype enum)
+    supertype = forms.CharField(
+        required=False,
+        label="Supertipo",
+        widget=forms.TextInput(attrs={
+            "placeholder": "Legendary, Snow...",
+            "class":       "input",
+        }),
+    )
+    # Subtype (autocomplete from CreatureType model)
+    subtype = forms.CharField(
+        required=False,
+        label="Subtipo",
+        widget=forms.TextInput(attrs={
+            "placeholder": "Elf, Dragon, Aura...",
+            "class":       "input",
+        }),
+    )
+    # Artist
+    artist = forms.CharField(
+        required=False,
+        label="Artista",
+        widget=forms.TextInput(attrs={
+            "placeholder": "Nombre del artista...",
+            "class":       "input",
+        }),
+    )
+    # Keep legacy type_line for backwards compat
+    type_line = forms.CharField(
+        required=False,
+        label="Línea de tipo (texto libre)",
+        widget=forms.TextInput(attrs={
+            "placeholder": "Línea de tipo completa...",
+            "class":       "input",
+        }),
+    )
     oracle_text = forms.CharField(
         required=False,
         label="Texto oracle",
-        widget=forms.TextInput(attrs={
+        widget=forms.Textarea(attrs={
             "placeholder": "flying, haste...",
             "class":       "input",
+            "rows":        2,
         }),
     )
     card_kind = forms.ChoiceField(
@@ -131,13 +193,19 @@ class CardSearchForm(forms.Form):
         label="Tipo especial",
         choices=CARD_KIND_CHOICES,
         widget=forms.Select(attrs={"class": "input"}),
-    ) 
+    )
     version = forms.ChoiceField(
         required=False,
         label="Versiones",
         choices=VERSION_CHOICES,
         widget=forms.Select(attrs={"class": "input"}),
         initial="all",
+    )
+    # Exclude Universe Beyond
+    exclude_ub = forms.BooleanField(
+        required=False,
+        label="Excluir Universes Beyond",
+        widget=forms.CheckboxInput(attrs={"class": "w-4 h-4 rounded"}),
     )
     digital = forms.BooleanField(
         required=False,
@@ -154,49 +222,77 @@ class CardSearchForm(forms.Form):
         label="Copias ilimitadas",
         widget=forms.CheckboxInput(attrs={"class": "w-4 h-4 rounded"}),
     )
-    
-    
 
     def filter_queryset(self, qs):
         if not self.is_valid():
             return qs
 
         data = self.cleaned_data
-        
+
         if data.get("q"):
             qs = qs.filter(name__icontains=data["q"])
-        
+
         # Excluir cartas sin type_line por defecto
         qs = qs.exclude(type_line="")
-        
+
         # Excluir cartas digitales por defecto — solo incluir si el usuario lo pide
         if not data.get("digital"):
             qs = qs.filter(prints__digital=False).distinct()
 
         # --- Filtros del usuario ---
-        if data.get("q"):
-            qs = qs.filter(name__icontains=data["q"])
 
         if data.get("color"):
-            color       = data["color"]
-            color_match = data.get("color_match", "identity")
-            if color_match == "exact":
-                qs = qs.filter(colors=[color])
-            elif color_match == "includes":
-                qs = qs.filter(colors__contains=color)
+            colors_selected = set(data["color"])  # set of color codes
+            use_identity = data.get("color_identity", False)
+            exact = data.get("color_exact", False)
+            field = "color_identity" if use_identity else "colors"
+            has_colorless = "C" in colors_selected
+            real_colors = colors_selected - {"C"}
+            all_wubrg = {"W", "U", "B", "R", "G"}
+
+            if use_identity or exact:
+                # Subset logic: exclude cards with colors NOT in selection.
+                # Cards whose identity/colors are a subset of real_colors.
+                # If C is selected, colorless cards (empty []) are also included.
+                excluded = all_wubrg - real_colors
+                for c in excluded:
+                    qs = qs.exclude(**{f"{field}__icontains": f'"{c}"'})
+                # If C is NOT selected, require at least one of the real colors
+                if real_colors and not has_colorless:
+                    from django.db.models import Q
+                    q = Q()
+                    for c in real_colors:
+                        q |= Q(**{f"{field}__icontains": f'"{c}"'})
+                    qs = qs.filter(q)
             else:
-                qs = qs.filter(color_identity__contains=color)
+                # Include logic: must have at least one selected color
+                if real_colors:
+                    from django.db.models import Q
+                    if has_colorless:
+                        # Cards with any of the real colors OR colorless
+                        q = Q(**{field: "[]"})  # empty = colorless
+                        for c in real_colors:
+                            q |= Q(**{f"{field}__icontains": f'"{c}"'})
+                        qs = qs.filter(q)
+                    else:
+                        q = Q()
+                        for c in real_colors:
+                            q |= Q(**{f"{field}__icontains": f'"{c}"'})
+                        qs = qs.filter(q)
+                elif has_colorless:
+                    # Only colorless selected
+                    qs = qs.filter(**{field: "[]"})
 
         if data.get("rarity"):
-            qs = qs.filter(prints__rarity=data["rarity"]).distinct()
+            qs = qs.filter(prints__rarity__in=data["rarity"]).distinct()
 
         if data.get("layout"):
             qs = qs.filter(layout=data["layout"])
 
         if data.get("format"):
-            qs = qs.filter(
-                legality__data__contains={data["format"]: "legal"}
-            )
+            # SQLite-compatible: search raw JSON text for "format": "legal"
+            fmt = data["format"]
+            qs = qs.filter(legality__data__icontains=f'"{fmt}": "legal"')
 
         if data.get("cmc") is not None:
             op = data.get("cmc_op", "eq")
@@ -207,6 +303,31 @@ class CardSearchForm(forms.Form):
             else:
                 qs = qs.filter(cmc=data["cmc"])
 
+        # Set filter
+        if data.get("set_code"):
+            qs = qs.filter(
+                prints__cardset__name__icontains=data["set_code"]
+            ).distinct()
+
+        # Card type (searches type_line for the type)
+        if data.get("card_type"):
+            qs = qs.filter(type_line__icontains=data["card_type"])
+
+        # Supertype (searches type_line)
+        if data.get("supertype"):
+            qs = qs.filter(type_line__icontains=data["supertype"])
+
+        # Subtype (searches type_line — part after the dash)
+        if data.get("subtype"):
+            qs = qs.filter(type_line__icontains=data["subtype"])
+
+        # Artist filter
+        if data.get("artist"):
+            qs = qs.filter(
+                prints__artist__icontains=data["artist"]
+            ).distinct()
+
+        # Legacy type_line free text
         if data.get("type_line"):
             qs = qs.filter(type_line__icontains=data["type_line"])
 
@@ -219,14 +340,17 @@ class CardSearchForm(forms.Form):
         if data.get("has_deck_limit"):
             qs = qs.filter(has_deck_limit=True)
 
+        # Exclude Universe Beyond
+        if data.get("exclude_ub"):
+            qs = qs.exclude(prints__cardset__is_universe_beyond=True)
+
         # Filtro por card_kind
         kind = data.get("card_kind", "")
         if kind == "normal":
-            # Solo layouts normales — excluye arte, tokens, planes, etc.
             qs = qs.filter(layout__in=NORMAL_LAYOUTS)
         elif kind in KIND_LAYOUTS:
             qs = qs.filter(layout__in=KIND_LAYOUTS[kind])
-            
+
         if data.get("digital"):
             qs = qs.filter(prints__digital=True).distinct()
 
@@ -235,7 +359,7 @@ class CardSearchForm(forms.Form):
 
 class SetSearchForm(forms.Form):
     q = forms.CharField(
-        required=False, 
+        required=False,
         label="Buscar",
         widget=forms.TextInput(attrs={
             "placeholder": "Nombre del set...",

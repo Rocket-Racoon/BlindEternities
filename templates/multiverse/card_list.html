@@ -4,11 +4,12 @@
 {% block title %}Cartas — {{ site_name }}{% endblock %}
 
 {% block content %}
-{# Alpine scope en el bloque exterior — nunca tocado por HTMX #}
 <div class="max-w-7xl mx-auto"
-     x-data="{ cardSize: localStorage.getItem('card-size') || 'md' }"
-     x-init="$watch('cardSize', v => localStorage.setItem('card-size', v))"
-     x-ref="cardList">
+     x-data="{
+       cardSize: localStorage.getItem('card-size') || 'md',
+       filtersOpen: false
+     }"
+     x-init="$watch('cardSize', v => localStorage.setItem('card-size', v))">
 
   <!-- Header -->
   <div class="flex items-center justify-between mb-6">
@@ -22,60 +23,266 @@
     </div>
     <div class="flex items-center gap-2">
       {% include "partials/card_size_toggle.html" %}
-      <button @click="openFilters()"
-              class="btn-secondary flex items-center gap-2">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
-        </svg>
-        Filtros
-        {% if request.GET %}
-        <span class="w-2 h-2 rounded-full bg-void-500 shrink-0"></span>
-        {% endif %}
-      </button>
     </div>
   </div>
 
-  <!-- Búsqueda rápida -->
-  <form method="get" id="search-form" class="mb-6">
-    <div class="flex gap-3">
-      <input type="text" name="q"
-             value="{{ request.GET.q|default:'' }}"
-             placeholder="Buscar carta..."
-             class="input flex-1"
-             hx-get="{% url 'multiverse:card-list' %}"
-             hx-target="#cards-container"
-             hx-trigger="keyup changed delay:400ms"
-             hx-include="#search-form">
-      <button type="submit" class="btn-primary">Buscar</button>
-      {% if request.GET %}
-      <a href="{% url 'multiverse:card-list' %}" class="btn-secondary">Limpiar</a>
-      {% endif %}
+  <!-- Search bar -->
+  <form method="get" id="search-form" class="mb-4">
+    <div class="flex items-center gap-2">
+      <div class="relative flex-1">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <input type="text" name="q" value="{{ request.GET.q|default:'' }}"
+               placeholder="Buscar carta..."
+               class="input w-full pl-10"
+               hx-get="{% url 'multiverse:card-list' %}"
+               hx-target="#cards-container"
+               hx-trigger="keyup changed delay:400ms"
+               hx-include="#search-form">
+      </div>
+      <!-- Sort -->
+      <div class="flex rounded-lg border border-gray-200 dark:border-void-700 overflow-hidden shrink-0">
+        <button type="submit" name="sort" value="name_asc"
+                class="px-3 py-2 text-xs font-medium transition-colors
+                       {% if sort == 'name_asc' %}bg-void-600 text-white{% else %}text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-void-800{% endif %}"
+                title="A → Z">A→Z</button>
+        <button type="submit" name="sort" value="name_desc"
+                class="px-3 py-2 text-xs font-medium border-l border-gray-200 dark:border-void-700 transition-colors
+                       {% if sort == 'name_desc' %}bg-void-600 text-white{% else %}text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-void-800{% endif %}"
+                title="Z → A">Z→A</button>
+        <button type="submit" name="sort" value="date_desc"
+                class="px-3 py-2 text-xs font-medium border-l border-gray-200 dark:border-void-700 transition-colors
+                       {% if sort == 'date_desc' or not sort %}bg-void-600 text-white{% else %}text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-void-800{% endif %}"
+                title="Más reciente">Nuevo</button>
+        <button type="submit" name="sort" value="date_asc"
+                class="px-3 py-2 text-xs font-medium border-l border-gray-200 dark:border-void-700 transition-colors
+                       {% if sort == 'date_asc' %}bg-void-600 text-white{% else %}text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-void-800{% endif %}"
+                title="Más antiguo">Antiguo</button>
+      </div>
+      <button type="submit" class="btn-primary shrink-0">Buscar</button>
+      <button type="button" @click="filtersOpen = !filtersOpen"
+              class="btn-secondary flex items-center gap-2 shrink-0"
+              :class="filtersOpen && 'ring-2 ring-void-500'">
+        <i class="ms ms-ability-transform"></i>
+        Filtros
+      </button>
     </div>
-    {% for key, value in request.GET.items %}
-      {% if key != 'q' and key != 'page' and value %}
+    {% for key, value in all_params %}
+      {% if key != 'q' and key != 'page' and key != 'sort' and value %}
       <input type="hidden" name="{{ key }}" value="{{ value }}">
       {% endif %}
     {% endfor %}
   </form>
 
+  <!-- ============================================================ -->
+  <!-- FILTER PANEL — collapsible below search bar                   -->
+  <!-- FILTER PANEL -->
+  <form method="get" action="{% url 'multiverse:card-list' %}" id="filter-form"
+        x-show="filtersOpen" x-collapse x-cloak
+        class="card p-4 mb-6 space-y-3">
+
+    {% if request.GET.q %}<input type="hidden" name="q" value="{{ request.GET.q }}">{% endif %}
+    {% if request.GET.sort %}<input type="hidden" name="sort" value="{{ request.GET.sort }}">{% endif %}
+
+    <!-- ROW 0 — Toggles: all checkboxes, same style -->
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-gray-400">
+      <label class="inline-flex items-center gap-1.5 cursor-pointer hover:text-gray-200">
+        <input type="checkbox" name="version" value="latest" {% if request.GET.version == 'latest' %}checked{% endif %}
+               class="w-3.5 h-3.5 rounded border-void-600 bg-void-800 text-void-500 focus:ring-void-500/30">
+        Solo última versión
+      </label>
+      <label class="inline-flex items-center gap-1.5 cursor-pointer hover:text-gray-200">
+        <input type="checkbox" name="digital" {% if request.GET.digital %}checked{% endif %}
+               class="w-3.5 h-3.5 rounded border-void-600 bg-void-800 text-void-500 focus:ring-void-500/30">
+        Digitales
+      </label>
+      <label class="inline-flex items-center gap-1.5 cursor-pointer hover:text-gray-200">
+        <input type="checkbox" name="commander" {% if request.GET.commander %}checked{% endif %}
+               class="w-3.5 h-3.5 rounded border-void-600 bg-void-800 text-void-500 focus:ring-void-500/30">
+        <i class="ms ms-commander"></i> Commanders
+      </label>
+      <label class="inline-flex items-center gap-1.5 cursor-pointer hover:text-gray-200">
+        <input type="checkbox" name="exclude_ub" {% if request.GET.exclude_ub %}checked{% endif %}
+               class="w-3.5 h-3.5 rounded border-void-600 bg-void-800 text-void-500 focus:ring-void-500/30">
+        Excluir UB
+      </label>
+      <label class="inline-flex items-center gap-1.5 cursor-pointer hover:text-gray-200">
+        <input type="checkbox" name="has_deck_limit" {% if request.GET.has_deck_limit %}checked{% endif %}
+               class="w-3.5 h-3.5 rounded border-void-600 bg-void-800 text-void-500 focus:ring-void-500/30">
+        Ilimitadas
+      </label>
+      <span class="h-4 w-px bg-void-700/40"></span>
+      <label class="inline-flex items-center gap-1.5 cursor-pointer hover:text-gray-200">
+        <input type="checkbox" name="card_kind" value="token" {% if request.GET.card_kind == 'token' %}checked{% endif %}
+               class="w-3.5 h-3.5 rounded border-void-600 bg-void-800 text-void-500 focus:ring-void-500/30">
+        Tokens
+      </label>
+      <label class="inline-flex items-center gap-1.5 cursor-pointer hover:text-gray-200">
+        <input type="checkbox" name="card_kind" value="planar" {% if request.GET.card_kind == 'planar' %}checked{% endif %}
+               class="w-3.5 h-3.5 rounded border-void-600 bg-void-800 text-void-500 focus:ring-void-500/30">
+        Planos
+      </label>
+      <label class="inline-flex items-center gap-1.5 cursor-pointer hover:text-gray-200">
+        <input type="checkbox" name="card_kind" value="emblem" {% if request.GET.card_kind == 'emblem' %}checked{% endif %}
+               class="w-3.5 h-3.5 rounded border-void-600 bg-void-800 text-void-500 focus:ring-void-500/30">
+        Emblemas
+      </label>
+    </div>
+
+    <!-- ROW 1 — Color (Alpine-managed) + Rarity (Alpine-managed) -->
+    <div class="flex items-center gap-3 flex-wrap"
+         x-data="colorRarityFilter()"
+         x-init="initCR({{ selected_colors_json }}, {{ selected_rarities_json }})"
+    >
+      <span class="text-[11px] font-semibold text-void-400 uppercase tracking-widest shrink-0"><i class="ms ms-c"></i> Color</span>
+      {% for value, label in colors %}
+      <button type="button" @click="toggleColor('{{ value }}')" class="cursor-pointer" title="{{ label }}">
+        <span class="w-8 h-8 flex items-center justify-center rounded-full border-2 transition-all duration-150
+                     ms ms-{{ value|lower }} ms-cost ms-2x"
+              :class="colors.includes('{{ value }}')
+                ? 'border-violet-400 bg-violet-500/20 shadow-[0_0_10px_rgba(139,92,246,0.5)] scale-110'
+                : 'border-void-700 bg-void-800/40 opacity-60 hover:opacity-100'"></span>
+      </button>
+      {% endfor %}
+      <!-- Hidden inputs for color values -->
+      <template x-for="c in colors" :key="c">
+        <input type="hidden" name="color" :value="c">
+      </template>
+      <label class="inline-flex items-center gap-1 text-[11px] text-gray-500 cursor-pointer ml-1">
+        <input type="checkbox" name="color_identity" {% if request.GET.color_identity %}checked{% endif %}
+               class="w-3.5 h-3.5 rounded border-void-600 bg-void-800 text-void-500 focus:ring-void-500/30">
+        Identidad
+      </label>
+      <label class="inline-flex items-center gap-1 text-[11px] text-gray-500 cursor-pointer">
+        <input type="checkbox" name="color_exact" {% if request.GET.color_exact %}checked{% endif %}
+               class="w-3.5 h-3.5 rounded border-void-600 bg-void-800 text-void-500 focus:ring-void-500/30">
+        Exacto
+      </label>
+
+      <span class="h-5 w-px bg-void-700/40"></span>
+
+      <span class="text-[11px] font-semibold text-void-400 uppercase tracking-widest shrink-0"><i class="ms ms-rarity"></i> Rareza</span>
+      <template x-for="r in rarities" :key="r"><input type="hidden" name="rarity" :value="r"></template>
+      <button type="button" @click="toggleRarity('common')" title="Common">
+        <span class="w-7 h-7 flex items-center justify-center rounded-lg border-2 transition-all duration-150"
+              :class="rarities.includes('common') ? 'border-gray-400 bg-gray-600/20 shadow-[0_0_8px_rgba(107,114,128,0.5)] scale-110' : 'border-void-700 bg-void-800/40 opacity-60 hover:opacity-100'">
+          <i class="ms ms-rarity text-sm" style="color:#6b7280"></i></span></button>
+      <button type="button" @click="toggleRarity('uncommon')" title="Uncommon">
+        <span class="w-7 h-7 flex items-center justify-center rounded-lg border-2 transition-all duration-150"
+              :class="rarities.includes('uncommon') ? 'border-gray-300 bg-gray-500/20 shadow-[0_0_8px_rgba(192,192,192,0.5)] scale-110' : 'border-void-700 bg-void-800/40 opacity-60 hover:opacity-100'">
+          <i class="ms ms-rarity text-sm" style="color:#C0C0C0"></i></span></button>
+      <button type="button" @click="toggleRarity('rare')" title="Rare">
+        <span class="w-7 h-7 flex items-center justify-center rounded-lg border-2 transition-all duration-150"
+              :class="rarities.includes('rare') ? 'border-yellow-500 bg-yellow-900/20 shadow-[0_0_8px_rgba(212,160,23,0.5)] scale-110' : 'border-void-700 bg-void-800/40 opacity-60 hover:opacity-100'">
+          <i class="ms ms-rarity text-sm" style="color:#D4A017"></i></span></button>
+      <button type="button" @click="toggleRarity('mythic')" title="Mythic">
+        <span class="w-7 h-7 flex items-center justify-center rounded-lg border-2 transition-all duration-150"
+              :class="rarities.includes('mythic') ? 'border-orange-500 bg-orange-900/20 shadow-[0_0_10px_rgba(232,89,12,0.6)] scale-110' : 'border-void-700 bg-void-800/40 opacity-60 hover:opacity-100'">
+          <i class="ms ms-rarity text-sm" style="color:#E8590C"></i></span></button>
+      <button type="button" @click="toggleRarity('special')" title="Special">
+        <span class="w-7 h-7 flex items-center justify-center rounded-lg border-2 transition-all duration-150"
+              :class="rarities.includes('special') ? 'border-purple-400 bg-purple-900/20 shadow-[0_0_8px_rgba(168,85,247,0.5)] scale-110' : 'border-void-700 bg-void-800/40 opacity-60 hover:opacity-100'">
+          <i class="ms ms-rarity text-sm" style="color:#A855F7"></i></span></button>
+      <button type="button" @click="toggleRarity('bonus')" title="Bonus">
+        <span class="w-7 h-7 flex items-center justify-center rounded-lg border-2 transition-all duration-150"
+              :class="rarities.includes('bonus') ? 'border-blue-400 bg-blue-900/20 shadow-[0_0_8px_rgba(96,165,250,0.5)] scale-110' : 'border-void-700 bg-void-800/40 opacity-60 hover:opacity-100'">
+          <i class="ms ms-rarity text-sm" style="color:#60A5FA"></i></span></button>
+      <button type="button" @click="toggleRarity('timeshifted')" title="Timeshifted">
+        <span class="w-7 h-7 flex items-center justify-center rounded-lg border-2 transition-all duration-150"
+              :class="rarities.includes('timeshifted') ? 'border-fuchsia-400 bg-fuchsia-900/20 shadow-[0_0_8px_rgba(217,70,239,0.5)] scale-110' : 'border-void-700 bg-void-800/40 opacity-60 hover:opacity-100'">
+          <i class="ms ms-rarity text-sm" style="color:#D946EF"></i></span></button>
+    </div>
+
+    <!-- ROW 2 — CMC + Type -->
+    <div class="flex items-end gap-3">
+      <div class="shrink-0">
+        <span class="text-[11px] font-semibold text-void-400 uppercase tracking-widest block mb-1"><i class="ms ms-x"></i> CMC</span>
+        <div class="flex gap-1.5">
+          <div class="w-24">{{ form.cmc }}</div>
+          <div class="w-20">{{ form.cmc_op }}</div>
+        </div>
+      </div>
+      <div x-data="filterDropdown('types_data', '{{ request.GET.card_type|default:'' }}')" class="relative flex-1">
+        <span class="text-[11px] font-semibold text-void-400 uppercase tracking-widest block mb-1"><i class="ms ms-creature"></i> Tipo</span>
+        <input type="text" x-model="query" @input="filter()" @focus="show()" @click.away="open = false" @keydown.escape="open = false"
+               placeholder="Creature, Instant..." class="input w-full text-sm" autocomplete="off">
+        <input type="hidden" name="card_type" :value="query">
+        <div x-show="open" x-transition class="absolute z-50 mt-1 w-full max-h-44 overflow-y-auto rounded-lg bg-void-950 border border-void-600 shadow-2xl backdrop-blur-sm" style="display:none">
+          <template x-for="item in filtered" :key="item"><button type="button" @click="select(item)" class="block w-full text-left px-3 py-1.5 text-sm text-gray-200 hover:bg-void-800" x-text="item"></button></template>
+          <div x-show="filtered.length===0" class="px-3 py-2 text-xs text-gray-500">Sin resultados</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROW 3 — Supertype + Subtype -->
+    <div class="grid grid-cols-2 gap-3">
+      <div x-data="filterDropdown('supertypes_data', '{{ request.GET.supertype|default:'' }}')" class="relative">
+        <span class="text-[11px] font-semibold text-void-400 uppercase tracking-widest block mb-1">Supertipo</span>
+        <input type="text" x-model="query" @input="filter()" @focus="show()" @click.away="open = false" @keydown.escape="open = false"
+               placeholder="Legendary..." class="input w-full text-sm" autocomplete="off">
+        <input type="hidden" name="supertype" :value="query">
+        <div x-show="open" x-transition class="absolute z-50 mt-1 w-full max-h-44 overflow-y-auto rounded-lg bg-void-950 border border-void-600 shadow-2xl backdrop-blur-sm" style="display:none">
+          <template x-for="item in filtered" :key="item"><button type="button" @click="select(item)" class="block w-full text-left px-3 py-1.5 text-sm text-gray-200 hover:bg-void-800" x-text="item"></button></template>
+          <div x-show="filtered.length===0" class="px-3 py-2 text-xs text-gray-500">Sin resultados</div>
+        </div>
+      </div>
+      <div x-data="filterDropdown('subtypes_data', '{{ request.GET.subtype|default:'' }}')" class="relative">
+        <span class="text-[11px] font-semibold text-void-400 uppercase tracking-widest block mb-1">Subtipo</span>
+        <input type="text" x-model="query" @input="filter()" @focus="show()" @click.away="open = false" @keydown.escape="open = false"
+               placeholder="Elf, Dragon..." class="input w-full text-sm" autocomplete="off">
+        <input type="hidden" name="subtype" :value="query">
+        <div x-show="open" x-transition class="absolute z-50 mt-1 w-full max-h-44 overflow-y-auto rounded-lg bg-void-950 border border-void-600 shadow-2xl backdrop-blur-sm" style="display:none">
+          <template x-for="item in filtered" :key="item"><button type="button" @click="select(item)" class="block w-full text-left px-3 py-1.5 text-sm text-gray-200 hover:bg-void-800" x-text="item"></button></template>
+          <div x-show="filtered.length===0" class="px-3 py-2 text-xs text-gray-500">Sin resultados</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROW 4 — Oracle text (own row) -->
+    <div>
+      <span class="text-[11px] font-semibold text-void-400 uppercase tracking-widest block mb-1"><i class="ms ms-saga"></i> Texto oracle</span>
+      <textarea name="oracle_text" rows="2" placeholder="flying, haste..."
+                class="input w-full resize-y min-h-[3rem] text-sm">{{ request.GET.oracle_text|default:'' }}</textarea>
+    </div>
+
+    <!-- ROW 5 — Set + Artist + Buttons -->
+    <div class="flex items-end gap-3">
+      <div x-data="filterDropdown('sets_data', '{{ request.GET.set_code|default:'' }}')" class="relative flex-1">
+        <span class="text-[11px] font-semibold text-void-400 uppercase tracking-widest block mb-1"><i class="ms ms-planeswalker"></i> Set</span>
+        <input type="text" x-model="query" @input="filter()" @focus="show()" @click.away="open = false" @keydown.escape="open = false"
+               placeholder="Set..." class="input w-full text-sm" autocomplete="off">
+        <input type="hidden" name="set_code" :value="query">
+        <div x-show="open" x-transition class="absolute z-50 bottom-full mb-1 w-full max-h-44 overflow-y-auto rounded-lg bg-void-950 border border-void-600 shadow-2xl backdrop-blur-sm" style="display:none">
+          <template x-for="item in filtered" :key="item"><button type="button" @click="select(item)" class="block w-full text-left px-3 py-1.5 text-sm text-gray-200 hover:bg-void-800" x-text="item"></button></template>
+          <div x-show="filtered.length===0" class="px-3 py-2 text-xs text-gray-500">Sin resultados</div>
+        </div>
+      </div>
+      <div class="flex-1">
+        <span class="text-[11px] font-semibold text-void-400 uppercase tracking-widest block mb-1"><i class="ms ms-artist-nib"></i> Artista</span>
+        <input type="text" name="artist" value="{{ request.GET.artist|default:'' }}" placeholder="Artista..." class="input w-full text-sm">
+      </div>
+      <a href="{% url 'multiverse:card-list' %}" class="btn-secondary shrink-0">Limpiar</a>
+      <button type="submit" class="btn-primary shrink-0">Aplicar filtros</button>
+    </div>
+  </form>
+
   <!-- Pills de filtros activos -->
-  {% if request.GET %}
+  {% if active_filters %}
   <div class="flex flex-wrap gap-2 mb-4">
-    {% for key, value in request.GET.items %}
-      {% if key != 'page' and value %}
-      <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium
-                   bg-void-100 text-void-800 dark:bg-void-800 dark:text-void-200">
-        {{ key }}: {{ value }}
-        <a href="?{% for k, v in request.GET.items %}{% if k != key and k != 'page' and v %}{{ k }}={{ v }}&{% endif %}{% endfor %}"
-           class="ml-1 hover:text-void-600 dark:hover:text-void-300">×</a>
-      </span>
-      {% endif %}
+    {% for pill in active_filters %}
+    <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium
+                 bg-void-100 text-void-800 dark:bg-void-800 dark:text-void-200">
+      {{ pill.key }}: {{ pill.value }}
+      <a href="{{ pill.remove_url }}" class="ml-1 hover:text-void-600 dark:hover:text-void-300">×</a>
+    </span>
     {% endfor %}
   </div>
   {% endif %}
 
-  <!-- Contenedor del grid -->
+  <!-- Grid -->
   <div id="cards-container"
        class="grid gap-4 mb-4"
        :style="'grid-template-columns: repeat(' + (cardSize === 'sm' ? 6 : cardSize === 'lg' ? 4 : 5) + ', minmax(0, 1fr))'">
@@ -83,210 +290,60 @@
   </div>
 
 </div>
-
-<!-- Modal — fuera del contenedor HTMX, en el body level -->
-<div id="filters-modal"
-     class="fixed inset-0 z-50 overflow-y-auto hidden">
-
-  <div class="fixed inset-0 bg-black/50" onclick="closeFilters()"></div>
-
-  <div class="relative min-h-screen flex items-center justify-center p-4">
-    <div class="relative w-full max-w-lg card p-6 shadow-xl">
-
-      <div class="flex items-center justify-between mb-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Filtros</h2>
-        <button onclick="closeFilters()"
-                class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-void-800
-                       text-gray-500 dark:text-gray-400 transition-colors">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M6 18L18 6M6 6l12 12"/>
-          </svg>
-        </button>
-      </div>
-
-      <form method="get" action="{% url 'multiverse:card-list' %}">
-        {% if request.GET.q %}
-        <input type="hidden" name="q" value="{{ request.GET.q }}">
-        {% endif %}
-
-        <div class="space-y-5">
-
-          <!-- Color -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Color
-            </label>
-            <div class="flex gap-2 flex-wrap">
-              {% for value, label in colors %}
-              <label class="cursor-pointer" title="{{ label }}">
-                <input type="radio" name="color" value="{{ value }}"
-                       {% if request.GET.color == value %}checked{% endif %}
-                       class="sr-only peer">
-                <span class="w-9 h-9 flex items-center justify-center rounded-full border-2
-                             border-gray-200 dark:border-void-700
-                             peer-checked:border-void-500 peer-checked:ring-2 peer-checked:ring-void-300
-                             transition-all cursor-pointer
-                             ms ms-{{ value|lower }} ms-cost ms-2x">
-                </span>
-              </label>
-              {% endfor %}
-              <label class="cursor-pointer">
-                <input type="radio" name="color" value=""
-                       {% if not request.GET.color %}checked{% endif %}
-                       class="sr-only peer">
-                <span class="px-3 h-9 flex items-center text-xs rounded-full border-2
-                             border-gray-200 dark:border-void-700
-                             peer-checked:border-void-500 peer-checked:bg-void-50 dark:peer-checked:bg-void-900
-                             text-gray-500 dark:text-gray-400 transition-all cursor-pointer">
-                  Todos
-                </span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Color match -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Coincidencia de color
-            </label>
-            {{ form.color_match }}
-          </div>
-
-          <!-- Formato -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Formato
-            </label>
-            {{ form.format }}
-          </div>
-
-          <!-- Rareza -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Rareza
-            </label>
-            <div class="flex gap-2 flex-wrap">
-              {% for value, label in rarities %}
-              <label class="cursor-pointer">
-                <input type="radio" name="rarity" value="{{ value }}"
-                       {% if request.GET.rarity == value %}checked{% endif %}
-                       class="sr-only peer">
-                <span class="px-3 py-1.5 text-xs rounded-full border
-                             border-gray-200 dark:border-void-700
-                             peer-checked:border-void-500 peer-checked:bg-void-50 dark:peer-checked:bg-void-900
-                             text-gray-600 dark:text-gray-400
-                             transition-all cursor-pointer capitalize">
-                  {{ label }}
-                </span>
-              </label>
-              {% endfor %}
-            </div>
-          </div>
-
-          <!-- CMC -->
-          <div class="flex gap-3">
-            <div class="flex-1">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                CMC
-              </label>
-              {{ form.cmc }}
-            </div>
-            <div class="w-24">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Operador
-              </label>
-              {{ form.cmc_op }}
-            </div>
-          </div>
-
-          <!-- Tipo -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Tipo
-            </label>
-            {{ form.type_line }}
-          </div>
-
-          <!-- Texto oracle -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Texto oracle
-            </label>
-            {{ form.oracle_text }}
-          </div>
-
-          <!-- Tipo especial -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Tipo especial
-            </label>
-            {{ form.card_kind }}
-          </div>
-
-          <!-- Versiones -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Versiones a mostrar
-            </label>
-            {{ form.version }}
-          </div>
-          
-          <!-- Digital -->
-          <div class="flex items-center gap-2 pt-1">
-            <label class="flex items-center gap-2 cursor-pointer
-                          text-sm text-gray-700 dark:text-gray-300">
-              {{ form.digital }}
-              Incluir cartas digitales (Arena, MTGO)
-            </label>
-          </div>
-
-          <!-- Checkboxes -->
-          <div class="flex gap-6 pt-1">
-            <label class="flex items-center gap-2 cursor-pointer
-                          text-sm text-gray-700 dark:text-gray-300">
-              {{ form.commander }}
-              Solo commanders
-            </label>
-            <label class="flex items-center gap-2 cursor-pointer
-                          text-sm text-gray-700 dark:text-gray-300">
-              {{ form.has_deck_limit }}
-              Copias ilimitadas
-            </label>
-          </div>
-
-        </div>
-
-        <div class="mt-6 flex gap-3 justify-end pt-4
-                    border-t border-gray-200 dark:border-void-700">
-          <a href="{% url 'multiverse:card-list' %}" class="btn-secondary"
-             onclick="closeFilters()">
-            Limpiar
-          </a>
-          <button type="submit" class="btn-primary" onclick="closeFilters()">
-            Aplicar filtros
-          </button>
-        </div>
-      </form>
-
-    </div>
-  </div>
-</div>
-
 {% endblock %}
 
 {% block extra_js %}
 <script>
-function openFilters() {
-  document.getElementById('filters-modal').classList.remove('hidden');
-  document.body.style.overflow = 'hidden';
+const FILTER_DATA = {
+  sets_data: {{ sets_json }},
+  types_data: {{ card_types_json }},
+  supertypes_data: {{ supertypes_json }},
+  subtypes_data: {{ subtypes_json }},
+};
+
+function colorRarityFilter() {
+  return {
+    colors: [],
+    rarities: [],
+    initCR(colors, rarities) {
+      this.colors = colors || [];
+      this.rarities = rarities || [];
+    },
+    toggleColor(c) {
+      const i = this.colors.indexOf(c);
+      if (i >= 0) this.colors.splice(i, 1);
+      else this.colors.push(c);
+    },
+    toggleRarity(r) {
+      const i = this.rarities.indexOf(r);
+      if (i >= 0) this.rarities.splice(i, 1);
+      else this.rarities.push(r);
+    }
+  };
 }
 
-function closeFilters() {
-  document.getElementById('filters-modal').classList.add('hidden');
-  document.body.style.overflow = '';
+function filterDropdown(dataKey, initial) {
+  return {
+    query: initial || '',
+    open: false,
+    filtered: [],
+    show() {
+      this.filter();
+      this.open = true;
+    },
+    filter() {
+      const q = this.query.toLowerCase().trim();
+      const data = FILTER_DATA[dataKey] || [];
+      this.filtered = q
+        ? data.filter(i => i.toLowerCase().includes(q)).slice(0, 30)
+        : data.slice(0, 50);
+      this.open = true;
+    },
+    select(item) {
+      this.query = item;
+      this.open = false;
+    }
+  };
 }
-
-function cardList() {}
 </script>
 {% endblock %}

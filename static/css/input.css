@@ -176,5 +176,12 @@
   .tap-icon.tapped {
     transform: rotate(90deg);
   }
+  /* Color filter active state */
+  .color-active {
+    border-color: #a78bfa !important;
+    background-color: rgba(139, 92, 246, 0.2) !important;
+    box-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
+    transform: scale(1.1);
+  }
 }
 

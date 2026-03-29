@@ -1,5 +1,7 @@
 # multiverse/views.py
-from django.db.models import Prefetch
+import json
+from django.db.models import Max, Prefetch
+from django.utils.safestring import mark_safe
 from django.views.generic import TemplateView
 from django.shortcuts import get_object_or_404
 from core.utils import paginate_queryset
@@ -9,9 +11,26 @@ from core.constants import (
     CardLayout,
     MagicFormat,
     CardSetType,
+    CardType,
+    CardSupertype,
 )
+from core.models import CreatureType
 from .models import Card, CardSet, CardLegality, CardPrint
-from .forms import CardSearchForm, SetSearchForm
+from .forms import CardSearchForm, SetSearchForm, SORT_CHOICES
+
+# Sort mappings per version mode
+CARD_SORT_MAP = {
+    "name_asc":  "name",
+    "name_desc": "-name",
+    "date_desc": "-latest_release",
+    "date_asc":  "latest_release",
+}
+PRINT_SORT_MAP = {
+    "name_asc":  "card__name",
+    "name_desc": "-card__name",
+    "date_desc": "-released_at",
+    "date_asc":  "released_at",
+}
 
 
 class CardListView(TemplateView):
@@ -26,21 +45,22 @@ class CardListView(TemplateView):
         ctx  = super().get_context_data(**kwargs)
         form = CardSearchForm(self.request.GET or None)
         version = self.request.GET.get("version", "all")
+        sort = self.request.GET.get("sort", "date_desc")
 
         # Base Card queryset with filters
-        card_qs = (
-            Card.objects
-            .filter(is_active=True)
-            .order_by("name")
-        )
+        card_qs = Card.objects.filter(is_active=True)
         card_qs = self._apply_defaults(card_qs)
 
         if self.request.GET and form.is_valid():
             card_qs = form.filter_queryset(card_qs)
 
         if version == "latest":
-            # One entry per card (original behaviour)
-            card_qs = card_qs.prefetch_related(
+            # One entry per card — annotate for date sort
+            card_qs = card_qs.annotate(
+                latest_release=Max("prints__released_at")
+            )
+            order = CARD_SORT_MAP.get(sort, "-latest_release")
+            card_qs = card_qs.order_by(order).prefetch_related(
                 Prefetch(
                     "prints",
                     queryset=CardPrint.objects
@@ -55,31 +75,86 @@ class CardListView(TemplateView):
             )
         else:
             # All printed versions (default)
+            order = PRINT_SORT_MAP.get(sort, "-released_at")
             print_qs = (
                 CardPrint.objects
                 .filter(card__in=card_qs, digital=False)
                 .exclude(cardset__set_type__in=self.EXCLUDED_SET_TYPES)
                 .select_related("card", "cardset")
                 .prefetch_related("card__faces")
-                .order_by("card__name", "-released_at")
+                .order_by(order)
             )
+            # Apply print-level filters
+            if form.is_valid():
+                data = form.cleaned_data
+                if data.get("artist"):
+                    print_qs = print_qs.filter(artist__icontains=data["artist"])
+                if data.get("set_code"):
+                    print_qs = print_qs.filter(cardset__name__icontains=data["set_code"])
+                if data.get("exclude_ub"):
+                    print_qs = print_qs.exclude(cardset__is_universe_beyond=True)
             page_obj = paginate_queryset(
                 print_qs, self.request.GET.get("page"), per_page=50,
             )
 
+        # Autocomplete data for filters (JSON-serialized for Alpine)
+        card_types_list = [l for _, l in CardType.choices]
+        supertypes_list = [l for _, l in CardSupertype.choices]
+        subtypes_list = list(
+            CreatureType.objects.order_by("name").values_list("name", flat=True)
+        )
+        sets_list = list(
+            CardSet.objects.filter(is_active=True)
+            .exclude(set_type__in=self.EXCLUDED_SET_TYPES)
+            .order_by("-released_at")
+            .values_list("name", flat=True)
+        )
+
         ctx.update({
-            "form":     form,
-            "page_obj": page_obj,
-            "colors":   MagicColor.choices,
-            "rarities": CardRarity.choices,
-            "layouts":  CardLayout.choices,
-            "formats":  MagicFormat.choices,
-            "version":  version,
+            "form":       form,
+            "page_obj":   page_obj,
+            "colors":     MagicColor.choices,
+            "selected_colors": self.request.GET.getlist("color"),
+            "selected_colors_json": mark_safe(json.dumps(self.request.GET.getlist("color"))),
+            "selected_rarities_json": mark_safe(json.dumps(self.request.GET.getlist("rarity"))),
+            "active_filters": self._build_active_filters(),
+            "all_params": [(k, v) for k in self.request.GET for v in self.request.GET.getlist(k)],
+            "rarities":   CardRarity.choices,
+            "layouts":    CardLayout.choices,
+            "formats":    MagicFormat.choices,
+            "version":    version,
+            "sort":       sort,
+            "sort_choices": SORT_CHOICES,
+            "card_types_json":  mark_safe(json.dumps(card_types_list)),
+            "supertypes_json":  mark_safe(json.dumps(supertypes_list)),
+            "subtypes_json":    mark_safe(json.dumps(subtypes_list)),
+            "sets_json":        mark_safe(json.dumps(sets_list)),
         })
         return ctx
 
     # Set types to exclude by default
     EXCLUDED_SET_TYPES = ["un_set", "funny", "minigame", "token"]
+    SKIP_PILL_KEYS = {"page", "sort", "cmc_op", "color_identity", "color_exact"}
+
+    def _build_active_filters(self):
+        """Build list of (label, value, remove_url) for active filter pills."""
+        pills = []
+        seen_keys = set()
+        params = self.request.GET
+        for key in params:
+            if key in self.SKIP_PILL_KEYS:
+                continue
+            values = params.getlist(key)
+            joined = ", ".join(v for v in values if v)
+            if not joined:
+                continue
+            # Build remove URL excluding all values of this key
+            other = "&".join(
+                f"{k}={v}" for k in params for v in params.getlist(k)
+                if k != key and k != "page" and v
+            )
+            pills.append({"key": key, "value": joined, "remove_url": f"?{other}"})
+        return pills
 
     def _apply_defaults(self, qs):
         """
