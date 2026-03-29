@@ -1,59 +1,171 @@
 {% if prints %}
-<div class="overflow-x-auto">
+<div id="prints-table-root">
+
+{# Data #}
+<script type="application/json" id="prints-json">
+[{% for print in prints %}{
+  "id":"{{ print.id }}",
+  "set_code":"{{ print.cardset.code|upper }}",
+  "set_name":"{{ print.cardset.name|escapejs }}",
+  "set_icon":"{{ print.cardset.icon_svg_uri|default:'' }}",
+  "cn":"{{ print.collector_number }}",
+  "rarity":"{{ print.rarity }}",
+  "ro":{% if print.rarity == 'mythic' %}1{% elif print.rarity == 'rare' %}2{% elif print.rarity == 'uncommon' %}3{% elif print.rarity == 'common' %}4{% elif print.rarity == 'special' %}0{% elif print.rarity == 'bonus' %}5{% else %}6{% endif %},
+  "artist":"{{ print.artist|escapejs }}",
+  "finishes":[{% for f in print.finishes %}"{{ f }}"{% if not forloop.last %},{% endif %}{% endfor %}],
+  "usd":"{{ print.price_usd|default:'' }}",
+  "foil":"{{ print.price_usd_foil|default:'' }}",
+  "eur":"{{ print.price_eur|default:'' }}",
+  "tix":"{{ print.price_tix|default:'' }}",
+  "date":"{{ print.released_at|date:'Y-m-d'|default:'' }}"
+}{% if not forloop.last %},{% endif %}{% endfor %}]
+</script>
+
+{# Desktop table #}
+<div class="hidden md:block overflow-x-auto">
   <table class="w-full text-sm">
     <thead>
-      <tr class="border-b border-gray-200 dark:border-void-700">
-        <th class="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">Set</th>
-        <th class="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">#</th>
-        <th class="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">Rareza</th>
-        <th class="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">Artista</th>
-        <th class="text-right py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">USD</th>
-        <th class="text-right py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">Foil</th>
-        <th class="text-right py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400">EUR</th>
+      <tr class="border-b border-gray-200 dark:border-void-700" id="prints-thead">
+        <th data-col="date"     class="sortable-th cursor-pointer text-left py-2.5 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-void-400 transition-colors select-none">Set <span class="sort-arrow text-void-400"></span></th>
+        <th data-col="cn"       class="sortable-th cursor-pointer text-left py-2.5 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-void-400 transition-colors select-none"># <span class="sort-arrow text-void-400"></span></th>
+        <th data-col="ro"       class="sortable-th cursor-pointer text-left py-2.5 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-void-400 transition-colors select-none">Rareza <span class="sort-arrow text-void-400"></span></th>
+        <th data-col="artist"   class="sortable-th cursor-pointer text-left py-2.5 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-void-400 transition-colors select-none">Artista <span class="sort-arrow text-void-400"></span></th>
+        <th class="text-left py-2.5 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Finishes</th>
+        <th data-col="usd"      class="sortable-th cursor-pointer text-right py-2.5 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-void-400 transition-colors select-none">USD <span class="sort-arrow text-void-400"></span></th>
+        <th data-col="foil"     class="sortable-th cursor-pointer text-right py-2.5 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-void-400 transition-colors select-none">Foil <span class="sort-arrow text-void-400"></span></th>
+        <th data-col="eur"      class="sortable-th cursor-pointer text-right py-2.5 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-void-400 transition-colors select-none">EUR <span class="sort-arrow text-void-400"></span></th>
+        <th data-col="tix"      class="sortable-th cursor-pointer text-right py-2.5 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-void-400 transition-colors select-none">Tix <span class="sort-arrow text-void-400"></span></th>
       </tr>
     </thead>
-    <tbody class="divide-y divide-gray-100 dark:divide-void-800">
-      {% for print in prints %}
-      <tr class="hover:bg-gray-50 dark:hover:bg-void-900 transition-colors">
-        <td class="py-2 px-3">
-          <div class="flex items-center gap-2">
-            {% if print.cardset.icon_svg_uri %}
-            <img src="{{ print.cardset.icon_svg_uri }}"
-                 class="w-4 h-4 opacity-60 dark:invert dark:opacity-40" alt="">
-            {% endif %}
-            <span class="font-medium text-gray-900 dark:text-gray-100">
-              {{ print.cardset.code|upper }}
-            </span>
-            <span class="text-gray-500 dark:text-gray-400 text-xs truncate max-w-32">
-              {{ print.cardset.name }}
-            </span>
-          </div>
-        </td>
-        <td class="py-2 px-3 text-gray-500 dark:text-gray-400">
-          {{ print.collector_number }}
-        </td>
-        <td class="py-2 px-3 capitalize text-gray-700 dark:text-gray-300">
-          {{ print.rarity }}
-        </td>
-        <td class="py-2 px-3 text-gray-500 dark:text-gray-400 truncate max-w-40">
-          {{ print.artist }}
-        </td>
-        <td class="py-2 px-3 text-right text-gray-900 dark:text-gray-100">
-          {% if print.price_usd %}${{ print.price_usd }}
-          {% else %}<span class="text-gray-300 dark:text-gray-600">—</span>{% endif %}
-        </td>
-        <td class="py-2 px-3 text-right text-gray-900 dark:text-gray-100">
-          {% if print.price_usd_foil %}${{ print.price_usd_foil }}
-          {% else %}<span class="text-gray-300 dark:text-gray-600">—</span>{% endif %}
-        </td>
-        <td class="py-2 px-3 text-right text-gray-900 dark:text-gray-100">
-          {% if print.price_eur %}€{{ print.price_eur }}
-          {% else %}<span class="text-gray-300 dark:text-gray-600">—</span>{% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
+    <tbody id="prints-tbody"></tbody>
   </table>
+</div>
+
+{# Mobile sort buttons + container #}
+<div class="md:hidden">
+  <div class="flex gap-2 mb-3 flex-wrap" id="prints-mobile-sort">
+    <button data-col="date" class="mob-sort text-[11px] px-2 py-1 rounded border border-void-700 text-gray-400 hover:text-gray-200">Fecha</button>
+    <button data-col="ro"   class="mob-sort text-[11px] px-2 py-1 rounded border border-void-700 text-gray-400 hover:text-gray-200">Rareza</button>
+    <button data-col="cn"   class="mob-sort text-[11px] px-2 py-1 rounded border border-void-700 text-gray-400 hover:text-gray-200">#</button>
+    <button data-col="usd"  class="mob-sort text-[11px] px-2 py-1 rounded border border-void-700 text-gray-400 hover:text-gray-200">USD</button>
+  </div>
+  <div class="space-y-3" id="prints-mobile-body"></div>
+</div>
+
+</div>
+
+<script>
+(function() {
+  var data = [];
+  try { data = JSON.parse(document.getElementById('prints-json').textContent); } catch(e) {}
+
+  var col = 'date', dir = -1;
+  var RARITY_COLOR = {mythic:'#E8590C',rare:'#D4A017',uncommon:'#C0C0C0',special:'#A855F7',bonus:'#60A5FA',timeshifted:'#D946EF'};
+  var RARITY_CLASS = {mythic:'text-orange-500',rare:'text-yellow-500',uncommon:'text-gray-300'};
+  var FINISH_CLASS = {foil:'bg-yellow-500/10 text-yellow-500',etched:'bg-purple-500/10 text-purple-400'};
+
+  function cmp(a, b) {
+    var va = a[col], vb = b[col];
+    if (col === 'usd' || col === 'foil' || col === 'eur' || col === 'tix' || col === 'ro') {
+      va = parseFloat(va) || (dir > 0 ? 1e9 : -1);
+      vb = parseFloat(vb) || (dir > 0 ? 1e9 : -1);
+      return (va - vb) * dir;
+    }
+    if (col === 'cn') {
+      var na = parseInt(va)||0, nb = parseInt(vb)||0;
+      if (na !== nb) return (na - nb) * dir;
+    }
+    va = (va||'').toLowerCase(); vb = (vb||'').toLowerCase();
+    return va < vb ? -dir : va > vb ? dir : 0;
+  }
+
+  function price(v, pre) { return v ? pre + v : '<span class="text-gray-500">—</span>'; }
+  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  function renderDesktop() {
+    var sorted = data.slice().sort(cmp);
+    var html = '';
+    for (var i = 0; i < sorted.length; i++) {
+      var p = sorted[i];
+      var rc = RARITY_COLOR[p.rarity] || '#6b7280';
+      var rt = RARITY_CLASS[p.rarity] || 'text-gray-500';
+      var fins = '';
+      for (var j = 0; j < p.finishes.length; j++) {
+        var fc = FINISH_CLASS[p.finishes[j]] || 'bg-gray-500/10 text-gray-400';
+        fins += '<span class="px-1.5 py-0.5 rounded text-[10px] font-medium ' + fc + '">' + esc(p.finishes[j]) + '</span>';
+      }
+      html += '<tr class="hover:bg-gray-50 dark:hover:bg-void-800/50 transition-colors cursor-pointer" onclick="if(typeof selectVersion===\'function\')selectVersion(\'' + p.id + '\')">'
+        + '<td class="py-2.5 px-3"><div class="flex items-center gap-2">'
+        + (p.set_icon ? '<img src="'+p.set_icon+'" class="w-4 h-4 opacity-60 dark:invert dark:opacity-40">' : '')
+        + '<span class="font-medium text-gray-900 dark:text-gray-100">' + esc(p.set_code) + '</span>'
+        + '<span class="text-gray-500 dark:text-gray-400 text-xs truncate max-w-40">' + esc(p.set_name) + '</span></div></td>'
+        + '<td class="py-2.5 px-3 text-gray-500 dark:text-gray-400 font-mono text-xs">' + esc(p.cn) + '</td>'
+        + '<td class="py-2.5 px-3"><span class="inline-flex items-center gap-1 capitalize text-xs"><i class="ms ms-rarity" style="color:'+rc+'"></i><span class="'+rt+'">' + esc(p.rarity) + '</span></span></td>'
+        + '<td class="py-2.5 px-3 text-gray-500 dark:text-gray-400 text-xs truncate max-w-40">' + esc(p.artist) + '</td>'
+        + '<td class="py-2.5 px-3"><div class="flex gap-1">' + fins + '</div></td>'
+        + '<td class="py-2.5 px-3 text-right font-mono text-xs">' + price(p.usd,'$') + '</td>'
+        + '<td class="py-2.5 px-3 text-right font-mono text-xs">' + price(p.foil,'$') + '</td>'
+        + '<td class="py-2.5 px-3 text-right font-mono text-xs">' + price(p.eur,'€') + '</td>'
+        + '<td class="py-2.5 px-3 text-right font-mono text-xs">' + price(p.tix,'') + '</td>'
+        + '</tr>';
+    }
+    document.getElementById('prints-tbody').innerHTML = html;
+  }
+
+  function renderMobile() {
+    var sorted = data.slice().sort(cmp);
+    var html = '';
+    for (var i = 0; i < sorted.length; i++) {
+      var p = sorted[i];
+      var rc = RARITY_COLOR[p.rarity] || '#6b7280';
+      var rt = RARITY_CLASS[p.rarity] || 'text-gray-500';
+      var prices = '';
+      if (p.usd) prices += '<span class="text-gray-100">$' + esc(p.usd) + '</span>';
+      if (p.foil) prices += '<span class="text-yellow-500">$' + esc(p.foil) + ' <span class="text-[10px]">foil</span></span>';
+      html += '<div class="card p-3 cursor-pointer hover:bg-void-800/50 transition-colors" onclick="if(typeof selectVersion===\'function\')selectVersion(\'' + p.id + '\')">'
+        + '<div class="flex items-center justify-between mb-2">'
+        + '<div class="flex items-center gap-2">'
+        + (p.set_icon ? '<img src="'+p.set_icon+'" class="w-4 h-4 opacity-60 dark:invert dark:opacity-40">' : '')
+        + '<span class="font-medium text-sm text-gray-100">' + esc(p.set_code) + '</span>'
+        + '<span class="text-xs text-gray-400">' + esc(p.set_name) + '</span></div>'
+        + '<span class="inline-flex items-center gap-1 text-xs capitalize"><i class="ms ms-rarity" style="color:'+rc+'"></i><span class="'+rt+'">' + esc(p.rarity) + '</span></span></div>'
+        + '<div class="flex items-center justify-between text-xs"><div class="text-gray-400">#' + esc(p.cn)
+        + (p.artist ? ' · ' + esc(p.artist) : '') + '</div>'
+        + '<div class="flex gap-3 font-mono">' + prices + '</div></div></div>';
+    }
+    document.getElementById('prints-mobile-body').innerHTML = html;
+  }
+
+  function updateArrows() {
+    document.querySelectorAll('.sortable-th .sort-arrow').forEach(function(el) { el.textContent = ''; });
+    document.querySelectorAll('.mob-sort').forEach(function(el) {
+      el.classList.toggle('border-void-500', el.dataset.col === col);
+      el.classList.toggle('text-void-300', el.dataset.col === col);
+    });
+    var active = document.querySelector('.sortable-th[data-col="'+col+'"] .sort-arrow');
+    if (active) active.textContent = dir > 0 ? ' ↑' : ' ↓';
+    var mobActive = document.querySelector('.mob-sort[data-col="'+col+'"]');
+    if (mobActive) mobActive.textContent = mobActive.textContent.replace(/ [↑↓]/, '') + (dir > 0 ? ' ↑' : ' ↓');
+  }
+
+  function sortBy(c) {
+    if (col === c) { dir *= -1; } else { col = c; dir = (c==='usd'||c==='foil'||c==='eur'||c==='tix') ? -1 : 1; }
+    renderDesktop(); renderMobile(); updateArrows();
+  }
+
+  // Bind click handlers
+  document.querySelectorAll('#prints-thead .sortable-th').forEach(function(th) {
+    th.addEventListener('click', function() { sortBy(this.dataset.col); });
+  });
+  document.querySelectorAll('#prints-mobile-sort .mob-sort').forEach(function(btn) {
+    btn.addEventListener('click', function() { sortBy(this.dataset.col); });
+  });
+
+  // Initial render
+  renderDesktop(); renderMobile(); updateArrows();
+})();
+</script>
+
 </div>
 {% else %}
 <div class="card p-8 text-center text-gray-400 dark:text-gray-600 text-sm">

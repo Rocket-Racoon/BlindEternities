@@ -183,7 +183,7 @@
         </p>
         {% endif %}
         {% if face.oracle_text %}
-        <p class="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-line">
+        <p class="text-sm text-gray-900 dark:text-gray-100">
           {{ face.oracle_text|oracle_symbols }}
         </p>
         {% endif %}
@@ -214,7 +214,7 @@
       {% else %}
       <div class="card p-4">
         {% if card.oracle_text %}
-        <p class="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-line">
+        <p class="text-sm text-gray-900 dark:text-gray-100">
           {{ card.oracle_text|oracle_symbols }}
         </p>
         {% endif %}
@@ -591,5 +591,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 });
+
 </script>
 {% endblock %}
