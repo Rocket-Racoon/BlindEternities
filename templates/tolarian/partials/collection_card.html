@@ -1,44 +1,144 @@
 {% load core_tags %}
-<a href="{% url 'tolarian:collection-detail' collection.pk %}"
-   class="card p-4 flex items-start gap-4 hover:border-void-400
-          dark:hover:border-void-500 transition-colors block">
+<div id="collection-card-{{ collection.pk }}"
+     class="group relative rounded-xl overflow-hidden shadow-md
+            hover:shadow-xl hover:scale-[1.02] transition-all duration-200"
+     style="padding-bottom: 85%;"
+     x-data="{
+       open: false,
+       query: '',
+       results: [],
+       loading: false,
+       async search() {
+         if (this.query.length < 2) { this.results = []; return; }
+         this.loading = true;
+         const resp = await fetch(`{% url 'tolarian:card-search' %}?q=${encodeURIComponent(this.query)}`);
+         this.results = await resp.json();
+         this.loading = false;
+       },
+       async setCover(printId) {
+         const form = new FormData();
+         form.append('print_id', printId);
+         form.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+         const resp = await fetch(`{% url 'tolarian:collection-set-cover' collection.pk %}`, {
+           method: 'POST',
+           body: form,
+         });
+         if (resp.ok) {
+           const html = await resp.text();
+           this.$root.outerHTML = html;
+         }
+       },
+     }"
+     @click.away="open = false">
 
-  <!-- Cover card o placeholder -->
-  <div class="w-16 shrink-0">
-    {% if collection.cover_card %}
-    {% with print=collection.cover_card.primary_print %}
-    {% if print and print.image_normal %}
-    <img src="{{ print.image_normal }}"
-         alt="{{ collection.cover_card.name }}"
-         class="w-full rounded-lg shadow">
-    {% else %}
-    <div class="aspect-[63/88] rounded-lg bg-gray-100 dark:bg-void-800"></div>
+  <!-- Full card link area -->
+  <a href="{% url 'tolarian:collection-detail' collection.pk %}"
+     class="absolute inset-0 bg-void-800">
+
+    <!-- Cover art -->
+    {% if collection.cover_card and collection.cover_card.image_art_crop %}
+    <img src="{{ collection.cover_card.image_art_crop }}"
+         alt="{{ collection.cover_card.card.name }}"
+         class="w-full h-full object-cover">
+    {% elif collection.cover_card and collection.cover_card.image_normal %}
+    <img src="{{ collection.cover_card.image_normal }}"
+         alt="{{ collection.cover_card.card.name }}"
+         class="w-full h-full object-cover">
     {% endif %}
-    {% endwith %}
-    {% else %}
-    <div class="aspect-[63/88] rounded-lg bg-gray-100 dark:bg-void-800
-                flex items-center justify-center">
-      <span class="text-xs text-gray-400">?</span>
+
+    <!-- Gradient overlay -->
+    <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+
+    <!-- Info bar at bottom -->
+    <div class="absolute bottom-0 inset-x-0 bg-black/60 backdrop-blur-sm px-3 py-2.5">
+      <p class="font-medium text-sm text-gray-100 truncate">
+        {{ collection.name }}
+      </p>
+      <div class="flex gap-3 mt-0.5 text-xs text-gray-400">
+        <span>{{ collection.total_qty|default:"0" }} cartas</span>
+        {% if collection.is_public %}
+        <span class="text-green-400">Publica</span>
+        {% else %}
+        <span>Privada</span>
+        {% endif %}
+      </div>
     </div>
-    {% endif %}
-  </div>
+  </a>
 
-  <!-- Info -->
-  <div class="flex-1 min-w-0">
-    <p class="font-medium text-gray-900 dark:text-gray-100 truncate">
-      {{ collection.name }}
-    </p>
-    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+  <!-- Type badge -->
+  <div class="absolute top-2 left-2 z-10 pointer-events-none">
+    <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide
+                 {% if collection.collection_type == 'binder' %}
+                 bg-void-600/90 text-white
+                 {% elif collection.collection_type == 'loanlist' %}
+                 bg-amber-600/90 text-white
+                 {% elif collection.collection_type == 'tradelist' %}
+                 bg-emerald-600/90 text-white
+                 {% elif collection.collection_type == 'wishlist' %}
+                 bg-sky-600/90 text-white
+                 {% endif %}">
       {{ collection.get_collection_type_display }}
-    </p>
-    <div class="flex gap-3 mt-2 text-xs text-gray-500 dark:text-gray-400">
-      <span>{{ collection.total_qty|default:"0" }} cartas</span>
-      {% if collection.is_public %}
-      <span class="text-green-600 dark:text-green-400">Pública</span>
-      {% else %}
-      <span>Privada</span>
-      {% endif %}
-    </div>
+    </span>
   </div>
 
-</a>
+  {% if request.user == collection.user %}
+  <!-- Edit cover button -->
+  <button type="button"
+          @click.stop.prevent="open = !open"
+          class="absolute top-2 right-2 w-6 h-6 rounded-full z-10
+                 bg-black/50 text-white text-xs flex items-center justify-center
+                 opacity-0 group-hover:opacity-100 focus:opacity-100
+                 transition-opacity hover:bg-black/70"
+          title="Cambiar portada">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+    </svg>
+  </button>
+
+  <!-- Cover card picker dropdown -->
+  <div x-show="open" x-cloak
+       @click.stop
+       class="absolute top-10 right-2 z-50 w-64
+              bg-white dark:bg-void-800 rounded-lg shadow-lg border
+              border-gray-200 dark:border-void-700 p-2">
+    <input type="text"
+           x-model="query"
+           @input.debounce.300ms="search()"
+           @keydown.escape="open = false"
+           placeholder="Buscar carta..."
+           class="input w-full text-xs mb-1">
+    <div class="max-h-64 overflow-y-auto">
+      <template x-for="card in results" :key="card.id">
+        <div>
+          <p class="text-xs font-medium text-gray-700 dark:text-gray-300 px-1 pt-1.5 pb-0.5 sticky top-0
+                    bg-white dark:bg-void-800" x-text="card.name"></p>
+          <div class="grid grid-cols-3 gap-1 px-1 pb-1">
+            <template x-for="p in card.prints" :key="p.id">
+              <button type="button"
+                      @click="setCover(p.id)"
+                      class="rounded overflow-hidden hover:ring-2 hover:ring-void-500 transition-all"
+                      :title="`${p.set_name} #${p.collector_number}`">
+                <img :src="p.image" class="w-full" :alt="card.name" x-show="p.image">
+                <p class="text-[10px] text-center text-gray-500 dark:text-gray-400 uppercase truncate"
+                   x-text="p.set_code"></p>
+              </button>
+            </template>
+          </div>
+        </div>
+      </template>
+      <p x-show="query.length >= 2 && results.length === 0 && !loading"
+         class="text-xs text-gray-400 p-1">Sin resultados</p>
+    </div>
+    {% if collection.cover_card %}
+    <button type="button"
+            @click="setCover('')"
+            class="w-full text-xs text-red-500 hover:text-red-400 mt-1 pt-1
+                   border-t border-gray-200 dark:border-void-700">
+      Quitar portada
+    </button>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>

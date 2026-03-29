@@ -122,15 +122,66 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-3">
-        <div>
+      <div class="flex gap-3">
+        <div class="flex-1">
           <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
             Precio compra (USD)
           </label>
           <input type="number" name="purchase_price" step="0.01" min="0"
                  class="input w-full text-sm" placeholder="0.00">
         </div>
-        <div>
+        {% if is_loan %}
+        <div class="flex-1 relative"
+             x-data="{
+               loanQuery: '',
+               loanResults: [],
+               loanUserId: '',
+               async searchFriends() {
+                 if (this.loanQuery.length < 1) { this.loanResults = []; return; }
+                 const resp = await fetch(`{% url 'nexus:friend-search' %}?q=${encodeURIComponent(this.loanQuery)}`);
+                 this.loanResults = await resp.json();
+               },
+               pickFriend(f) {
+                 this.loanUserId = f.id;
+                 this.loanQuery = f.display_name;
+                 this.loanResults = [];
+               },
+             }"
+             @click.away="loanResults = []">
+          <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+            Prestado a
+          </label>
+          <input type="hidden" name="loan_to_user" :value="loanUserId">
+          <input type="text" name="loan_to_name"
+                 x-model="loanQuery"
+                 @input.debounce.300ms="searchFriends()"
+                 class="input w-full text-sm"
+                 placeholder="Nombre o usuario">
+          <div x-show="loanResults.length > 0" x-cloak
+               class="absolute z-20 mt-1 w-full bg-white dark:bg-void-800
+                      border border-gray-200 dark:border-void-700
+                      rounded-lg shadow-lg max-h-40 overflow-y-auto">
+            <template x-for="f in loanResults" :key="f.id">
+              <button type="button" @click="pickFriend(f)"
+                      class="w-full px-3 py-2 text-left hover:bg-gray-100
+                             dark:hover:bg-void-700 flex items-center gap-2
+                             border-b border-gray-100 dark:border-void-700 last:border-0">
+                <template x-if="f.avatar">
+                  <img :src="f.avatar" class="w-6 h-6 rounded-full object-cover shrink-0">
+                </template>
+                <template x-if="!f.avatar">
+                  <div class="w-6 h-6 rounded-full bg-void-600 shrink-0"></div>
+                </template>
+                <div class="min-w-0">
+                  <p class="text-sm text-gray-900 dark:text-gray-100 truncate" x-text="f.display_name"></p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400" x-text="'@' + f.username"></p>
+                </div>
+              </button>
+            </template>
+          </div>
+        </div>
+        {% endif %}
+        <div class="flex-1">
           <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
             Notas
           </label>

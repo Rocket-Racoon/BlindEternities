@@ -26,7 +26,8 @@ class CollectionItemForm(forms.ModelForm):
         model  = CollectionItem
         fields = [
             "card", "print", "quantity", "condition",
-            "finish", "language", "purchase_price", "notes",
+            "finish", "language", "purchase_price",
+            "loan_to_user", "loan_to_name", "notes",
         ]
         widgets = {
             "card":           forms.HiddenInput(),
@@ -36,6 +37,8 @@ class CollectionItemForm(forms.ModelForm):
             "finish":         forms.Select(attrs={"class": "input"}),
             "language":       forms.TextInput(attrs={"class": "input", "placeholder": "en"}),
             "purchase_price": forms.NumberInput(attrs={"class": "input", "step": "0.01"}),
+            "loan_to_user":   forms.HiddenInput(),
+            "loan_to_name":   forms.TextInput(attrs={"class": "input", "placeholder": "Nombre de la persona"}),
             "notes":          forms.Textarea(attrs={"class": "input", "rows": 2}),
         }
 

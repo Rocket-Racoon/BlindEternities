@@ -3,6 +3,7 @@ import io
 from django.core.exceptions import PermissionDenied
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
+from django.db import models
 from django.db.models import Sum, Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -42,21 +43,28 @@ class CollectionListView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        type_order = [
+            CollectionType.BINDER,
+            CollectionType.LOANLIST,
+            CollectionType.TRADELIST,
+            CollectionType.WISHLIST,
+        ]
+        ordering = models.Case(
+            *[models.When(collection_type=ct, then=i) for i, ct in enumerate(type_order)]
+        )
         collections = (
             Collection.objects
             .filter(user=self.request.user, is_active=True)
             .annotate(
                 item_count=Count("items"),
                 total_qty=Sum("items__quantity"),
+                type_order=ordering,
             )
-            .order_by("collection_type", "name")
+            .select_related("cover_card__cardset", "cover_card__card")
+            .order_by("type_order", "name")
         )
         ctx.update({
-            "collections":  collections,
-            "binders":      collections.filter(collection_type=CollectionType.BINDER),
-            "wishlists":    collections.filter(collection_type=CollectionType.WISHLIST),
-            "tradelists":   collections.filter(collection_type=CollectionType.TRADELIST),
-            "loanlists":    collections.filter(collection_type=CollectionType.LOANLIST),
+            "collections": collections,
         })
         return ctx
 
@@ -87,6 +95,7 @@ class CollectionDetailView(LoginRequiredMixin, TemplateView):
             "collection":         collection,
             "page_obj":           paginate_queryset(items, self.request.GET.get("page"), per_page=40),
             "is_owner":           collection.user == self.request.user,
+            "is_loan":            collection.collection_type == CollectionType.LOANLIST,
             "collection_add_url": reverse("tolarian:collection-add-card", kwargs={"pk": collection.pk}),
             "collection_bulk_add_url": reverse("tolarian:collection-bulk-add", kwargs={"pk": collection.pk}),
             "condition_choices":  CardCondition.choices,
@@ -103,8 +112,29 @@ class CollectionCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.user = self.request.user
-        messages.success(self.request, "Colección creada.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+
+        bulk_text = self.request.POST.get("bulk_text", "").strip()
+        if bulk_text:
+            results = parse_collection_text(bulk_text, self.object)
+            parts = []
+            if results["created"]:
+                parts.append(f"{results['created']} nueva(s)")
+            if results["updated"]:
+                parts.append(f"{results['updated']} actualizada(s)")
+            if results["not_found"]:
+                parts.append(f"{len(results['not_found'])} no encontrada(s)")
+            messages.success(self.request, f"Colección creada — lote: {', '.join(parts)}.")
+            if results["not_found"]:
+                messages.warning(
+                    self.request,
+                    f"No encontradas: {', '.join(results['not_found'][:10])}"
+                    + (" ..." if len(results["not_found"]) > 10 else ""),
+                )
+        else:
+            messages.success(self.request, "Colección creada.")
+
+        return response
 
     def get_success_url(self):
         return reverse("tolarian:collection-detail", kwargs={"pk": self.object.pk})
@@ -199,10 +229,31 @@ class CollectionBulkAddView(CollectionOwnerMixin, View):
         return redirect("tolarian:collection-detail", pk=pk)
 
 
+class CollectionSetCoverView(CollectionOwnerMixin, View):
+    """Set or clear the cover card for a collection via HTMX."""
+
+    def post(self, request, pk):
+        collection = get_object_or_404(Collection, pk=pk)
+        print_id = request.POST.get("print_id", "").strip()
+
+        if print_id:
+            card_print = get_object_or_404(CardPrint, pk=print_id)
+            collection.cover_card = card_print
+        else:
+            collection.cover_card = None
+        collection.save(update_fields=["cover_card"])
+
+        return render(
+            request,
+            "tolarian/partials/collection_card.html",
+            {"collection": collection},
+        )
+
+
 class CollectionItemEditView(LoginRequiredMixin, View):
     def get(self, request, item_pk):
         item = get_object_or_404(
-            CollectionItem.objects.select_related("card", "print__cardset")
+            CollectionItem.objects.select_related("card", "print__cardset", "collection")
                 .prefetch_related("card__faces", "card__prints__cardset"),
             pk=item_pk,
         )
@@ -212,12 +263,28 @@ class CollectionItemEditView(LoginRequiredMixin, View):
         form   = CollectionItemForm(instance=item)
         prints = item.card.prints.select_related("cardset").order_by("-cardset__released_at")
         faces  = list(item.card.faces.order_by("face_index"))
+        is_loan = item.collection.collection_type == CollectionType.LOANLIST
+
+        # Other collections to move to (exclude current)
+        move_targets = (
+            Collection.objects
+            .filter(user=request.user, is_active=True)
+            .exclude(pk=item.collection.pk)
+            .order_by("collection_type", "name")
+        )
+        # Block Wishlist ↔ Loan
+        if item.collection.collection_type == CollectionType.WISHLIST:
+            move_targets = move_targets.exclude(collection_type=CollectionType.LOANLIST)
+        elif item.collection.collection_type == CollectionType.LOANLIST:
+            move_targets = move_targets.exclude(collection_type=CollectionType.WISHLIST)
 
         return render(request, "tolarian/partials/collection_item_modal.html", {
-            "item":    item,
-            "form":    form,
-            "prints":  prints,
-            "faces":   faces,
+            "item":         item,
+            "form":         form,
+            "prints":       prints,
+            "faces":        faces,
+            "is_loan":      is_loan,
+            "move_targets": move_targets,
         })
 
     def post(self, request, item_pk):
@@ -258,6 +325,85 @@ class CollectionItemDeleteView(LoginRequiredMixin, View):
         if request.headers.get("HX-Request"):
             return HttpResponse(status=204)
         return redirect("tolarian:collection-detail", pk=collection_pk)
+
+
+class CollectionItemMoveView(LoginRequiredMixin, View):
+    """Move a collection item to a different collection of the same user."""
+
+    def post(self, request, item_pk):
+        item = get_object_or_404(
+            CollectionItem.objects.select_related("collection"),
+            pk=item_pk,
+        )
+        if item.collection.user != request.user:
+            raise PermissionDenied
+
+        target_pk = request.POST.get("target_collection", "")
+        target = get_object_or_404(Collection, pk=target_pk, user=request.user)
+
+        # Block Wishlist ↔ Loan
+        src_type = item.collection.collection_type
+        dst_type = target.collection_type
+        if ((src_type == CollectionType.WISHLIST and dst_type == CollectionType.LOANLIST)
+                or (src_type == CollectionType.LOANLIST and dst_type == CollectionType.WISHLIST)):
+            messages.error(request, "No se puede mover entre Wishlist y Loan List.")
+            if request.headers.get("HX-Request"):
+                return HttpResponse(status=422)
+            return redirect("tolarian:collection-detail", pk=item.collection.pk)
+
+        try:
+            move_qty = int(request.POST.get("move_quantity", item.quantity))
+        except (ValueError, TypeError):
+            move_qty = item.quantity
+        move_qty = max(1, min(move_qty, item.quantity))
+
+        source_pk = item.collection.pk
+
+        # Check if the same item already exists in target
+        existing = CollectionItem.objects.filter(
+            collection=target,
+            card=item.card,
+            print=item.print,
+            condition=item.condition,
+            finish=item.finish,
+            language=item.language,
+        ).first()
+
+        if move_qty >= item.quantity:
+            # Move the entire item
+            if existing:
+                existing.quantity += item.quantity
+                existing.save(update_fields=["quantity", "updated_at"])
+                item.delete()
+            else:
+                item.collection = target
+                item.save(update_fields=["collection"])
+        else:
+            # Partial move: reduce source, add to target
+            item.quantity -= move_qty
+            item.save(update_fields=["quantity", "updated_at"])
+            if existing:
+                existing.quantity += move_qty
+                existing.save(update_fields=["quantity", "updated_at"])
+            else:
+                CollectionItem.objects.create(
+                    collection=target,
+                    card=item.card,
+                    print=item.print,
+                    quantity=move_qty,
+                    condition=item.condition,
+                    finish=item.finish,
+                    language=item.language,
+                    purchase_price=item.purchase_price,
+                    loan_to_user=item.loan_to_user,
+                    loan_to_name=item.loan_to_name,
+                    notes=item.notes,
+                )
+
+        messages.success(request, f"{move_qty}x {item.card.name} movida(s) a {target.name}.")
+        if request.headers.get("HX-Request"):
+            return HttpResponse(status=204)
+        return redirect("tolarian:collection-detail", pk=source_pk)
 
 
 class CollectionExportView(CollectionOwnerMixin, View):

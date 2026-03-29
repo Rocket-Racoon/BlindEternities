@@ -39,7 +39,7 @@ class Collection(BaseModel):
     )
     is_public    = models.BooleanField(default=False)
     cover_card   = models.ForeignKey(
-        Card,
+        CardPrint,
         on_delete=models.SET_NULL,
         null=True, blank=True,
         related_name="+",
@@ -102,6 +102,17 @@ class CollectionItem(BaseModel):
         null=True, blank=True,
         verbose_name="Precio de compra (USD)",
     )
+    loan_to_user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="loaned_items",
+        verbose_name="Prestado a (usuario)",
+    )
+    loan_to_name = models.CharField(
+        max_length=100, blank=True,
+        verbose_name="Prestado a (nombre)",
+    )
     notes        = models.TextField(blank=True)
 
     class Meta:
@@ -133,7 +144,7 @@ class Deck(BaseModel):
     )
     is_public   = models.BooleanField(default=False)
     cover_card  = models.ForeignKey(
-        Card,
+        CardPrint,
         on_delete=models.SET_NULL,
         null=True, blank=True,
         related_name="+",

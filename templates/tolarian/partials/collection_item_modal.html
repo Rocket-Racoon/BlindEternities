@@ -40,21 +40,22 @@
           </p>
         </div>
 
-        <!-- Edit form (plain POST — no JS needed) -->
+        <!-- Edit form -->
         <form method="post"
               action="{% url 'tolarian:collection-item-edit' item.pk %}">
           {% csrf_token %}
           <input type="hidden" name="card" value="{{ item.card.pk }}">
+          {{ form.loan_to_user }}
 
           <div class="space-y-4">
 
             <!-- Version (print) -->
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Versión
+                Version
               </label>
               <select name="print" class="input">
-                <option value="" data-img="" data-label="">— Sin versión —</option>
+                <option value="" data-img="" data-label="">— Sin version —</option>
                 {% for p in prints %}
                 <option value="{{ p.pk }}"
                         data-img="{{ p.image_normal }}"
@@ -78,7 +79,7 @@
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Condición
+                  Condicion
                 </label>
                 {{ form.condition }}
               </div>
@@ -100,20 +101,71 @@
               </div>
             </div>
 
-            <!-- Purchase price -->
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Precio de compra (USD)
-              </label>
-              {{ form.purchase_price }}
-            </div>
-
-            <!-- Notes -->
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Notas
-              </label>
-              {{ form.notes }}
+            <!-- Price, Loan, Notes -->
+            <div class="grid {% if is_loan %}grid-cols-3{% else %}grid-cols-2{% endif %} gap-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Precio de compra (USD)
+                </label>
+                {{ form.purchase_price }}
+              </div>
+              {% if is_loan %}
+              <div x-data="{
+                     loanQuery: '{{ item.loan_to_name|default:"" }}',
+                     loanResults: [],
+                     loanUserId: '{{ item.loan_to_user_id|default:"" }}',
+                     async searchFriends() {
+                       if (this.loanQuery.length < 1) { this.loanResults = []; return; }
+                       const resp = await fetch(`{% url 'nexus:friend-search' %}?q=${encodeURIComponent(this.loanQuery)}`);
+                       this.loanResults = await resp.json();
+                     },
+                     pickFriend(f) {
+                       this.loanUserId = f.id;
+                       this.loanQuery = f.display_name;
+                       this.loanResults = [];
+                     },
+                   }"
+                   @click.away="loanResults = []"
+                   class="relative">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Prestado a
+                </label>
+                <input type="hidden" name="loan_to_user" :value="loanUserId">
+                <input type="text" name="loan_to_name"
+                       x-model="loanQuery"
+                       @input.debounce.300ms="searchFriends()"
+                       class="input w-full"
+                       placeholder="Nombre o usuario">
+                <div x-show="loanResults.length > 0" x-cloak
+                     class="absolute z-20 mt-1 w-full bg-white dark:bg-void-800
+                            border border-gray-200 dark:border-void-700
+                            rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                  <template x-for="f in loanResults" :key="f.id">
+                    <button type="button" @click="pickFriend(f)"
+                            class="w-full px-3 py-2 text-left hover:bg-gray-100
+                                   dark:hover:bg-void-700 flex items-center gap-2
+                                   border-b border-gray-100 dark:border-void-700 last:border-0">
+                      <template x-if="f.avatar">
+                        <img :src="f.avatar" class="w-6 h-6 rounded-full object-cover shrink-0">
+                      </template>
+                      <template x-if="!f.avatar">
+                        <div class="w-6 h-6 rounded-full bg-void-600 shrink-0"></div>
+                      </template>
+                      <div class="min-w-0">
+                        <p class="text-sm text-gray-900 dark:text-gray-100 truncate" x-text="f.display_name"></p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400" x-text="'@' + f.username"></p>
+                      </div>
+                    </button>
+                  </template>
+                </div>
+              </div>
+              {% endif %}
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Notas
+                </label>
+                {{ form.notes }}
+              </div>
             </div>
 
           </div>
@@ -139,6 +191,32 @@
 
         </form>
       </div>
+
+      {% if move_targets %}
+      <!-- Move to another collection -->
+      <div class="mt-4 pt-4 border-t border-gray-200 dark:border-void-700">
+        <form method="post"
+              action="{% url 'tolarian:collection-item-move' item.pk %}"
+              class="flex items-center gap-3">
+          {% csrf_token %}
+          <label class="text-sm font-medium text-gray-700 dark:text-gray-300 shrink-0">
+            Mover
+          </label>
+          <input type="number" name="move_quantity" value="{{ item.quantity }}"
+                 min="1" max="{{ item.quantity }}"
+                 class="input w-16 text-sm text-center">
+          <span class="text-sm text-gray-500 dark:text-gray-400 shrink-0">de {{ item.quantity }} a</span>
+          <select name="target_collection" class="input flex-1 text-sm">
+            {% for col in move_targets %}
+            <option value="{{ col.pk }}">
+              {{ col.name }} ({{ col.get_collection_type_display }})
+            </option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn-secondary text-sm">Mover</button>
+        </form>
+      </div>
+      {% endif %}
 
     </div>
   </div>

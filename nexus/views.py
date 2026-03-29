@@ -3,6 +3,8 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.db import models
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import TemplateView, UpdateView, View
 from django.urls import reverse_lazy
@@ -100,6 +102,33 @@ class UserCollectionView(TemplateView):
         ctx["profile_user"] = user
         ctx["is_owner"] = self.request.user == user
         return ctx
+
+
+# --- API JSON ---
+class FriendSearchJSON(LoginRequiredMixin, View):
+    """Return friends matching a name query for autocomplete."""
+
+    def get(self, request):
+        q = request.GET.get("q", "").strip()
+        if len(q) < 1:
+            return JsonResponse([], safe=False)
+
+        friends = request.user.profile.friends()
+        matches = friends.filter(
+            models.Q(username__icontains=q)
+            | models.Q(profile__display_name__icontains=q)
+        ).select_related("profile")[:10]
+
+        results = [
+            {
+                "id": u.pk,
+                "username": u.username,
+                "display_name": u.profile.name if hasattr(u, "profile") else u.username,
+                "avatar": u.profile.avatar.url if hasattr(u, "profile") and u.profile.avatar else "",
+            }
+            for u in matches
+        ]
+        return JsonResponse(results, safe=False)
 
 
 # --- Parciales HTMX ---

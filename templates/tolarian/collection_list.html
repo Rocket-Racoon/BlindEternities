@@ -4,7 +4,7 @@
 {% block title %}Mis Colecciones — {{ site_name }}{% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto">
+<div class="max-w-6xl mx-auto">
 
   <!-- Header -->
   <div class="flex items-center justify-between mb-6">
@@ -12,79 +12,25 @@
       Mis Colecciones
     </h1>
     <a href="{% url 'tolarian:collection-create' %}" class="btn-primary">
-      Nueva colección
+      Nueva coleccion
     </a>
   </div>
 
   {% if not collections %}
   <div class="card p-16 text-center text-gray-400 dark:text-gray-600">
-    <p class="text-sm">No tienes colecciones todavía.</p>
+    <p class="text-sm">No tienes colecciones todavia.</p>
     <a href="{% url 'tolarian:collection-create' %}"
        class="mt-4 inline-block text-sm text-void-600 dark:text-void-400 hover:underline">
-      Crear tu primera colección
+      Crear tu primera coleccion
     </a>
   </div>
   {% else %}
 
-  <!-- Binders -->
-  {% if binders %}
-  <section class="mb-8">
-    <h2 class="text-sm font-medium text-gray-500 dark:text-gray-400
-               uppercase tracking-wide mb-3">
-      Binders
-    </h2>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {% for col in binders %}
-      {% include "tolarian/partials/collection_card.html" with collection=col %}
-      {% endfor %}
-    </div>
-  </section>
-  {% endif %}
-
-  <!-- Wishlists -->
-  {% if wishlists %}
-  <section class="mb-8">
-    <h2 class="text-sm font-medium text-gray-500 dark:text-gray-400
-               uppercase tracking-wide mb-3">
-      Wishlists
-    </h2>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {% for col in wishlists %}
-      {% include "tolarian/partials/collection_card.html" with collection=col %}
-      {% endfor %}
-    </div>
-  </section>
-  {% endif %}
-
-  <!-- Trade Lists -->
-  {% if tradelists %}
-  <section class="mb-8">
-    <h2 class="text-sm font-medium text-gray-500 dark:text-gray-400
-               uppercase tracking-wide mb-3">
-      Trade Lists
-    </h2>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {% for col in tradelists %}
-      {% include "tolarian/partials/collection_card.html" with collection=col %}
-      {% endfor %}
-    </div>
-  </section>
-  {% endif %}
-
-  <!-- Loan Lists -->
-  {% if loanlists %}
-  <section class="mb-8">
-    <h2 class="text-sm font-medium text-gray-500 dark:text-gray-400
-               uppercase tracking-wide mb-3">
-      Loan Lists
-    </h2>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {% for col in loanlists %}
-      {% include "tolarian/partials/collection_card.html" with collection=col %}
-      {% endfor %}
-    </div>
-  </section>
-  {% endif %}
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+    {% for collection in collections %}
+    {% include "tolarian/partials/collection_card.html" with collection=collection %}
+    {% endfor %}
+  </div>
 
   {% endif %}
 </div>

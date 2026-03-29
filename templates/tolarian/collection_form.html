@@ -46,7 +46,121 @@
           </label>
         </div>
 
+        <!-- Cover card picker -->
+        <div x-data="{
+               query: '',
+               results: [],
+               loading: false,
+               selectedName: '{% if object and object.cover_card %}{{ object.cover_card.card.name }} ({{ object.cover_card.cardset.code|upper }}){% endif %}',
+               selectedImage: '{% if object and object.cover_card and object.cover_card.image_normal %}{{ object.cover_card.image_normal }}{% endif %}',
+               showResults: false,
+               async search() {
+                 if (this.query.length < 2) { this.results = []; return; }
+                 this.loading = true;
+                 const resp = await fetch(`{% url 'tolarian:card-search' %}?q=${encodeURIComponent(this.query)}`);
+                 this.results = await resp.json();
+                 this.loading = false;
+                 this.showResults = true;
+               },
+               pick(card, print) {
+                 document.getElementById('id_cover_card').value = print.id;
+                 this.selectedName = card.name + (print.set_code ? ' (' + print.set_code.toUpperCase() + ')' : '');
+                 this.selectedImage = print.image || '';
+                 this.query = '';
+                 this.results = [];
+                 this.showResults = false;
+               },
+               clear() {
+                 document.getElementById('id_cover_card').value = '';
+                 this.selectedName = '';
+                 this.selectedImage = '';
+               },
+             }"
+             @click.away="showResults = false">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Portada
+          </label>
+          {{ form.cover_card }}
+
+          <!-- Selected card preview -->
+          <div x-show="selectedName" class="flex items-center gap-3 mb-2 p-2 rounded-lg bg-gray-50 dark:bg-void-800">
+            <img :src="selectedImage" class="w-10 rounded" x-show="selectedImage">
+            <span class="text-sm text-gray-800 dark:text-gray-200 flex-1 truncate" x-text="selectedName"></span>
+            <button type="button" @click="clear()"
+                    class="text-xs text-red-500 hover:text-red-400 shrink-0">Quitar</button>
+          </div>
+
+          <!-- Search input -->
+          <div class="relative">
+            <input type="text"
+                   x-model="query"
+                   @input.debounce.300ms="search()"
+                   @focus="if (results.length) showResults = true"
+                   placeholder="Buscar carta para portada..."
+                   class="input w-full text-sm">
+            <div x-show="showResults && results.length > 0" x-cloak
+                 class="absolute top-full left-0 right-0 mt-1 z-50
+                        bg-white dark:bg-void-800 rounded-lg shadow-lg border
+                        border-gray-200 dark:border-void-700 max-h-72 overflow-y-auto">
+              <template x-for="card in results" :key="card.id">
+                <div>
+                  <p class="text-xs font-medium text-gray-700 dark:text-gray-300 px-2 pt-2 pb-1 sticky top-0
+                            bg-white dark:bg-void-800" x-text="card.name"></p>
+                  <div class="grid grid-cols-4 gap-1.5 px-2 pb-2">
+                    <template x-for="p in card.prints" :key="p.id">
+                      <button type="button"
+                              @click="pick(card, p)"
+                              class="rounded overflow-hidden hover:ring-2 hover:ring-void-500 transition-all"
+                              :title="`${p.set_name} #${p.collector_number}`">
+                        <img :src="p.image" class="w-full" :alt="card.name" x-show="p.image">
+                        <p class="text-[10px] text-center text-gray-500 dark:text-gray-400 uppercase truncate"
+                           x-text="p.set_code"></p>
+                      </button>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <p x-show="showResults && query.length >= 2 && results.length === 0 && !loading"
+               class="text-xs text-gray-400 mt-1">Sin resultados</p>
+          </div>
+        </div>
+
       </div>
+
+      {% if not object %}
+      <div class="mt-6 pt-4 border-t border-gray-200 dark:border-void-700">
+        <div x-data="{ open: false }">
+          <button type="button" @click="open = !open"
+                  class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100">
+            <svg class="w-4 h-4 transition-transform" :class="open && 'rotate-90'"
+                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+            Agregar en lote
+          </button>
+          <div x-show="open" x-collapse class="mt-3">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Lista de cartas
+            </label>
+            <textarea name="bulk_text"
+                      rows="8"
+                      class="input w-full font-mono text-sm"
+                      placeholder="4x Lightning Bolt
+2 Counterspell (CMR) LP
+1 Sol Ring (C21) NM foil
+3x Swords to Plowshares etched"></textarea>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Formato: <code>4x Nombre (SET) COND FINISH</code> &mdash;
+              set, condici&oacute;n y finish son opcionales.
+              Condiciones: NM, LP, MP, HP, DMG.
+              Finish: foil, etched, glossy, surge, textured, etc.
+              Default: NM nonfoil.
+            </p>
+          </div>
+        </div>
+      </div>
+      {% endif %}
 
       <div class="mt-6 flex gap-3 justify-end pt-4
                   border-t border-gray-200 dark:border-void-700">

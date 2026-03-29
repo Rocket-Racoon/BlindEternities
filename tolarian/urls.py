@@ -16,8 +16,10 @@ urlpatterns = [
     # Items de colección
     path("<uuid:pk>/add/",          views.CollectionAddCardView.as_view(),    name="collection-add-card"),
     path("<uuid:pk>/bulk-add/",     views.CollectionBulkAddView.as_view(),    name="collection-bulk-add"),
+    path("<uuid:pk>/set-cover/",    views.CollectionSetCoverView.as_view(),   name="collection-set-cover"),
     path("items/<uuid:item_pk>/edit/",          views.CollectionItemEditView.as_view(),   name="collection-item-edit"),
     path("items/<uuid:item_pk>/delete/",        views.CollectionItemDeleteView.as_view(), name="collection-item-delete"),
+    path("items/<uuid:item_pk>/move/",          views.CollectionItemMoveView.as_view(),   name="collection-item-move"),
 
     # Decks
     path("decks/",                              views.DeckListView.as_view(),    name="deck-list"),
