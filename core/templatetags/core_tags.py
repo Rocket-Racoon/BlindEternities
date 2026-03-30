@@ -61,6 +61,13 @@ def paginator(context, page_obj):
     
 
 @register.filter
+def replace(value, args):
+    """Replace characters in a string. Usage: {{ value|replace:"_: " }}"""
+    old, new = args.split(":", 1)
+    return value.replace(old, new)
+
+
+@register.filter
 def get_item(dictionary, key):
     """Permite acceder a un dict por key variable en templates."""
     if isinstance(dictionary, dict):

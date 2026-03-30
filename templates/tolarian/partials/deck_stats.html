@@ -1,35 +1,87 @@
-<div class="space-y-3">
-  <div class="flex justify-between text-sm">
-    <span class="text-gray-500 dark:text-gray-400">Maindeck</span>
-    <span class="font-medium text-gray-900 dark:text-gray-100">{{ main_count }}</span>
-  </div>
-  {% if side_count %}
-  <div class="flex justify-between text-sm">
-    <span class="text-gray-500 dark:text-gray-400">Sideboard</span>
-    <span class="font-medium text-gray-900 dark:text-gray-100">{{ side_count }}</span>
-  </div>
-  {% endif %}
-  <div class="flex justify-between text-sm">
-    <span class="text-gray-500 dark:text-gray-400">Valor total</span>
-    <span class="font-medium text-gray-900 dark:text-gray-100">
-      ${{ total_value }} USD
-    </span>
+{% load core_tags %}
+
+<div class="space-y-4">
+
+  <!-- Card count + value -->
+  <div class="space-y-1.5">
+    <div class="flex justify-between text-xs">
+      <span class="text-gray-500 dark:text-gray-400">Total cartas</span>
+      <span class="font-semibold text-gray-900 dark:text-gray-100">{{ total_cards }}</span>
+    </div>
+    <div class="flex justify-between text-xs">
+      <span class="text-gray-500 dark:text-gray-400">Maindeck</span>
+      <span class="font-medium text-gray-700 dark:text-gray-300">{{ main_count }}</span>
+    </div>
+    {% if side_count %}
+    <div class="flex justify-between text-xs">
+      <span class="text-gray-500 dark:text-gray-400">Sideboard</span>
+      <span class="font-medium text-gray-700 dark:text-gray-300">{{ side_count }}</span>
+    </div>
+    {% endif %}
+    <div class="flex justify-between text-xs">
+      <span class="text-gray-500 dark:text-gray-400">Valor total</span>
+      <span class="font-semibold text-gray-900 dark:text-gray-100">${{ total_value }}</span>
+    </div>
   </div>
 
-  {% if shared %}
-  <div class="pt-3 border-t border-gray-100 dark:border-void-800">
-    <p class="text-xs font-medium text-gray-500 dark:text-gray-400
-              uppercase tracking-wide mb-2">
-      Cartas compartidas
-    </p>
+  <!-- Type breakdown -->
+  {% if type_breakdown %}
+  <div>
+    <p class="text-[10px] font-semibold uppercase tracking-wider
+              text-gray-400 dark:text-gray-500 mb-2">Tipos</p>
     <div class="space-y-1">
-      {% for card_name, deck_names in shared.items %}
-      <div class="text-xs">
-        <span class="text-gray-700 dark:text-gray-300">{{ card_name }}</span>
-        <span class="text-gray-400 dark:text-gray-600 ml-1">→ {{ deck_names|join:", " }}</span>
+      {% for type_name, qty in type_breakdown.items %}
+      <div class="flex items-center gap-2 text-xs">
+        <span class="flex-1 text-gray-600 dark:text-gray-400">{{ type_name }}</span>
+        <div class="w-16 bg-gray-100 dark:bg-void-800 rounded-full h-1.5 overflow-hidden">
+          <div class="h-full bg-void-500 dark:bg-void-400 rounded-full"
+               style="width: {% widthratio qty total_cards 100 %}%"></div>
+        </div>
+        <span class="w-5 text-right font-medium text-gray-700 dark:text-gray-300">{{ qty }}</span>
       </div>
       {% endfor %}
     </div>
   </div>
   {% endif %}
+
+  <!-- Color distribution -->
+  {% if color_dist %}
+  <div>
+    <p class="text-[10px] font-semibold uppercase tracking-wider
+              text-gray-400 dark:text-gray-500 mb-2">Colores</p>
+    <div class="flex gap-2">
+      {% for color in color_dist %}
+      <div class="flex flex-col items-center gap-0.5">
+        <span class="text-sm">
+          {% if color.code == "W" %}<i class="ms ms-w ms-cost ms-shadow"></i>
+          {% elif color.code == "U" %}<i class="ms ms-u ms-cost ms-shadow"></i>
+          {% elif color.code == "B" %}<i class="ms ms-b ms-cost ms-shadow"></i>
+          {% elif color.code == "R" %}<i class="ms ms-r ms-cost ms-shadow"></i>
+          {% elif color.code == "G" %}<i class="ms ms-g ms-cost ms-shadow"></i>
+          {% else %}<i class="ms ms-c ms-cost ms-shadow"></i>
+          {% endif %}
+        </span>
+        <span class="text-[10px] font-medium text-gray-600 dark:text-gray-400">{{ color.count }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Shared cards -->
+  {% if shared %}
+  <div class="pt-3 border-t border-gray-100 dark:border-void-800">
+    <p class="text-[10px] font-semibold uppercase tracking-wider
+              text-gray-400 dark:text-gray-500 mb-2">Compartidas</p>
+    <div class="space-y-0.5">
+      {% for card_name, deck_names in shared.items %}
+      <div class="text-[11px]">
+        <span class="text-gray-700 dark:text-gray-300">{{ card_name }}</span>
+        <span class="text-gray-400 dark:text-gray-600 ml-1">{{ deck_names|join:", " }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
 </div>

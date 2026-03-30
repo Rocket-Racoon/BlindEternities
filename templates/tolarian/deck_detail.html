@@ -3,212 +3,219 @@
 
 {% block title %}{{ deck.name }} — {{ site_name }}{% endblock %}
 
-{% block extra_css %}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
-{% endblock %}
-
 {% block content %}
-<div class="max-w-7xl mx-auto"
+<div class="max-w-[1400px] mx-auto"
      x-data="deckBuilder()"
-     x-init="init()">
+     @card-preview.window="previewImage = $event.detail.image; previewName = $event.detail.name">
 
-  <!-- Header -->
-  <div class="flex items-start justify-between gap-4 mb-6">
-    <div>
-      <nav class="text-sm text-gray-500 dark:text-gray-400 mb-1">
-        <a href="{% url 'tolarian:deck-list' %}"
-           class="hover:text-void-600 dark:hover:text-void-400">
-          Decks
-        </a>
-        <span class="mx-2">›</span>
-        <span class="text-gray-900 dark:text-gray-100">{{ deck.name }}</span>
+  <!-- ═══════ Header ═══════ -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+    <div class="min-w-0">
+      <nav class="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
+        <a href="{% url 'tolarian:deck-list' %}" class="hover:text-void-500">Decks</a>
+        <span class="mx-1">&rsaquo;</span>
+        <span class="text-gray-800 dark:text-gray-200">{{ deck.name }}</span>
       </nav>
-      <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-        {{ deck.name }}
-      </h1>
-      <div class="flex flex-wrap gap-3 mt-1 text-sm text-gray-500 dark:text-gray-400">
-        <span>{{ deck.get_format_display }}</span>
-        <span>{{ deck.main_count }} cartas</span>
-        {% if deck.sideboard_count %}
-        <span>{{ deck.sideboard_count }} sideboard</span>
-        {% endif %}
-        {% if deck.total_value %}
-        <span>${{ deck.total_value }} USD</span>
-        {% endif %}
-        {% if deck.is_public %}
-        <span class="text-green-600 dark:text-green-400">Público</span>
-        {% endif %}
+      <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100 truncate">{{ deck.name }}</h1>
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded
+                     bg-void-100 dark:bg-void-800 text-void-700 dark:text-void-300 font-medium">
+          {{ deck.get_format_display }}
+        </span>
+        <span>{{ total_cards }} cartas</span>
+        {% if deck.total_value %}<span>${{ deck.total_value }}</span>{% endif %}
+        {% if deck.is_public %}<span class="text-green-600 dark:text-green-400">Publico</span>{% endif %}
       </div>
     </div>
 
     {% if is_owner %}
-    <div class="flex gap-2 shrink-0 flex-wrap justify-end">
-      <a href="{% url 'tolarian:deck-export' deck.pk %}?format=txt"
-         class="btn-secondary text-sm">
-        Exportar txt
-      </a>
-      <a href="{% url 'tolarian:deck-export' deck.pk %}"
-         class="btn-secondary text-sm">
-        Exportar CSV
-      </a>
-      <a href="{% url 'tolarian:deck-import' deck.pk %}"
-         class="btn-secondary text-sm">
-        Importar
-      </a>
-      <a href="{% url 'tolarian:deck-edit' deck.pk %}"
-         class="btn-secondary text-sm">
-        Editar
-      </a>
-      <a href="{% url 'tolarian:deck-delete' deck.pk %}"
-         class="btn-danger text-sm">
-        Eliminar
-      </a>
+    <div class="flex items-center gap-1.5 shrink-0 flex-wrap">
+      <a href="{% url 'tolarian:deck-export' deck.pk %}?format=txt" class="btn-secondary !text-xs !px-2.5 !py-1.5">TXT</a>
+      <a href="{% url 'tolarian:deck-export' deck.pk %}" class="btn-secondary !text-xs !px-2.5 !py-1.5">CSV</a>
+      <a href="{% url 'tolarian:deck-import' deck.pk %}" class="btn-secondary !text-xs !px-2.5 !py-1.5">Importar</a>
+      <a href="{% url 'tolarian:deck-edit' deck.pk %}" class="btn-secondary !text-xs !px-2.5 !py-1.5">Editar</a>
+      <a href="{% url 'tolarian:deck-validate' deck.pk %}" class="btn-secondary !text-xs !px-2.5 !py-1.5">Validar</a>
+      <a href="{% url 'tolarian:deck-delete' deck.pk %}" class="btn-danger !text-xs !px-2.5 !py-1.5">Eliminar</a>
     </div>
     {% endif %}
   </div>
 
-  <!-- Layout principal: zonas + sidebar -->
-  <div class="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
-
-    <!-- Zonas del deck — arrastrables -->
-    <div>
-
-      <!-- Agregar carta — solo owner -->
-      {% if is_owner %}
-      <div class="card p-4 mb-4" x-data="{ open: false }">
-        <button @click="open = !open"
-                class="flex items-center gap-2 text-sm font-medium
-                       text-void-600 dark:text-void-400">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M12 4v16m8-8H4"/>
-          </svg>
-          Agregar carta al deck
+  <!-- ═══════ View mode toolbar ═══════ -->
+  <div class="flex items-center justify-between gap-3 mb-4">
+    <div class="flex rounded-lg border border-gray-200 dark:border-void-700 overflow-hidden">
+      <template x-for="m in modes" :key="m.id">
+        <button @click="view = m.id"
+                :class="view === m.id
+                  ? 'bg-void-600 text-white'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800'"
+                class="px-3 py-1.5 text-xs font-medium transition-colors"
+                :title="m.label" x-text="m.label">
         </button>
-        <div x-show="open" x-transition class="mt-4">
+      </template>
+    </div>
+
+    <!-- Card size (grid/stacks only) -->
+    <div x-show="view === 'grid' || view === 'stacks'"
+         class="flex rounded-lg border border-gray-200 dark:border-void-700 overflow-hidden">
+      <template x-for="s in ['sm','md','lg']" :key="s">
+        <button @click="cardSize = s"
+                :class="cardSize === s
+                  ? 'bg-void-600 text-white'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800'"
+                class="px-2.5 py-1.5 text-xs font-medium transition-colors uppercase"
+                x-text="s">
+        </button>
+      </template>
+    </div>
+  </div>
+
+  <!-- ═══════ Validation alerts ═══════ -->
+  {% if illegal %}
+  <div class="rounded-lg p-3 mb-4 border border-red-200 dark:border-red-800
+              bg-red-50 dark:bg-red-900/20 text-sm">
+    <p class="font-medium text-red-700 dark:text-red-400 mb-1">
+      {{ illegal|length }} carta{{ illegal|length|pluralize }} no legal{{ illegal|length|pluralize }}
+      en {{ deck.get_format_display }}
+    </p>
+    <div class="flex flex-wrap gap-x-4 gap-y-0.5">
+      {% for item in illegal %}
+      <span class="text-xs text-red-600 dark:text-red-400">
+        {{ item.card.name }}
+        <span class="capitalize opacity-75">({{ item.status|replace:"_: " }})</span>
+      </span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ═══════ Main layout ═══════ -->
+  <div class="grid grid-cols-1 lg:grid-cols-[1fr_280px] xl:grid-cols-[1fr_320px] gap-5">
+
+    <!-- ── Left: cards ── -->
+    <div class="min-w-0">
+
+      <!-- Add card (owner only) -->
+      {% if is_owner %}
+      <div class="mb-4 rounded-lg border border-gray-200 dark:border-void-700
+                  bg-white dark:bg-void-900/50"
+           x-data="{ open: {{ deck.main_count|yesno:'false,true' }} }">
+        <button @click="open = !open"
+                class="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium
+                       text-void-600 dark:text-void-400 hover:bg-gray-50 dark:hover:bg-void-800/50
+                       transition-colors">
+          <svg class="w-4 h-4 transition-transform" :class="open ? 'rotate-45' : ''"
+               fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+          </svg>
+          Agregar carta
+        </button>
+        <div x-show="open" x-transition.duration.200ms class="px-4 pb-4">
           {% include "tolarian/partials/add_deck_card_form.html" %}
         </div>
       </div>
       {% endif %}
 
-      <!-- Alertas de validación -->
-      {% if illegal %}
-      <div class="card p-4 mb-4 border-red-200 dark:border-red-800
-                  bg-red-50 dark:bg-red-900/20">
-        <p class="text-sm font-medium text-red-700 dark:text-red-400 mb-2">
-          {{ illegal|length }} carta{{ illegal|length|pluralize }} no legal{{ illegal|length|pluralize }} en {{ deck.get_format_display }}
-        </p>
-        <div class="space-y-1">
-          {% for item in illegal %}
-          <p class="text-xs text-red-600 dark:text-red-400">
-            {{ item.card.name }} —
-            <span class="capitalize">{{ item.status|replace:"_":" " }}</span>
-            ({{ item.zone }})
-          </p>
-          {% endfor %}
-        </div>
+      <!-- ═══ LIST VIEW (default — Archidekt-style categories) ═══ -->
+      <div x-show="view === 'list'">
+        {% for zone, zone_data in zones.items %}
+          {% if zone_data.categories %}
+            {% include "tolarian/partials/deck_zone_categorized.html" with zone=zone zone_data=zone_data %}
+          {% else %}
+            {% include "tolarian/partials/deck_zone.html" with zone=zone zone_data=zone_data %}
+          {% endif %}
+        {% endfor %}
       </div>
-      {% endif %}
 
-      <!-- Zonas -->
-      {% for zone, entries in zones.items %}
-      {% include "tolarian/partials/deck_zone.html" with zone=zone entries=entries %}
-      {% endfor %}
+      <!-- ═══ GRID VIEW ═══ -->
+      <div x-show="view === 'grid'" x-cloak>
+        {% include "tolarian/partials/deck_view_grid.html" %}
+      </div>
+
+      <!-- ═══ TABLE VIEW ═══ -->
+      <div x-show="view === 'table'" x-cloak>
+        {% include "tolarian/partials/deck_view_table.html" %}
+      </div>
+
+      <!-- ═══ STACKS VIEW ═══ -->
+      <div x-show="view === 'stacks'" x-cloak>
+        {% include "tolarian/partials/deck_view_stacks.html" %}
+      </div>
 
     </div>
 
-    <!-- Sidebar: stats + curva -->
-    <div class="space-y-4">
+    <!-- ── Right: sidebar (sticky) ── -->
+    <div class="space-y-4 lg:sticky lg:top-4 lg:self-start">
 
-      <!-- Curva de maná -->
-      <div class="card p-4">
-        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
-          Curva de maná
+      <!-- Card preview -->
+      <div class="hidden lg:block">
+        <div x-show="previewImage" x-transition.opacity.duration.150ms
+             class="rounded-xl overflow-hidden shadow-lg">
+          <img :src="previewImage" :alt="previewName" class="w-full rounded-xl">
+        </div>
+        <div x-show="!previewImage"
+             class="aspect-[63/88] rounded-xl bg-gray-100 dark:bg-void-800
+                    flex items-center justify-center">
+          <span class="text-xs text-gray-400 dark:text-gray-600">Pasa el cursor sobre una carta</span>
+        </div>
+      </div>
+
+      <!-- Mana curve -->
+      <div class="rounded-lg border border-gray-200 dark:border-void-700 bg-white dark:bg-void-900/50 p-4">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
+          Curva de mana
         </h3>
         {% include "tolarian/partials/mana_curve.html" %}
       </div>
 
       <!-- Stats -->
-      <div class="card p-4"
-           hx-get="{% url 'tolarian:partial-stats' deck.pk %}"
-           hx-trigger="load"
-           hx-swap="innerHTML">
-        <div class="text-center text-gray-400 text-sm py-4">
-          Cargando stats...
-        </div>
+      <div class="rounded-lg border border-gray-200 dark:border-void-700 bg-white dark:bg-void-900/50 p-4">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
+          Estadisticas
+        </h3>
+        {% include "tolarian/partials/deck_stats.html" %}
       </div>
 
-      <!-- Links rápidos -->
       {% if is_owner %}
-      <div class="card p-4">
-        <p class="text-xs font-medium text-gray-500 dark:text-gray-400
-                  uppercase tracking-wide mb-3">
-          Acciones rápidas
-        </p>
-        <div class="space-y-2">
+      <div class="rounded-lg border border-gray-200 dark:border-void-700 bg-white dark:bg-void-900/50 p-4">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
+          Acciones
+        </h3>
+        <div class="flex flex-wrap gap-2">
           <a href="{% url 'tolarian:deck-validate' deck.pk %}"
-             class="block text-sm text-void-600 dark:text-void-400 hover:underline">
-            Validar formato
-          </a>
+             class="text-xs text-void-600 dark:text-void-400 hover:underline">Validar formato</a>
+          <span class="text-gray-300 dark:text-void-700">|</span>
           <a href="{% url 'tolarian:deck-export' deck.pk %}?format=txt"
-             class="block text-sm text-void-600 dark:text-void-400 hover:underline">
-            Copiar como texto
-          </a>
+             class="text-xs text-void-600 dark:text-void-400 hover:underline">Copiar como texto</a>
         </div>
       </div>
       {% endif %}
-
     </div>
   </div>
 
+  <!-- Modal container for deck card details -->
+  <div id="deck-card-modal"></div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
 <script>
 function deckBuilder() {
   return {
+    view: localStorage.getItem('deck-view') || 'grid',
+    cardSize: localStorage.getItem('deck-card-size') || 'md',
+    previewImage: '',
+    previewName: '',
+
+    modes: [
+      { id: 'list',   label: 'Lista' },
+      { id: 'grid',   label: 'Grid' },
+      { id: 'table',  label: 'Tabla' },
+      { id: 'stacks', label: 'Stacks' },
+    ],
+
     init() {
-      // Inicializar sortable por zona si es owner
-      {% if is_owner %}
-      // Las zonas se pueden reordenar con drag & drop
-      // Usando la API nativa de Drag and Drop de HTML5
-      this.initDragDrop();
-      {% endif %}
-    },
-
-    initDragDrop() {
-      document.querySelectorAll('.deck-zone-list').forEach(list => {
-        list.addEventListener('dragover', e => {
-          e.preventDefault();
-          const dragging = document.querySelector('.dragging');
-          if (!dragging) return;
-          const afterElement = this.getDragAfterElement(list, e.clientY);
-          if (afterElement == null) {
-            list.appendChild(dragging);
-          } else {
-            list.insertBefore(dragging, afterElement);
-          }
-        });
-      });
-
-      document.querySelectorAll('.deck-card-row').forEach(row => {
-        row.addEventListener('dragstart', () => row.classList.add('dragging'));
-        row.addEventListener('dragend', () => row.classList.remove('dragging'));
-      });
-    },
-
-    getDragAfterElement(container, y) {
-      const elements = [...container.querySelectorAll('.deck-card-row:not(.dragging)')];
-      return elements.reduce((closest, child) => {
-        const box   = child.getBoundingClientRect();
-        const offset = y - box.top - box.height / 2;
-        if (offset < 0 && offset > closest.offset) {
-          return { offset, element: child };
-        }
-        return closest;
-      }, { offset: Number.NEGATIVE_INFINITY }).element;
+      this.$watch('view', v => localStorage.setItem('deck-view', v));
+      this.$watch('cardSize', v => localStorage.setItem('deck-card-size', v));
     },
   };
 }

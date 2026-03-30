@@ -24,8 +24,6 @@
               {% else %}border-gray-200 dark:border-void-700 text-gray-500 dark:text-gray-400 hover:border-void-400{% endif %}">
       Todos
     </a>
-    {% for value, label in decks.0.get_format_display|default:'' %}
-    {% endfor %}
     {% for deck in decks %}
     {% if deck.format not in seen_formats %}
     <a href="?format={{ deck.format }}"

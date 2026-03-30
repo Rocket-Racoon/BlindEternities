@@ -210,7 +210,7 @@ class Deck(BaseModel):
         total = 0
         for entry in self.cards.exclude(
             zone__in=[DeckZone.MAYBEBOARD, DeckZone.RESERVE, DeckZone.EXTRAS]
-        ).select_related("card__prints"):
+        ).select_related("card").prefetch_related("card__prints"):
             print = entry.card.primary_print
             if print and print.price_usd:
                 total += float(print.price_usd) * entry.quantity
@@ -219,11 +219,13 @@ class Deck(BaseModel):
     @property
     def mana_curve(self):
         """
-        Retorna un dict {cmc: cantidad} para las cartas del maindeck.
+        Retorna un dict {cmc: cantidad} para maindeck + commander.
         Solo cartas que no son tierras.
         """
         curve = {}
-        for entry in self.main_cards.select_related("card"):
+        for entry in self.cards.filter(
+            zone__in=[DeckZone.MAIN, DeckZone.COMMANDER, DeckZone.COMPANION]
+        ).select_related("card"):
             card = entry.card
             if "Land" in card.type_line:
                 continue
@@ -290,8 +292,8 @@ class DeckCard(BaseModel):
         verbose_name_plural = "deck cards"
         constraints = [
             models.UniqueConstraint(
-                fields=["deck", "card", "zone"],
-                name="unique_deck_card_zone",
+                fields=["deck", "card", "zone", "print"],
+                name="unique_deck_card_zone_print",
             )
         ]
 

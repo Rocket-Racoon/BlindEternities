@@ -1,0 +1,184 @@
+{% load core_tags %}
+
+<div class="fixed inset-0 z-50 overflow-y-auto">
+  <div class="fixed inset-0 bg-black/50"
+       onclick="document.getElementById('deck-card-modal').innerHTML=''"></div>
+
+  <div class="relative min-h-screen flex items-center justify-center p-4">
+    <div class="relative w-full max-w-2xl card p-6 shadow-xl"
+         onclick="event.stopPropagation()">
+
+      <!-- Header -->
+      <div class="flex items-center justify-between mb-4">
+        <div class="min-w-0">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
+            {{ entry.card.name }}
+          </h2>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            {{ entry.card.type_line }}
+            {% if entry.card.mana_cost %}
+              &middot; {{ entry.card.mana_cost|mana_cost }}
+            {% endif %}
+          </p>
+        </div>
+        <button onclick="document.getElementById('deck-card-modal').innerHTML=''"
+                class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-void-800
+                       text-gray-500 dark:text-gray-400 transition-colors shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-[200px_1fr] gap-6"
+           x-data="{
+             printImg: '{{ entry.print.image_normal|default:entry.card.primary_print.image_normal|default:"" }}',
+             printLabel: '{% if entry.print and entry.print.cardset %}{{ entry.print.cardset.name }} #{{ entry.print.collector_number }}{% endif %}'
+           }">
+
+        <!-- Card image -->
+        <div>
+          <div class="aspect-[63/88] overflow-hidden rounded-lg bg-gray-100 dark:bg-void-800">
+            <img :src="printImg"
+                 alt="{{ entry.card.name }}"
+                 class="w-full h-full object-cover">
+          </div>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center"
+             x-text="printLabel"></p>
+        </div>
+
+        <!-- Info + edit form -->
+        <div>
+          <!-- Quick info badges -->
+          <div class="flex flex-wrap gap-2 mb-4">
+            <span class="text-xs px-2 py-1 rounded font-medium
+                         bg-void-100 text-void-700 dark:bg-void-800 dark:text-void-300">
+              {{ entry.get_zone_display }}
+            </span>
+            <span class="text-xs px-2 py-1 rounded
+                         bg-gray-100 text-gray-600 dark:bg-void-800 dark:text-gray-400">
+              {{ entry.quantity }}x en este deck
+            </span>
+            {% if owned_qty %}
+            <span class="text-xs px-2 py-1 rounded
+                         bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+              {{ owned_qty }}x en tu coleccion
+            </span>
+            {% else %}
+            <span class="text-xs px-2 py-1 rounded
+                         bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">
+              No en coleccion
+            </span>
+            {% endif %}
+          </div>
+
+          {% if other_decks %}
+          <div class="mb-4">
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+              Tambien en:
+            </p>
+            <div class="flex flex-wrap gap-1">
+              {% for dname in other_decks %}
+              <span class="text-[11px] px-1.5 py-0.5 rounded
+                           bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
+                {{ dname }}
+              </span>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
+          {% if is_owner %}
+          <!-- Edit form -->
+          <form method="post"
+                action="{% url 'tolarian:deck-card-edit' entry.pk %}"
+                hx-post="{% url 'tolarian:deck-card-edit' entry.pk %}"
+                hx-swap="none"
+                hx-on::after-request="if(event.detail.successful){document.getElementById('deck-card-modal').innerHTML=''; window.location.reload();}">
+            {% csrf_token %}
+            <input type="hidden" name="card" value="{{ entry.card.pk }}">
+
+            <div class="space-y-3">
+              <!-- Print -->
+              <div>
+                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  Version
+                </label>
+                <select name="print" class="input w-full text-sm"
+                        @change="
+                          let opt = $el.selectedOptions[0];
+                          printImg = opt.dataset.img || '';
+                          printLabel = opt.dataset.label || '';
+                        ">
+                  <option value="" data-img="" data-label="">-- Sin version --</option>
+                  {% for p in prints %}
+                  <option value="{{ p.pk }}"
+                          data-img="{{ p.image_normal }}"
+                          data-label="{{ p.cardset.name }} #{{ p.collector_number }}"
+                          {% if entry.print_id == p.pk %}selected{% endif %}>
+                    {{ p.cardset.name }} &middot; #{{ p.collector_number }}
+                    {% if p.price_usd %}&mdash; ${{ p.price_usd }}{% endif %}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <!-- Zone + Quantity -->
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Zona
+                  </label>
+                  {{ form.zone }}
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Cantidad
+                  </label>
+                  {{ form.quantity }}
+                </div>
+              </div>
+
+              <!-- Notes -->
+              <div>
+                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  Notas
+                </label>
+                {{ form.notes }}
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="mt-4 flex gap-3 justify-between items-center pt-4
+                        border-t border-gray-200 dark:border-void-700">
+              <a href="{% url 'multiverse:card-detail' entry.card.oracle_id %}"
+                 class="text-xs text-void-600 dark:text-void-400 hover:underline">
+                Ver carta completa
+              </a>
+              <div class="flex gap-2">
+                <button type="button"
+                        onclick="document.getElementById('deck-card-modal').innerHTML=''"
+                        class="btn-secondary text-sm">
+                  Cancelar
+                </button>
+                <button type="submit" class="btn-primary text-sm">
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </form>
+          {% else %}
+          <div class="pt-4 border-t border-gray-200 dark:border-void-700">
+            <a href="{% url 'multiverse:card-detail' entry.card.oracle_id %}"
+               class="text-sm text-void-600 dark:text-void-400 hover:underline">
+              Ver carta completa
+            </a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

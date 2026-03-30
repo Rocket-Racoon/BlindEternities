@@ -1,26 +1,30 @@
 {% if curve %}
-<div class="space-y-2">
-  {% with max_count=0 %}
+{% with max_count=curve_max %}
+<div class="flex items-end justify-between gap-1" style="height: 72px;">
   {% for cmc, count in curve.items %}
-  <div class="flex items-center gap-2">
-    <span class="text-xs text-gray-500 dark:text-gray-400 w-4 text-right shrink-0">
-      {% if cmc == 7 %}7+{% else %}{{ cmc }}{% endif %}
-    </span>
-    <div class="flex-1 bg-gray-100 dark:bg-void-800 rounded-full h-4 overflow-hidden">
-      <div class="h-full bg-void-500 dark:bg-void-400 rounded-full transition-all"
-           style="width: {{ count|floatformat:0 }}%"
-           title="{{ count }} carta{{ count|pluralize }}">
-      </div>
-    </div>
-    <span class="text-xs text-gray-500 dark:text-gray-400 w-4 shrink-0">
+  <div class="flex-1 flex flex-col items-center justify-end h-full">
+    <span class="text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 leading-none">
       {{ count }}
+    </span>
+    <div class="w-full rounded-t bg-void-500 dark:bg-void-400 transition-all min-w-[12px]"
+         style="height: {% if max_count %}{% widthratio count max_count 100 %}%{% else %}0{% endif %};
+                min-height: {% if count %}3px{% else %}0{% endif %};">
+    </div>
+  </div>
+  {% endfor %}
+</div>
+<div class="flex justify-between gap-1 mt-1 border-t border-gray-100 dark:border-void-800 pt-1">
+  {% for cmc, count in curve.items %}
+  <div class="flex-1 text-center">
+    <span class="text-[10px] text-gray-400 dark:text-gray-500 font-medium">
+      {% if cmc == 7 %}7+{% else %}{{ cmc }}{% endif %}
     </span>
   </div>
   {% endfor %}
-  {% endwith %}
 </div>
+{% endwith %}
 {% else %}
-<p class="text-xs text-gray-400 dark:text-gray-600 text-center py-4">
+<p class="text-[11px] text-gray-400 dark:text-gray-600 text-center py-6">
   Sin cartas en el maindeck.
 </p>
 {% endif %}

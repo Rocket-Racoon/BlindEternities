@@ -12,7 +12,7 @@ from django.views.generic import (
     TemplateView, ListView, DetailView,
     CreateView, UpdateView, DeleteView, View,
 )
-from core.constants import CardCondition, CardFinish
+from core.constants import CardCondition, CardFinish, MagicFormat
 from core.mixins import OwnerRequiredMixin
 from core.utils import paginate_queryset
 from multiverse.models import Card, CardPrint
@@ -476,6 +476,43 @@ class DeckDetailView(LoginRequiredMixin, TemplateView):
             raise PermissionDenied
         return super().dispatch(request, *args, **kwargs)
 
+    @staticmethod
+    def _card_category(type_line):
+        """Classify a card into an Archidekt-style category by type_line."""
+        tl = type_line.lower()
+        if "land" in tl:
+            return "Lands"
+        if "creature" in tl:
+            return "Creatures"
+        if "planeswalker" in tl:
+            return "Planeswalkers"
+        if "instant" in tl:
+            return "Instants"
+        if "sorcery" in tl:
+            return "Sorceries"
+        if "enchantment" in tl:
+            return "Enchantments"
+        if "artifact" in tl:
+            return "Artifacts"
+        if "battle" in tl:
+            return "Battles"
+        return "Other"
+
+    CATEGORY_ORDER = [
+        "Creatures", "Planeswalkers", "Instants", "Sorceries",
+        "Enchantments", "Artifacts", "Battles", "Lands", "Other",
+    ]
+
+    COLOR_MAP = {"W": "White", "U": "Blue", "B": "Black", "R": "Red", "G": "Green"}
+
+    @staticmethod
+    def _entry_price(entry):
+        """Get USD price for a deck entry from its print."""
+        p = entry.print or entry.card.primary_print
+        if p and p.price_usd:
+            return float(p.price_usd)
+        return 0.0
+
     def get_context_data(self, **kwargs):
         ctx  = super().get_context_data(**kwargs)
         deck = get_object_or_404(
@@ -486,19 +523,106 @@ class DeckDetailView(LoginRequiredMixin, TemplateView):
             pk=self.kwargs["pk"],
         )
 
-        # Agrupar cartas por zona
+        all_entries = list(deck.cards.all())
+        counted_zones = {DeckZone.MAYBEBOARD, DeckZone.RESERVE, DeckZone.EXTRAS}
+
+        # Agrupar cartas por zona, y dentro del main por categoría
         zones = {}
+        total_cards = 0
+        type_breakdown = {}   # {category_name: qty}
+        color_counts = {}     # {color_code: qty}
+
         for zone in DeckZone:
-            entries = [c for c in deck.cards.all() if c.zone == zone.value]
-            if entries:
-                zones[zone] = entries
+            entries = [c for c in all_entries if c.zone == zone.value]
+            if not entries:
+                continue
+
+            if zone == DeckZone.MAIN:
+                categories = {}
+                for entry in entries:
+                    cat = self._card_category(entry.card.type_line)
+                    categories.setdefault(cat, []).append(entry)
+                ordered = {}
+                for cat in self.CATEGORY_ORDER:
+                    if cat in categories:
+                        cat_entries = sorted(categories[cat], key=lambda e: e.card.name)
+                        cat_qty = sum(e.quantity for e in cat_entries)
+                        cat_price = sum(
+                            self._entry_price(e) * e.quantity
+                            for e in cat_entries
+                        )
+                        ordered[cat] = {
+                            "entries": cat_entries,
+                            "qty": cat_qty,
+                            "price": round(cat_price, 2),
+                        }
+                        type_breakdown[cat] = cat_qty
+                zones[zone] = {"categories": ordered}
+            else:
+                zone_price = sum(
+                    self._entry_price(e) * e.quantity for e in entries
+                )
+                zones[zone] = {
+                    "entries": sorted(entries, key=lambda e: e.card.name),
+                    "qty": sum(e.quantity for e in entries),
+                    "price": round(zone_price, 2),
+                }
+
+            # Accumulate stats for deck-counted zones
+            if zone.value not in {z.value for z in counted_zones}:
+                for entry in entries:
+                    total_cards += entry.quantity
+                    for c in (entry.card.color_identity or []):
+                        color_counts[c] = color_counts.get(c, 0) + entry.quantity
+
+        has_commander = any(
+            c.zone == DeckZone.COMMANDER for c in all_entries
+        )
+
+        # Color distribution with labels
+        color_dist = []
+        for code in ["W", "U", "B", "R", "G"]:
+            if code in color_counts:
+                color_dist.append({
+                    "code": code,
+                    "name": self.COLOR_MAP[code],
+                    "count": color_counts[code],
+                })
+        colorless = sum(
+            e.quantity for e in all_entries
+            if e.zone not in {z.value for z in counted_zones}
+            and not e.card.color_identity
+        )
+        if colorless:
+            color_dist.append({"code": "C", "name": "Colorless", "count": colorless})
+
+        # Shared cards (in other user decks)
+        shared = {}
+        for entry in all_entries:
+            if entry.zone in (DeckZone.MAIN, DeckZone.COMMANDER, DeckZone.COMPANION):
+                others = entry.is_in_other_decks()
+                if others.exists():
+                    shared[entry.card.name] = [o.deck.name for o in others]
+
+        # Flat list for grid/table/stacks views (excluding maybeboard)
+        deck_entries = sorted(all_entries, key=lambda e: (e.zone, e.card.name))
 
         ctx.update({
-            "deck":      deck,
-            "zones":     zones,
-            "is_owner":  deck.user == self.request.user,
-            "illegal":   deck.validate_format(),
-            "curve":     deck.mana_curve,
+            "deck":           deck,
+            "zones":          zones,
+            "deck_entries":   deck_entries,
+            "is_owner":       deck.user == self.request.user,
+            "illegal":        deck.validate_format(),
+            "curve":          deck.mana_curve,
+            "curve_max":      max(deck.mana_curve.values()) if deck.mana_curve else 0,
+            "has_commander":  has_commander,
+            "total_cards":    total_cards,
+            "main_count":     deck.main_count,
+            "side_count":     deck.sideboard_count,
+            "total_value":    deck.total_value,
+            "type_breakdown": type_breakdown,
+            "color_dist":     color_dist,
+            "shared":         shared,
         })
         return ctx
 
@@ -541,34 +665,137 @@ class DeckDeleteView(DeckOwnerMixin, DeleteView):
 
 
 class DeckAddCardView(DeckOwnerMixin, View):
+
+    SINGLETON_FORMATS = {
+        MagicFormat.COMMANDER, MagicFormat.BRAWL, MagicFormat.OATHBREAKER,
+    }
+    CONSTRUCTED_FORMATS = {
+        MagicFormat.STANDARD, MagicFormat.PIONEER, MagicFormat.MODERN,
+        MagicFormat.LEGACY, MagicFormat.VINTAGE, MagicFormat.PAUPER,
+    }
+
+    def _max_copies(self, card, deck_format):
+        """Return the max allowed copies for a card in a given format.
+        Returns None for unlimited (basic lands, 'any number' cards)."""
+        # Cards explicitly marked unlimited (basic lands, relentless rats, etc.)
+        if card.has_deck_limit and card.max_deck_copies == 0:
+            return None
+        # Cards with a specific limit (e.g. Seven Dwarves = 7)
+        if card.has_deck_limit and card.max_deck_copies:
+            return card.max_deck_copies
+        # Singleton formats: 1 copy
+        if deck_format in self.SINGLETON_FORMATS:
+            return 1
+        # Constructed formats: 4 copies
+        if deck_format in self.CONSTRUCTED_FORMATS:
+            return 4
+        # Limited / Other: no limit
+        return None
+
     def post(self, request, pk):
         deck = get_object_or_404(Deck, pk=pk)
         form = DeckCardForm(request.POST)
 
-        if form.is_valid():
-            entry = form.save(commit=False)
-            entry.deck = deck
+        if not form.is_valid():
+            msg = "Error en el formulario."
+            if request.headers.get("HX-Request") or request.content_type == "multipart/form-data":
+                return JsonResponse({"error": msg}, status=400)
+            messages.error(request, msg)
+            return redirect("tolarian:deck-detail", pk=pk)
 
-            existing = DeckCard.objects.filter(
-                deck=deck,
-                card=entry.card,
-                zone=entry.zone,
-            ).first()
+        entry = form.save(commit=False)
+        entry.deck = deck
+        card = entry.card
 
-            if existing:
-                existing.quantity += entry.quantity
-                existing.save(update_fields=["quantity", "updated_at"])
-                messages.success(request, f"Cantidad actualizada: {existing.card.name}")
+        # Total copies already in this deck (across all zones)
+        current_qty = (
+            DeckCard.objects.filter(deck=deck, card=card)
+            .aggregate(total=Sum("quantity"))["total"] or 0
+        )
+        max_copies = self._max_copies(card, deck.format)
+
+        if max_copies is not None and current_qty + entry.quantity > max_copies:
+            allowed = max(0, max_copies - current_qty)
+            if allowed == 0:
+                msg = (
+                    f"Ya tienes {current_qty} copia(s) de {card.name}. "
+                    f"Máximo permitido en {deck.get_format_display()}: {max_copies}."
+                )
             else:
-                entry.save()
-                messages.success(request, f"Carta agregada: {entry.card.name}")
+                msg = (
+                    f"Solo puedes agregar {allowed} copia(s) más de {card.name} "
+                    f"(máximo {max_copies} en {deck.get_format_display()})."
+                )
+            if request.headers.get("HX-Request") or request.content_type == "multipart/form-data":
+                return JsonResponse({"error": msg}, status=400)
+            messages.error(request, msg)
+            return redirect("tolarian:deck-detail", pk=pk)
 
-        if request.headers.get("HX-Request"):
+        # Check existing entry in same zone + print
+        existing = DeckCard.objects.filter(
+            deck=deck, card=card, zone=entry.zone, print=entry.print,
+        ).first()
+
+        if existing:
+            existing.quantity += entry.quantity
+            existing.save(update_fields=["quantity", "updated_at"])
+            messages.success(request, f"Cantidad actualizada: {existing.card.name}")
+        else:
+            entry.save()
+            messages.success(request, f"Carta agregada: {entry.card.name}")
+
+        if request.headers.get("HX-Request") or request.content_type == "multipart/form-data":
             return HttpResponse(status=204)
         return redirect("tolarian:deck-detail", pk=pk)
 
 
 class DeckCardEditView(LoginRequiredMixin, View):
+    def get(self, request, card_pk):
+        entry = get_object_or_404(
+            DeckCard.objects.select_related(
+                "card", "print__cardset", "deck",
+            ).prefetch_related("card__prints__cardset"),
+            pk=card_pk,
+        )
+        if entry.deck.user != request.user:
+            raise PermissionDenied
+
+        form = DeckCardForm(instance=entry)
+        prints = entry.card.prints.select_related("cardset").order_by(
+            "-cardset__released_at"
+        )
+
+        # Check if user owns this card in any collection
+        owned_qty = (
+            CollectionItem.objects
+            .filter(
+                collection__user=request.user,
+                card=entry.card,
+                collection__is_active=True,
+            )
+            .aggregate(total=Sum("quantity"))["total"] or 0
+        )
+
+        # Other decks using this card
+        other_decks = (
+            DeckCard.objects
+            .filter(card=entry.card, deck__user=request.user, deck__is_active=True)
+            .exclude(deck=entry.deck)
+            .select_related("deck")
+            .values_list("deck__name", flat=True)
+            .distinct()
+        )
+
+        return render(request, "tolarian/partials/deck_card_modal.html", {
+            "entry":       entry,
+            "deck":        entry.deck,
+            "form":        form,
+            "prints":      prints,
+            "owned_qty":   owned_qty,
+            "other_decks": list(other_decks),
+            "is_owner":    entry.deck.user == request.user,
+        })
+
     def post(self, request, card_pk):
         entry = get_object_or_404(DeckCard, pk=card_pk)
         if entry.deck.user != request.user:
@@ -578,7 +805,8 @@ class DeckCardEditView(LoginRequiredMixin, View):
             form.save()
             messages.success(request, "Carta actualizada.")
         if request.headers.get("HX-Request"):
-            return HttpResponse(status=204)
+            return HttpResponse(status=204,
+                                headers={"HX-Trigger": "deck-card-updated"})
         return redirect("tolarian:deck-detail", pk=entry.deck.pk)
 
 
@@ -687,9 +915,11 @@ class DeckCurvePartialView(LoginRequiredMixin, TemplateView):
         deck = get_object_or_404(Deck, pk=self.kwargs["pk"])
         if not deck.is_public and deck.user != self.request.user:
             raise PermissionDenied
+        curve = deck.mana_curve
         ctx.update({
-            "deck":  deck,
-            "curve": deck.mana_curve,
+            "deck":      deck,
+            "curve":     curve,
+            "curve_max": max(curve.values()) if curve else 0,
         })
         return ctx
 
@@ -758,6 +988,7 @@ class CardSearchJSON(LoginRequiredMixin, View):
                 "oracle_id": str(card.oracle_id),
                 "name": card.name,
                 "type_line": card.type_line,
+                "can_be_commander": card.can_be_commander,
                 "prints": prints,
             })
 

@@ -1,9 +1,10 @@
 {% load core_tags %}
 
-{# Non-categorized zone (Commander, Sideboard, Companion, Maybeboard, etc.) #}
+{# Archidekt-style categorized zone — used for Maindeck #}
+{% for category, cat_data in zone_data.categories.items %}
 <div class="mb-3" x-data="{ collapsed: false }">
 
-  <!-- Zone header -->
+  <!-- Category header -->
   <div class="flex items-center gap-2 px-3 py-1.5 cursor-pointer select-none
               rounded-t-lg border border-gray-200 dark:border-void-700
               bg-gray-100 dark:bg-void-800/80"
@@ -14,10 +15,13 @@
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
     </svg>
     <span class="text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300">
-      {{ zone.label }}
+      {{ category }}
     </span>
     <span class="text-[11px] font-medium text-gray-400 dark:text-gray-500">
-      ({{ zone_data.qty }})
+      ({{ cat_data.qty }})
+    </span>
+    <span class="ml-auto text-[10px] text-gray-400 dark:text-gray-600 hidden sm:block">
+      {% widthratio cat_data.qty total_cards 100 %}%
     </span>
   </div>
 
@@ -26,9 +30,10 @@
        class="border-x border-b border-gray-200 dark:border-void-700
               rounded-b-lg overflow-hidden
               divide-y divide-gray-100 dark:divide-void-800/50">
-    {% for entry in zone_data.entries %}
+    {% for entry in cat_data.entries %}
     {% include "tolarian/partials/_deck_card_row.html" with entry=entry %}
     {% endfor %}
   </div>
 
 </div>
+{% endfor %}

@@ -1,0 +1,68 @@
+{% load core_tags %}
+
+{# Single card in grid view — Archidekt style #}
+{% with p=entry.print fallback=entry.card.primary_print %}
+{% with print=p|default:fallback %}
+{% with img=print.image_normal|default:"" %}
+<div class="group cursor-pointer"
+     {% if img %}
+     @mouseenter="$dispatch('card-preview', { image: '{{ img }}', name: '{{ entry.card.name|escapejs }}' })"
+     @mouseleave="$dispatch('card-preview', { image: '', name: '' })"
+     {% endif %}
+     hx-get="{% url 'tolarian:deck-card-edit' entry.pk %}"
+     hx-target="#deck-card-modal"
+     hx-swap="innerHTML">
+
+  <!-- Card image -->
+  <div class="relative">
+    {% if img %}
+    <img src="{{ img }}" alt="{{ entry.card.name }}"
+         class="w-full rounded-lg shadow hover:shadow-lg transition-shadow"
+         loading="lazy">
+    {% else %}
+    <div class="aspect-[63/88] rounded-lg bg-gray-200 dark:bg-void-800
+                flex items-center justify-center p-3">
+      <span class="text-xs text-gray-500 dark:text-gray-400 text-center leading-tight">
+        {{ entry.card.name }}
+      </span>
+    </div>
+    {% endif %}
+
+    <!-- Quantity badge -->
+    <span class="absolute top-1.5 left-1.5 text-xs font-bold
+                 bg-black/75 text-white px-1.5 py-0.5 rounded leading-none">
+      {{ entry.quantity }}
+    </span>
+
+    <!-- Delete button -->
+    {% if is_owner %}
+    <form method="post" action="{% url 'tolarian:deck-card-delete' entry.pk %}"
+          class="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+          onclick="event.stopPropagation();">
+      {% csrf_token %}
+      <button type="submit"
+              class="w-6 h-6 flex items-center justify-center rounded-full
+                     bg-red-600/90 text-white hover:bg-red-700 shadow text-xs"
+              onclick="event.stopPropagation(); return confirm('Eliminar {{ entry.card.name|escapejs }}?')">
+        &times;
+      </button>
+    </form>
+    {% endif %}
+  </div>
+
+  <!-- Price info -->
+  {% if print.price_usd or print.price_usd_foil %}
+  <div class="flex items-center justify-center gap-3 mt-1.5 text-[11px]">
+    {% if print.price_usd %}
+    <span class="text-gray-600 dark:text-gray-400">${{ print.price_usd }}</span>
+    {% endif %}
+    {% if print.price_usd_foil %}
+    <span class="text-gray-400 dark:text-gray-500 italic">${{ print.price_usd_foil }} foil</span>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+{% endwith %}
+{% endwith %}
+{% endwith %}

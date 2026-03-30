@@ -1,50 +1,229 @@
-<form method="post"
-      action="{% url 'tolarian:deck-add-card' deck.pk %}"
-      hx-post="{% url 'tolarian:deck-add-card' deck.pk %}"
-      hx-swap="none"
-      hx-on::after-request="this.reset(); window.location.reload()">
-  {% csrf_token %}
-  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+{% load core_tags %}
 
-    <div class="sm:col-span-3">
-      <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-        Nombre de carta
-      </label>
-      <input type="text" name="card_name"
-             placeholder="Buscar carta..."
-             class="input"
-             autocomplete="off">
-      <input type="hidden" name="card" id="selected-deck-card-id">
+<div x-data="deckCardAdder()" class="space-y-3">
+  <!-- Buscador de cartas -->
+  <div class="relative">
+    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+      Buscar carta
+    </label>
+    <input type="text"
+           x-model="query"
+           @input.debounce.300ms="search()"
+           @keydown.escape="results = []"
+           @click.outside="results = []"
+           x-ref="searchInput"
+           placeholder="Nombre de la carta..."
+           class="input w-full"
+           autocomplete="off">
+
+    <!-- Resultados de búsqueda -->
+    <div x-show="results.length > 0"
+         x-transition
+         class="absolute z-20 mt-1 w-full bg-white dark:bg-void-800
+                border border-gray-200 dark:border-void-700
+                rounded-lg shadow-lg max-h-64 overflow-y-auto">
+      <template x-for="card in results" :key="card.id">
+        <button type="button"
+                @click="selectCard(card)"
+                class="w-full px-3 py-2 text-left hover:bg-gray-100
+                       dark:hover:bg-void-700 flex items-center gap-3
+                       border-b border-gray-100 dark:border-void-700 last:border-0">
+          <template x-if="card.prints.length && card.prints[0].image">
+            <img :src="card.prints[0].image"
+                 :alt="card.name"
+                 class="w-8 h-11 rounded object-cover shrink-0">
+          </template>
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
+               x-text="card.name"></p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 truncate"
+               x-text="card.type_line"></p>
+          </div>
+          <template x-if="card.can_be_commander">
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700
+                         dark:bg-amber-900/30 dark:text-amber-400 shrink-0">
+              Cmdr
+            </span>
+          </template>
+        </button>
+      </template>
     </div>
+  </div>
 
-    <div>
-      <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-        Zona
-      </label>
-      <select name="zone" class="input">
-        <option value="main">Maindeck</option>
-        <option value="sideboard">Sideboard</option>
-        <option value="commander">Commander</option>
-        <option value="companion">Companion</option>
-        <option value="maybeboard">Maybeboard</option>
-        <option value="reserve">Reserve</option>
-        <option value="extras">Tokens & More</option>
-      </select>
-    </div>
+  <!-- Carta seleccionada + formulario -->
+  <div x-show="selectedCard" x-transition>
+    <div class="flex gap-3 items-start p-3 rounded-lg bg-gray-50 dark:bg-void-800/50 mb-3">
+      <template x-if="selectedPrintImage">
+        <img :src="selectedPrintImage" :alt="selectedCard?.name"
+             class="w-14 h-20 rounded object-cover shrink-0">
+      </template>
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-medium text-gray-900 dark:text-gray-100"
+           x-text="selectedCard?.name"></p>
+        <p class="text-xs text-gray-500 dark:text-gray-400"
+           x-text="selectedCard?.type_line"></p>
 
-    <div>
-      <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-        Cantidad
-      </label>
-      <input type="number" name="quantity" value="1" min="1"
-             class="input">
-    </div>
-
-    <div class="flex items-end">
-      <button type="submit" class="btn-primary text-sm w-full justify-center">
-        Agregar
+        <!-- Selector de print -->
+        <div x-show="selectedCard?.prints?.length > 1" class="mt-2">
+          <select x-model="selectedPrintId"
+                  @change="onPrintChange()"
+                  class="input text-xs w-full">
+            <template x-for="p in selectedCard?.prints || []" :key="p.id">
+              <option :value="p.id"
+                      x-text="`${p.set_name} #${p.collector_number}${p.price_usd ? ' — $' + p.price_usd : ''}`">
+              </option>
+            </template>
+          </select>
+        </div>
+      </div>
+      <button type="button" @click="clearSelection()"
+              class="text-gray-400 hover:text-red-500 shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"/>
+        </svg>
       </button>
     </div>
 
+    <!-- Error message -->
+    <div x-show="errorMsg" x-transition
+         class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 mb-3">
+      <p class="text-sm text-red-700 dark:text-red-400" x-text="errorMsg"></p>
+    </div>
+
+    <form @submit.prevent="submitCard()" class="grid grid-cols-3 gap-3">
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+          Zona
+        </label>
+        <select x-model="zone" class="input w-full text-sm">
+          <option value="main">Maindeck</option>
+          <option value="sideboard">Sideboard</option>
+          <option value="commander">Commander</option>
+          <option value="companion">Companion</option>
+          <option value="maybeboard">Maybeboard</option>
+          <option value="reserve">Reserve</option>
+          <option value="extras">Tokens & More</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+          Cantidad
+        </label>
+        <input type="number" x-model="quantity" min="1"
+               class="input w-full text-sm">
+      </div>
+
+      <div class="flex items-end">
+        <button type="submit" class="btn-primary text-sm w-full justify-center"
+                :disabled="submitting">
+          <span x-show="!submitting">Agregar</span>
+          <span x-show="submitting">Agregando...</span>
+        </button>
+      </div>
+    </form>
   </div>
-</form>
+</div>
+
+<script>
+function deckCardAdder() {
+  return {
+    query: '',
+    results: [],
+    selectedCard: null,
+    selectedPrintId: '',
+    selectedPrintImage: '',
+    zone: 'main',
+    quantity: 1,
+    submitting: false,
+    errorMsg: '',
+    deckFormat: '{{ deck.format }}',
+    hasCommander: {{ has_commander|yesno:"true,false" }},
+
+    async search() {
+      if (this.query.length < 2) { this.results = []; return; }
+      try {
+        const resp = await fetch(`{% url 'tolarian:card-search' %}?q=${encodeURIComponent(this.query)}`);
+        this.results = await resp.json();
+      } catch (e) { this.results = []; }
+    },
+
+    selectCard(card) {
+      this.selectedCard = card;
+      this.results = [];
+      this.query = card.name;
+      if (card.prints.length) {
+        this.selectedPrintId = card.prints[0].id;
+        this.selectedPrintImage = card.prints[0].image;
+      } else {
+        this.selectedPrintId = '';
+        this.selectedPrintImage = '';
+      }
+      // Auto-assign commander zone
+      if (this.isCommanderFormat() && card.can_be_commander && !this.hasCommander) {
+        this.zone = 'commander';
+      } else {
+        this.zone = 'main';
+      }
+    },
+
+    isCommanderFormat() {
+      return ['commander', 'brawl', 'oathbreaker'].includes(this.deckFormat);
+    },
+
+    onPrintChange() {
+      const p = this.selectedCard?.prints?.find(p => p.id === this.selectedPrintId);
+      this.selectedPrintImage = p?.image || '';
+    },
+
+    clearSelection() {
+      this.selectedCard = null;
+      this.selectedPrintId = '';
+      this.selectedPrintImage = '';
+      this.zone = 'main';
+      this.quantity = 1;
+      this.query = '';
+      this.$nextTick(() => this.$refs.searchInput.focus());
+    },
+
+    async submitCard() {
+      if (!this.selectedCard || this.submitting) return;
+      this.submitting = true;
+      this.errorMsg = '';
+
+      const formData = new FormData();
+      formData.append('card', this.selectedCard.id);
+      formData.append('zone', this.zone);
+      formData.append('quantity', this.quantity);
+      if (this.selectedPrintId) {
+        formData.append('print', this.selectedPrintId);
+      }
+
+      try {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+                       || document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+        const resp = await fetch(`{% url 'tolarian:deck-add-card' deck.pk %}`, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': csrfToken },
+          body: formData,
+        });
+
+        if (resp.ok) {
+          if (this.zone === 'commander') this.hasCommander = true;
+          this.clearSelection();
+          window.location.reload();
+        } else {
+          const data = await resp.json().catch(() => null);
+          this.errorMsg = data?.error || 'Error al agregar la carta.';
+        }
+      } catch (e) {
+        this.errorMsg = 'Error de conexión.';
+      } finally {
+        this.submitting = false;
+      }
+    },
+  };
+}
+</script>

@@ -1,0 +1,61 @@
+{% load core_tags %}
+
+{# Single card row — Archidekt compact style #}
+{% with p=entry.print %}
+{% with img=p.image_normal|default:entry.card.primary_print.image_normal|default:"" %}
+<div class="deck-card-row group flex items-center gap-2 px-3 py-1.5
+            hover:bg-void-50 dark:hover:bg-void-800/40 transition-colors text-sm cursor-pointer"
+     {% if img %}
+     @mouseenter="$dispatch('card-preview', { image: '{{ img }}', name: '{{ entry.card.name|escapejs }}' })"
+     @mouseleave="$dispatch('card-preview', { image: '', name: '' })"
+     {% endif %}
+     hx-get="{% url 'tolarian:deck-card-edit' entry.pk %}"
+     hx-target="#deck-card-modal"
+     hx-swap="innerHTML">
+
+  <!-- Qty -->
+  <span class="w-5 text-center text-xs font-bold text-gray-500 dark:text-gray-400 shrink-0">
+    {{ entry.quantity }}x
+  </span>
+
+  <!-- Name -->
+  <span class="flex-1 text-sm text-gray-900 dark:text-gray-100 truncate
+               group-hover:text-void-600 dark:group-hover:text-void-400 transition-colors">
+    {{ entry.card.name }}
+  </span>
+
+  <!-- Mana cost -->
+  {% if entry.card.mana_cost %}
+  <span class="shrink-0 hidden sm:flex items-center gap-px text-xs">
+    {{ entry.card.mana_cost|mana_cost }}
+  </span>
+  {% endif %}
+
+  <!-- Owned dot -->
+  {% if entry.owned %}
+  <span class="w-2 h-2 rounded-full bg-green-500 shrink-0"
+        title="En tu coleccion"></span>
+  {% endif %}
+
+  <!-- Delete (owner only) -->
+  {% if is_owner %}
+  <form method="post"
+        action="{% url 'tolarian:deck-card-delete' entry.pk %}"
+        class="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+        onclick="event.stopPropagation();">
+    {% csrf_token %}
+    <button type="submit"
+            class="w-5 h-5 flex items-center justify-center rounded
+                   text-gray-300 hover:text-red-500
+                   dark:text-void-600 dark:hover:text-red-400"
+            onclick="event.stopPropagation(); return confirm('Eliminar {{ entry.card.name|escapejs }}?')">
+      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </form>
+  {% endif %}
+
+</div>
+{% endwith %}
+{% endwith %}

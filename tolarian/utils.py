@@ -12,9 +12,12 @@ from core.constants import (CardCondition, CardFinish)
 # Parsers de import
 # ---------------------------------------------------------------------------
 
-# Regex para líneas de texto plano: "4x Lightning Bolt" o "4 Lightning Bolt"
+# Regex for text lines: "4x Lightning Bolt", "4 Lightning Bolt (set) *F*"
 DECKLIST_LINE_RE = re.compile(
-    r"^\s*(?P<qty>\d+)\s*[xX]?\s+(?P<name>.+?)\s*$"
+    r"^\s*(?P<qty>\d+)\s*[xX]?\s+(?P<name>.+?)"
+    r"(?:\s+\((?P<set>[a-zA-Z0-9]+)\))?"
+    r"(?:\s+\*F\*)?"
+    r"\s*$"
 )
 
 # Cabeceras de zona en texto plano
@@ -48,8 +51,9 @@ def parse_decklist_text(source, deck):
     else:
         raw = str(source)
 
-    # Detectar si es CSV
-    if "," in raw[:500] and "\n" in raw[:500]:
+    # Detect CSV: first line must look like a CSV header (multiple commas)
+    first_line = raw.split("\n", 1)[0] if raw else ""
+    if first_line.count(",") >= 2:
         return _parse_csv_decklist(raw, deck)
     return _parse_text_decklist(raw, deck)
 
@@ -80,8 +84,9 @@ def _parse_text_decklist(text, deck):
 
         qty  = int(match.group("qty"))
         name = match.group("name").strip()
+        set_code = (match.group("set") or "").strip().lower()
 
-        # Quitar el set code si viene (ej: "Lightning Bolt (M10)")
+        # Strip any remaining set code in parens from name
         name = re.sub(r"\s*\([^)]+\)\s*$", "", name).strip()
 
         card = Card.objects.filter(name__iexact=name, is_active=True).first()
@@ -89,10 +94,18 @@ def _parse_text_decklist(text, deck):
             not_found += 1
             continue
 
+        # Try to match specific print by set code
+        card_print = None
+        if set_code:
+            card_print = card.prints.filter(
+                cardset__code__iexact=set_code
+            ).first()
+
         existing = DeckCard.objects.filter(
             deck=deck,
             card=card,
             zone=current_zone,
+            print=card_print,
         ).first()
 
         if existing:
@@ -104,6 +117,7 @@ def _parse_text_decklist(text, deck):
                 card=card,
                 zone=current_zone,
                 quantity=qty,
+                print=card_print,
             )
             created += 1
 
@@ -121,7 +135,7 @@ def _parse_csv_decklist(text, deck):
     fieldnames = [f.strip().lower() for f in (reader.fieldnames or [])]
 
     for row in reader:
-        row_normalized = {k.strip().lower(): v for k, v in row.items()}
+        row_normalized = {k.strip().lower(): v for k, v in row.items() if k}
 
         # Buscar nombre de carta
         name = (
