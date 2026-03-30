@@ -853,6 +853,11 @@ class DeckDetailView(LoginRequiredMixin, TemplateView):
         return ctx
 
 
+class DeckContentPartialView(DeckDetailView):
+    """HTMX partial: returns card area + OOB updates for sidebar/stats/header."""
+    template_name = "tolarian/partials/deck_content_refresh.html"
+
+
 class DeckCreateView(LoginRequiredMixin, CreateView):
     model         = Deck
     form_class    = DeckForm

@@ -16,7 +16,7 @@ function assignCategory(cardPk, catPk) {
     method: 'POST',
     headers: { 'X-CSRFToken': _getCSRF() },
     body: fd,
-  }).then(r => { if (r.ok) window.location.reload(); });
+  }).then(r => { if (r.ok) refreshDeck(); });
 }
 
 function removeCategoryFromCard(cardPk) {
@@ -26,7 +26,7 @@ function removeCategoryFromCard(cardPk) {
     method: 'POST',
     headers: { 'X-CSRFToken': _getCSRF() },
     body: fd,
-  }).then(r => { if (r.ok) window.location.reload(); });
+  }).then(r => { if (r.ok) refreshDeck(); });
 }
 
 function toggleGameChanger(cardPk) {
@@ -171,7 +171,7 @@ function _closeModal() {
                     action="{% url 'tolarian:deck-card-edit' entry.pk %}"
                     hx-post="{% url 'tolarian:deck-card-edit' entry.pk %}"
                     hx-swap="none"
-                    hx-on::after-request="if(event.detail.successful){ _closeModal(); window.location.reload(); }">
+                    hx-on::after-request="if(event.detail.successful){ _closeModal(); refreshDeck(); }">
                 {% csrf_token %}
                 <input type="hidden" name="card" value="{{ entry.card.pk }}">
 

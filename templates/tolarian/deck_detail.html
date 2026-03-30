@@ -39,7 +39,7 @@
           <span class="shrink-0 w-2 h-2 rounded-full bg-green-500" title="Publico"></span>
           {% endif %}
         </div>
-        <div class="flex items-center gap-3 mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+        <div id="deck-header-counts" class="flex items-center gap-3 mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
           <span>{{ total_cards }} cartas</span>
           <span class="text-gray-300 dark:text-void-700">|</span>
           <span>Maindeck {{ main_count }}</span>
@@ -187,6 +187,7 @@
   </div>
 
   <!-- ═══════ Validation alerts ═══════ -->
+  <div id="deck-validation">
   {% if illegal %}
   <div class="rounded-lg p-3 mt-3 border border-red-200 dark:border-red-800
               bg-red-50 dark:bg-red-900/20 text-sm">
@@ -204,6 +205,7 @@
     </div>
   </div>
   {% endif %}
+  </div>
 
   <!-- ═══════ 3-Column Layout ═══════ -->
   <div class="grid grid-cols-1 lg:grid-cols-[200px_1fr_280px] xl:grid-cols-[220px_1fr_300px] gap-0 mt-3"
@@ -227,7 +229,7 @@
         {% if group_by == "category" %}Categorias{% else %}Grupos{% endif %}
       </p>
 
-      <nav class="space-y-0.5">
+      <nav id="deck-sidebar-nav" class="space-y-0.5">
         {% if commander_entries %}
         <a href="#commander-section"
            class="flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs
@@ -294,7 +296,8 @@
       {% endif %}
 
       <!-- Quick stats -->
-      <div class="mt-4 pt-3 border-t border-gray-100 dark:border-void-800 space-y-1.5 px-2">
+      <div class="mt-4 pt-3 border-t border-gray-100 dark:border-void-800 px-2">
+        <div id="deck-quick-stats" class="space-y-1.5">
         <div class="flex justify-between text-[11px]">
           <span class="text-gray-400 dark:text-gray-500">Total</span>
           <span class="font-semibold text-gray-700 dark:text-gray-300">{{ total_cards }}</span>
@@ -305,6 +308,7 @@
           <span class="font-semibold text-gray-700 dark:text-gray-300">${{ deck.total_value }}</span>
         </div>
         {% endif %}
+        </div>{# /deck-quick-stats #}
       </div>
     </aside>
 
@@ -330,34 +334,36 @@
       </button>
       {% endif %}
 
-      <!-- ═══ COMMANDER (always at top, all views) ═══ -->
-      {% include "tolarian/partials/deck_commander.html" %}
+      <!-- ═══ Card area (refreshed via HTMX) ═══ -->
+      <div id="deck-card-area">
+        {% include "tolarian/partials/deck_commander.html" %}
 
-      <!-- ═══ LIST VIEW ═══ -->
-      <div x-show="view === 'list'">
-        {% for zone, zone_data in zones.items %}
-          {% if zone_data.categories %}
-            {% include "tolarian/partials/deck_zone_categorized.html" with zone=zone zone_data=zone_data %}
-          {% else %}
-            {% include "tolarian/partials/deck_zone.html" with zone=zone zone_data=zone_data %}
-          {% endif %}
-        {% endfor %}
-      </div>
+        <!-- LIST VIEW -->
+        <div x-show="view === 'list'">
+          {% for zone, zone_data in zones.items %}
+            {% if zone_data.categories %}
+              {% include "tolarian/partials/deck_zone_categorized.html" with zone=zone zone_data=zone_data %}
+            {% else %}
+              {% include "tolarian/partials/deck_zone.html" with zone=zone zone_data=zone_data %}
+            {% endif %}
+          {% endfor %}
+        </div>
 
-      <!-- ═══ GRID VIEW ═══ -->
-      <div x-show="view === 'grid'" x-cloak>
-        {% include "tolarian/partials/deck_view_grid.html" %}
-      </div>
+        <!-- GRID VIEW -->
+        <div x-show="view === 'grid'" x-cloak>
+          {% include "tolarian/partials/deck_view_grid.html" %}
+        </div>
 
-      <!-- ═══ TABLE VIEW ═══ -->
-      <div x-show="view === 'table'" x-cloak>
-        {% include "tolarian/partials/deck_view_table.html" %}
-      </div>
+        <!-- TABLE VIEW -->
+        <div x-show="view === 'table'" x-cloak>
+          {% include "tolarian/partials/deck_view_table.html" %}
+        </div>
 
-      <!-- ═══ STACKS VIEW ═══ -->
-      <div x-show="view === 'stacks'" x-cloak>
-        {% include "tolarian/partials/deck_view_stacks.html" %}
-      </div>
+        <!-- STACKS VIEW -->
+        <div x-show="view === 'stacks'" x-cloak>
+          {% include "tolarian/partials/deck_view_stacks.html" %}
+        </div>
+      </div>{# /deck-card-area #}
     </div>
 
     <!-- ── Right: Stats Sidebar ── -->
@@ -380,7 +386,9 @@
         <h3 class="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-2">
           Curva de mana
         </h3>
-        {% include "tolarian/partials/mana_curve.html" %}
+        <div id="deck-curve-panel">
+          {% include "tolarian/partials/mana_curve.html" %}
+        </div>
       </div>
 
       <!-- Stats -->
@@ -388,7 +396,9 @@
         <h3 class="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-2">
           Estadisticas
         </h3>
-        {% include "tolarian/partials/deck_stats.html" %}
+        <div id="deck-stats-panel">
+          {% include "tolarian/partials/deck_stats.html" %}
+        </div>
       </div>
     </aside>
   </div>
@@ -452,6 +462,26 @@ const GROUP_LABELS = {
 };
 
 /* ------------------------------------------------------------------ */
+/*  HTMX partial refresh (no full page reload)                        */
+/* ------------------------------------------------------------------ */
+function refreshDeck() {
+  const url = '{% url "tolarian:deck-content" deck.pk %}' + window.location.search;
+  htmx.ajax('GET', url, {target: '#deck-card-area', swap: 'innerHTML'});
+}
+
+/* Re-init SortableJS after HTMX swaps new card content */
+document.body.addEventListener('htmx:afterSettle', function(evt) {
+  if (evt.detail.target && evt.detail.target.id === 'deck-card-area') {
+    {% if group_by == "category" and is_owner %}
+    setTimeout(function() {
+      var el = document.querySelector('[x-data]');
+      if (el && el._x_dataStack) el._x_dataStack[0]._initSortable();
+    }, 120);
+    {% endif %}
+  }
+});
+
+/* ------------------------------------------------------------------ */
 /*  Main Alpine component                                             */
 /* ------------------------------------------------------------------ */
 function deckBuilder() {
@@ -496,7 +526,9 @@ function deckBuilder() {
           }),
         });
         if (resp.ok) {
-          window.location.reload();
+          this.selected = [];
+          this.selectMode = false;
+          refreshDeck();
         } else {
           const data = await resp.json();
           alert(data.error || 'Error al mover cartas.');
@@ -571,7 +603,7 @@ function deckBuilder() {
             }).then(resp => {
               if (!resp.ok) {
                 console.error('[DnD] Failed to move card');
-                window.location.reload();
+                refreshDeck();
               }
             });
           },
@@ -607,7 +639,7 @@ function categoryManager() {
         });
         if (resp.ok) {
           this.newName = '';
-          window.location.reload();
+          refreshDeck();
         } else {
           const data = await resp.json();
           this.error = data.error || 'Error al crear la categoria.';
@@ -647,7 +679,7 @@ function categoryHeader(catPk) {
         headers: { 'X-CSRFToken': csrfToken },
         body: fd,
       });
-      if (resp.ok) window.location.reload();
+      if (resp.ok) refreshDeck();
       else this.editing = false;
     },
 
@@ -659,7 +691,7 @@ function categoryHeader(catPk) {
         method: 'POST',
         headers: { 'X-CSRFToken': csrfToken },
       });
-      if (resp.ok) window.location.reload();
+      if (resp.ok) refreshDeck();
     },
   };
 }

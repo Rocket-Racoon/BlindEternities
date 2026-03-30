@@ -68,17 +68,19 @@
 
   <!-- Delete (owner only, hidden in select mode) -->
   {% if is_owner %}
-  <form method="post"
-        action="{% url 'tolarian:deck-card-delete' entry.pk %}"
+  <form hx-post="{% url 'tolarian:deck-card-delete' entry.pk %}"
+        hx-swap="none"
+        hx-on::after-request="if(event.detail.successful) refreshDeck();"
         class="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
         x-show="!selectMode"
         onclick="event.stopPropagation();">
     {% csrf_token %}
     <button type="submit"
+            hx-confirm="Eliminar {{ entry.card.name|escapejs }}?"
             class="w-4 h-4 flex items-center justify-center rounded
                    text-gray-300 hover:text-red-500
                    dark:text-void-600 dark:hover:text-red-400"
-            onclick="event.stopPropagation(); return confirm('Eliminar {{ entry.card.name|escapejs }}?')">
+            onclick="event.stopPropagation();">
       <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
       </svg>

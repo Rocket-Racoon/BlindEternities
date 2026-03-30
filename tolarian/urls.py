@@ -47,6 +47,7 @@ urlpatterns = [
     path("decks/<uuid:pk>/bulk-move-category/",            views.DeckCardBulkMoveCategoryView.as_view(),     name="deck-bulk-move-category"),
 
     # Parciales HTMX
+    path("decks/<uuid:pk>/content/",            views.DeckContentPartialView.as_view(), name="deck-content"),
     path("decks/<uuid:pk>/curve/",              views.DeckCurvePartialView.as_view(), name="partial-curve"),
     path("decks/<uuid:pk>/stats/",              views.DeckStatsPartialView.as_view(), name="partial-stats"),
 

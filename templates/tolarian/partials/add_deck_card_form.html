@@ -213,7 +213,7 @@ function deckCardAdder() {
         if (resp.ok) {
           if (this.zone === 'commander') this.hasCommander = true;
           this.clearSelection();
-          window.location.reload();
+          refreshDeck();
         } else {
           const data = await resp.json().catch(() => null);
           this.errorMsg = data?.error || 'Error al agregar la carta.';

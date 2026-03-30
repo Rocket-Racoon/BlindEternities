@@ -1,0 +1,138 @@
+{% load core_tags %}
+
+{# Main content — swapped into #deck-card-area via innerHTML #}
+
+{% include "tolarian/partials/deck_commander.html" %}
+
+<!-- LIST VIEW -->
+<div x-show="view === 'list'">
+  {% for zone, zone_data in zones.items %}
+    {% if zone_data.categories %}
+      {% include "tolarian/partials/deck_zone_categorized.html" with zone=zone zone_data=zone_data %}
+    {% else %}
+      {% include "tolarian/partials/deck_zone.html" with zone=zone zone_data=zone_data %}
+    {% endif %}
+  {% endfor %}
+</div>
+
+<!-- GRID VIEW -->
+<div x-show="view === 'grid'" x-cloak>
+  {% include "tolarian/partials/deck_view_grid.html" %}
+</div>
+
+<!-- TABLE VIEW -->
+<div x-show="view === 'table'" x-cloak>
+  {% include "tolarian/partials/deck_view_table.html" %}
+</div>
+
+<!-- STACKS VIEW -->
+<div x-show="view === 'stacks'" x-cloak>
+  {% include "tolarian/partials/deck_view_stacks.html" %}
+</div>
+
+
+{# ═══════ Out-of-Band updates ═══════ #}
+
+<!-- Header counts -->
+<div id="deck-header-counts" hx-swap-oob="innerHTML">
+  <span>{{ total_cards }} cartas</span>
+  <span class="text-gray-300 dark:text-void-700">|</span>
+  <span>Maindeck {{ main_count }}</span>
+  {% if side_count %}
+  <span class="text-gray-300 dark:text-void-700">|</span>
+  <span>Sideboard {{ side_count }}</span>
+  {% endif %}
+  {% if deck.total_value %}
+  <span class="text-gray-300 dark:text-void-700">|</span>
+  <span class="font-medium">${{ deck.total_value }}</span>
+  {% endif %}
+</div>
+
+<!-- Validation alerts -->
+<div id="deck-validation" hx-swap-oob="innerHTML">
+  {% if illegal %}
+  <div class="rounded-lg p-3 mt-3 border border-red-200 dark:border-red-800
+              bg-red-50 dark:bg-red-900/20 text-sm">
+    <p class="font-medium text-red-700 dark:text-red-400 mb-1">
+      {{ illegal|length }} carta{{ illegal|length|pluralize }} no legal{{ illegal|length|pluralize }}
+      en {{ deck.get_format_display }}
+    </p>
+    <div class="flex flex-wrap gap-x-4 gap-y-0.5">
+      {% for item in illegal %}
+      <span class="text-xs text-red-600 dark:text-red-400">
+        {{ item.card.name }}
+        <span class="capitalize opacity-75">({{ item.status|replace:"_: " }})</span>
+      </span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Sidebar nav -->
+<nav id="deck-sidebar-nav" hx-swap-oob="innerHTML">
+  {% if commander_entries %}
+  <a href="#commander-section"
+     class="flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs
+            text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20
+            font-medium transition-colors cursor-pointer">
+    <span class="flex items-center gap-1.5">
+      <span class="text-sm">&#9813;</span> Commander
+    </span>
+    <span class="text-[10px] font-medium text-amber-500 dark:text-amber-600 bg-amber-50
+                 dark:bg-amber-900/20 px-1.5 py-0.5 rounded-full min-w-[20px] text-center shrink-0">
+      {{ commander_entries|length }}
+    </span>
+  </a>
+  {% endif %}
+  {% for cat in category_nav %}
+  <a href="#cat-{{ cat.slug }}"
+     class="flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs
+            text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800
+            hover:text-gray-900 dark:hover:text-gray-200 transition-colors cursor-pointer">
+    <span class="truncate">{{ cat.name }}</span>
+    <span class="text-[10px] font-medium text-gray-400 dark:text-gray-600 bg-gray-100
+                 dark:bg-void-800 px-1.5 py-0.5 rounded-full min-w-[20px] text-center shrink-0">
+      {{ cat.qty }}
+    </span>
+  </a>
+  {% endfor %}
+  {% for zone, zone_data in zones.items %}
+  {% if not zone_data.categories %}
+  <a href="#zone-{{ zone.value }}"
+     class="flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs
+            text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800
+            hover:text-gray-900 dark:hover:text-gray-200 transition-colors cursor-pointer">
+    <span>{{ zone.label }}</span>
+    <span class="text-[10px] font-medium text-gray-400 dark:text-gray-600 bg-gray-100
+                 dark:bg-void-800 px-1.5 py-0.5 rounded-full min-w-[20px] text-center shrink-0">
+      {{ zone_data.qty }}
+    </span>
+  </a>
+  {% endif %}
+  {% endfor %}
+</nav>
+
+<!-- Quick stats (left sidebar) -->
+<div id="deck-quick-stats" hx-swap-oob="innerHTML">
+  <div class="flex justify-between text-[11px]">
+    <span class="text-gray-400 dark:text-gray-500">Total</span>
+    <span class="font-semibold text-gray-700 dark:text-gray-300">{{ total_cards }}</span>
+  </div>
+  {% if deck.total_value %}
+  <div class="flex justify-between text-[11px]">
+    <span class="text-gray-400 dark:text-gray-500">Valor</span>
+    <span class="font-semibold text-gray-700 dark:text-gray-300">${{ deck.total_value }}</span>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Mana curve -->
+<div id="deck-curve-panel" hx-swap-oob="innerHTML">
+  {% include "tolarian/partials/mana_curve.html" %}
+</div>
+
+<!-- Stats panel -->
+<div id="deck-stats-panel" hx-swap-oob="innerHTML">
+  {% include "tolarian/partials/deck_stats.html" %}
+</div>
