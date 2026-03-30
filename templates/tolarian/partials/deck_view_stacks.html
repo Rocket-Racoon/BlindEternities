@@ -2,6 +2,7 @@
 
 {# Stacks view — cards stacked/cascading by category, with flip for DFCs #}
 {% for zone, zone_data in zones.items %}
+{% if zone.value != "commander" %}
 <div class="mb-5">
   {% if not zone_data.categories %}
   {# Non-main zones: single stack #}
@@ -76,4 +77,5 @@
   </div>
   {% endif %}
 </div>
+{% endif %}
 {% endfor %}

@@ -34,6 +34,7 @@ urlpatterns = [
     # Deck cards
     path("decks/<uuid:pk>/add/",                views.DeckAddCardView.as_view(),      name="deck-add-card"),
     path("deck-cards/<uuid:card_pk>/edit/",     views.DeckCardEditView.as_view(),     name="deck-card-edit"),
+    path("deck-cards/<uuid:card_pk>/qty/",      views.DeckCardQtyView.as_view(),      name="deck-card-qty"),
     path("deck-cards/<uuid:card_pk>/delete/",   views.DeckCardDeleteView.as_view(),   name="deck-card-delete"),
 
     # Deck categories

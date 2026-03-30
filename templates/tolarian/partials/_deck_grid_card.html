@@ -1,21 +1,21 @@
 {% load core_tags %}
 
-{# Single card in grid view — with flip support for double-faced cards #}
+{# Single card in grid view — with +/- qty buttons overlaid on right side #}
 {% with p=entry.print fallback=entry.card.primary_print %}
 {% with print=p|default:fallback %}
 {% with img=print.image_normal|default:"" %}
-<div class="group cursor-pointer"
-     hx-get="{% url 'tolarian:deck-card-edit' entry.pk %}"
-     hx-target="#deck-card-modal"
-     hx-swap="innerHTML">
+<div>
 
-  <!-- Card image -->
-  <div class="relative">
+  <!-- Outer relative with same aspect ratio as card — all overlays position against this -->
+  <div class="relative aspect-[63/88]">
+
     {% if entry.has_back_face and entry.display_scryfall_id %}
-    {# Double-faced card — flip on click, preview follows flip state #}
     {% with sid=entry.display_scryfall_id %}
     <div x-data="{ flipped: false }"
-         class="aspect-[63/88] relative rounded-lg overflow-hidden shadow hover:shadow-lg transition-shadow"
+         class="absolute inset-0 rounded-lg overflow-hidden shadow hover:shadow-lg transition-shadow cursor-pointer"
+         hx-get="{% url 'tolarian:deck-card-edit' entry.pk %}"
+         hx-target="#deck-card-modal"
+         hx-swap="innerHTML"
          @mouseenter="$dispatch('card-preview', {
            image: flipped
              ? 'https://api.scryfall.com/cards/{{ sid }}?format=image&version=normal&face=back'
@@ -49,51 +49,98 @@
     </div>
     {% endwith %}
     {% elif img %}
-    <div @mouseenter="$dispatch('card-preview', { image: '{{ img }}', name: '{{ entry.card.name|escapejs }}' })"
+    <div class="absolute inset-0 rounded-lg overflow-hidden shadow hover:shadow-lg transition-shadow cursor-pointer"
+         hx-get="{% url 'tolarian:deck-card-edit' entry.pk %}"
+         hx-target="#deck-card-modal"
+         hx-swap="innerHTML"
+         @mouseenter="$dispatch('card-preview', { image: '{{ img }}', name: '{{ entry.card.name|escapejs }}' })"
          @mouseleave="$dispatch('card-preview', { image: '', name: '' })">
       <img src="{{ img }}" alt="{{ entry.card.name }}"
-           class="w-full rounded-lg shadow hover:shadow-lg transition-shadow"
+           class="w-full h-full object-cover"
            loading="lazy">
     </div>
     {% else %}
-    <div class="aspect-[63/88] rounded-lg bg-gray-200 dark:bg-void-800
-                flex items-center justify-center p-3">
+    <div class="absolute inset-0 rounded-lg bg-gray-200 dark:bg-void-800
+                flex items-center justify-center p-3 cursor-pointer"
+         hx-get="{% url 'tolarian:deck-card-edit' entry.pk %}"
+         hx-target="#deck-card-modal"
+         hx-swap="innerHTML">
       <span class="text-xs text-gray-500 dark:text-gray-400 text-center leading-tight">
         {{ entry.card.name }}
       </span>
     </div>
     {% endif %}
 
-    <!-- Quantity badge -->
+    <!-- Quantity badge — top-left -->
     <span class="absolute top-1.5 {% if entry.has_back_face and entry.display_scryfall_id %}left-10{% else %}left-1.5{% endif %} text-xs font-bold
-                 bg-black/75 text-white px-1.5 py-0.5 rounded leading-none z-10">
+                 bg-black/75 text-white px-1.5 py-0.5 rounded leading-none z-20 pointer-events-none">
       {{ entry.quantity }}
     </span>
 
-    <!-- Delete button -->
     {% if is_owner %}
-    <form method="post" action="{% url 'tolarian:deck-card-delete' entry.pk %}"
-          class="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-          onclick="event.stopPropagation();">
-      {% csrf_token %}
-      <button type="submit"
-              class="w-6 h-6 flex items-center justify-center rounded-full
-                     bg-red-600/90 text-white hover:bg-red-700 shadow text-xs"
-              onclick="event.stopPropagation(); return confirm('Eliminar {{ entry.card.name|escapejs }}?')">
-        &times;
+    <!-- +  -  ...  buttons — overlaid on right side of card image -->
+    <div class="absolute z-20 flex flex-col gap-1.5" style="left: calc(100% - 26px); top: 15%;"
+         onclick="event.stopPropagation();">
+      <form hx-post="{% url 'tolarian:deck-card-qty' entry.pk %}"
+            hx-swap="none"
+            hx-on::after-request="if(event.detail.successful) refreshDeck();">
+        {% csrf_token %}
+        <input type="hidden" name="delta" value="1">
+        <button type="submit"
+                class="w-9 h-9 flex items-center justify-center rounded-lg
+                       bg-black/40 backdrop-blur-sm border border-white/20
+                       text-white/90 hover:bg-black/60
+                       text-base font-bold leading-none transition-colors">
+          +
+        </button>
+      </form>
+      <form hx-post="{% url 'tolarian:deck-card-qty' entry.pk %}"
+            hx-swap="none"
+            {% if entry.quantity <= 1 %}hx-confirm="Eliminar {{ entry.card.name|escapejs }}?"{% endif %}
+            hx-on::after-request="if(event.detail.successful) refreshDeck();">
+        {% csrf_token %}
+        <input type="hidden" name="delta" value="-1">
+        <button type="submit"
+                class="w-9 h-9 flex items-center justify-center rounded-lg
+                       bg-black/40 backdrop-blur-sm border border-white/20
+                       text-white/90 hover:bg-black/60
+                       text-base font-bold leading-none transition-colors">
+          &minus;
+        </button>
+      </form>
+      <button hx-get="{% url 'tolarian:deck-card-edit' entry.pk %}"
+              hx-target="#deck-card-modal"
+              hx-swap="innerHTML"
+              class="w-9 h-9 flex items-center justify-center rounded-lg
+                     bg-black/40 backdrop-blur-sm border border-white/20
+                     text-white/90 hover:bg-black/60
+                     text-base leading-none transition-colors">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <circle cx="4" cy="10" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="16" cy="10" r="1.5"/>
+        </svg>
       </button>
-    </form>
+    </div>
     {% endif %}
+
   </div>
 
   <!-- Price info -->
   {% if print.price_usd or print.price_usd_foil %}
   <div class="flex items-center justify-center gap-3 mt-1.5 text-[11px]">
     {% if print.price_usd %}
-    <span class="text-gray-600 dark:text-gray-400">${{ print.price_usd }}</span>
+    <span class="flex items-center gap-1">
+      {% if entry.display_rarity == "mythic" %}<span class="text-red-500 text-xs">&#9733;</span>
+      {% elif entry.display_rarity == "rare" %}<span class="text-amber-500 text-xs">&#9733;</span>
+      {% elif entry.display_rarity == "uncommon" %}<span class="text-gray-400 text-xs">&#9733;</span>
+      {% else %}<span class="text-gray-600 dark:text-gray-500 text-xs">&#9733;</span>{% endif %}
+      <span class="text-gray-600 dark:text-gray-400">${{ print.price_usd }}</span>
+    </span>
     {% endif %}
     {% if print.price_usd_foil %}
-    <span class="text-gray-400 dark:text-gray-500 italic">${{ print.price_usd_foil }} foil</span>
+    <span class="flex items-center gap-1">
+      <span class="text-teal-500 text-xs">&#11042;</span>
+      <span class="text-gray-400 dark:text-gray-500">${{ print.price_usd_foil }}</span>
+    </span>
     {% endif %}
   </div>
   {% endif %}

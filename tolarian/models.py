@@ -321,11 +321,10 @@ class DeckCard(BaseModel):
     )
     quantity = models.PositiveSmallIntegerField(default=1)
 
-    # Custom category assignment (Archidekt-style)
-    category = models.ForeignKey(
+    # Custom category assignment (Archidekt-style) — a card can belong to multiple categories
+    categories = models.ManyToManyField(
         DeckCategory,
-        on_delete=models.SET_NULL,
-        null=True, blank=True,
+        blank=True,
         related_name="cards",
     )
 

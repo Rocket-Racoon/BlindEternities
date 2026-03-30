@@ -11,22 +11,22 @@ function _getCSRF() {
 
 function assignCategory(cardPk, catPk) {
   const fd = new FormData();
-  fd.append('category', catPk);
+  fd.append('add', catPk);
   fetch(`/collection/deck-cards/${cardPk}/move-category/`, {
     method: 'POST',
     headers: { 'X-CSRFToken': _getCSRF() },
     body: fd,
-  }).then(r => { if (r.ok) refreshDeck(); });
+  }).then(r => { if (r.ok) { _closeModal(); refreshDeck(); } });
 }
 
-function removeCategoryFromCard(cardPk) {
+function removeCategoryFromCard(cardPk, catPk) {
   const fd = new FormData();
-  fd.append('category', '');
+  fd.append('remove', catPk);
   fetch(`/collection/deck-cards/${cardPk}/move-category/`, {
     method: 'POST',
     headers: { 'X-CSRFToken': _getCSRF() },
     body: fd,
-  }).then(r => { if (r.ok) refreshDeck(); });
+  }).then(r => { if (r.ok) { _closeModal(); refreshDeck(); } });
 }
 
 function toggleGameChanger(cardPk) {
@@ -226,24 +226,22 @@ function _closeModal() {
                   <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Categorias:</label>
 
                   <div class="space-y-1.5 mb-3">
-                    {% if entry.category %}
+                    {% for cat in entry_categories %}
                     <div class="flex items-center gap-2">
                       <span class="text-amber-500 text-sm">&#9733;</span>
                       <span class="flex-1 text-sm text-gray-700 dark:text-gray-300 px-2 py-1 rounded
-                                   bg-gray-50 dark:bg-void-800/50">{{ entry.category.name }}</span>
-                      <button type="button" onclick="removeCategoryFromCard('{{ entry.pk }}')"
+                                   bg-gray-50 dark:bg-void-800/50">{{ cat.name }}</span>
+                      <button type="button" onclick="removeCategoryFromCard('{{ entry.pk }}', '{{ cat.pk }}')"
                               class="text-gray-400 hover:text-red-500 transition-colors">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                         </svg>
                       </button>
                     </div>
+                    {% endfor %}
+                    {% if not entry_categories %}
+                    <p class="text-xs text-gray-400 dark:text-gray-500 italic">Sin categorias asignadas</p>
                     {% endif %}
-                    <div class="flex items-center gap-2">
-                      <span class="text-void-500 text-sm">&#9733;</span>
-                      <span class="flex-1 text-sm text-gray-700 dark:text-gray-300 px-2 py-1 rounded
-                                   bg-gray-50 dark:bg-void-800/50">{{ entry.get_zone_display }}</span>
-                    </div>
                   </div>
 
                   {% if deck_categories %}
@@ -342,9 +340,12 @@ function _closeModal() {
                   </span>
                   {% endif %}
                 </div>
-                {% if entry.category %}
+                {% if entry_categories %}
                 <p class="text-xs text-gray-500 dark:text-gray-400">
-                  Categoria: <span class="font-medium text-gray-700 dark:text-gray-300">{{ entry.category.name }}</span>
+                  Categorias:
+                  {% for cat in entry_categories %}
+                  <span class="font-medium text-gray-700 dark:text-gray-300">{{ cat.name }}{% if not forloop.last %},{% endif %}</span>
+                  {% endfor %}
                 </p>
                 {% endif %}
                 {% if owned_qty %}

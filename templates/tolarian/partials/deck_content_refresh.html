@@ -7,10 +7,12 @@
 <!-- LIST VIEW -->
 <div x-show="view === 'list'">
   {% for zone, zone_data in zones.items %}
+    {% if zone.value != "commander" %}
     {% if zone_data.categories %}
       {% include "tolarian/partials/deck_zone_categorized.html" with zone=zone zone_data=zone_data %}
     {% else %}
       {% include "tolarian/partials/deck_zone.html" with zone=zone zone_data=zone_data %}
+    {% endif %}
     {% endif %}
   {% endfor %}
 </div>
@@ -97,8 +99,13 @@
     </span>
   </a>
   {% endfor %}
+
   {% for zone, zone_data in zones.items %}
   {% if not zone_data.categories %}
+  {% if forloop.first %}
+  <div class="my-1.5 border-t border-gray-200 dark:border-void-700"></div>
+  <p class="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 px-2 mb-0.5">Zonas</p>
+  {% endif %}
   <a href="#zone-{{ zone.value }}"
      class="flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs
             text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800

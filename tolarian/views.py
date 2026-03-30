@@ -556,7 +556,8 @@ class DeckDetailView(LoginRequiredMixin, TemplateView):
         return ordered
 
     def _group_by_custom_category(self, entries, deck):
-        """Group by user-defined DeckCategory. Uncategorized cards go last.
+        """Group by user-defined DeckCategory. A card with multiple categories
+        appears in each. Uncategorized cards go last.
         Returns {name: entries} and also builds self._category_pk_map.
         Always includes all categories (even empty) as drag-drop targets."""
         cats = list(deck.deck_categories.all())
@@ -564,11 +565,12 @@ class DeckDetailView(LoginRequiredMixin, TemplateView):
         groups = {c.name: [] for c in cats}
         groups["Sin categoria"] = []
         for entry in entries:
-            if entry.category_id:
-                key = entry.category.name if entry.category else "Sin categoria"
+            entry_cats = list(entry.categories.all())
+            if entry_cats:
+                for cat in entry_cats:
+                    groups.setdefault(cat.name, []).append(entry)
             else:
-                key = "Sin categoria"
-            groups.setdefault(key, []).append(entry)
+                groups["Sin categoria"].append(entry)
         # Always include ALL categories (even empty) so they're valid drop targets
         ordered = {}
         for c in cats:
@@ -709,7 +711,7 @@ class DeckDetailView(LoginRequiredMixin, TemplateView):
             Deck.objects.prefetch_related(
                 "cards__card__faces",
                 "cards__print__cardset",
-                "cards__category",
+                "cards__categories",
                 "deck_categories",
             ),
             pk=self.kwargs["pk"],
@@ -736,14 +738,18 @@ class DeckDetailView(LoginRequiredMixin, TemplateView):
             entry.display_scryfall_id = str(p.scryfall_id) if p and p.scryfall_id else ""
             entry.has_back_face = len(list(entry.card.faces.all())) > 1
 
-        # Build grouped zones
+        # Build grouped zones — Commander first, then Main, then the rest
         zones = {}
         total_cards = 0
         type_breakdown = {}
         color_counts = {}
         category_nav = []
 
-        for zone in DeckZone:
+        zone_order = [DeckZone.COMMANDER, DeckZone.COMPANION] + [
+            z for z in DeckZone
+            if z not in (DeckZone.COMMANDER, DeckZone.COMPANION)
+        ]
+        for zone in zone_order:
             entries = [c for c in all_entries if c.zone == zone.value]
             if not entries:
                 continue
@@ -791,11 +797,15 @@ class DeckDetailView(LoginRequiredMixin, TemplateView):
             c.zone == DeckZone.COMMANDER for c in all_entries
         )
 
-        # Extract commander entries for special rendering at the top
+        # Keep commander entries accessible for sidebar nav and special rendering
         commander_entries = []
+        commander_qty = 0
+        commander_price = 0
         if DeckZone.COMMANDER in zones:
-            cmd_data = zones.pop(DeckZone.COMMANDER)
+            cmd_data = zones[DeckZone.COMMANDER]
             commander_entries = cmd_data.get("entries", [])
+            commander_qty = cmd_data.get("qty", 0)
+            commander_price = cmd_data.get("price", 0)
 
         # Color distribution with labels
         color_dist = []
@@ -838,6 +848,8 @@ class DeckDetailView(LoginRequiredMixin, TemplateView):
             "curve_max":       max(deck.mana_curve.values()) if deck.mana_curve else 0,
             "has_commander":      has_commander,
             "commander_entries":  commander_entries,
+            "commander_qty":     commander_qty,
+            "commander_price":   commander_price,
             "total_cards":     total_cards,
             "main_count":      deck.main_count,
             "side_count":      deck.sideboard_count,
@@ -986,8 +998,8 @@ class DeckCardEditView(LoginRequiredMixin, View):
     def get(self, request, card_pk):
         entry = get_object_or_404(
             DeckCard.objects.select_related(
-                "card", "print__cardset", "deck", "category",
-            ).prefetch_related("card__prints__cardset", "card__faces"),
+                "card", "print__cardset", "deck",
+            ).prefetch_related("card__prints__cardset", "card__faces", "categories"),
             pk=card_pk,
         )
         is_owner = entry.deck.user == request.user
@@ -1040,9 +1052,7 @@ class DeckCardEditView(LoginRequiredMixin, View):
 
         # Categories assigned to this card + all deck categories
         deck_categories = list(entry.deck.deck_categories.all())
-        entry_categories = []
-        if entry.category:
-            entry_categories.append(entry.category)
+        entry_categories = list(entry.categories.all())
 
         # Card oracle text / faces for Card info tab
         card = entry.card
@@ -1084,6 +1094,30 @@ class DeckCardEditView(LoginRequiredMixin, View):
         if request.headers.get("HX-Request"):
             return HttpResponse(status=204,
                                 headers={"HX-Trigger": "deck-card-updated"})
+        return redirect("tolarian:deck-detail", pk=entry.deck.pk)
+
+
+class DeckCardQtyView(LoginRequiredMixin, View):
+    """POST: increment or decrement a deck card's quantity.
+    Send delta=1 or delta=-1.  If qty reaches 0, the card is removed."""
+
+    def post(self, request, card_pk):
+        entry = get_object_or_404(DeckCard, pk=card_pk)
+        if entry.deck.user != request.user:
+            raise PermissionDenied
+        try:
+            delta = int(request.POST.get("delta", 0))
+        except (ValueError, TypeError):
+            delta = 0
+        if not delta:
+            return HttpResponse(status=400)
+        entry.quantity = max(0, entry.quantity + delta)
+        if entry.quantity <= 0:
+            entry.delete()
+        else:
+            entry.save(update_fields=["quantity", "updated_at"])
+        if request.headers.get("HX-Request"):
+            return HttpResponse(status=204)
         return redirect("tolarian:deck-detail", pk=entry.deck.pk)
 
 
@@ -1317,7 +1351,6 @@ class DeckCategoryDeleteView(LoginRequiredMixin, View):
         cat = get_object_or_404(DeckCategory, pk=cat_pk)
         if cat.deck.user != request.user:
             raise PermissionDenied
-        cat.cards.update(category=None)
         cat.delete()
         if request.headers.get("HX-Request"):
             return HttpResponse(status=204)
@@ -1325,24 +1358,27 @@ class DeckCategoryDeleteView(LoginRequiredMixin, View):
 
 
 class DeckCardMoveCategoryView(LoginRequiredMixin, View):
-    """POST: move a card to a different category (or null for uncategorized)."""
+    """POST: add/remove categories from a card.
+    Params: add=<cat_pk>  remove=<cat_pk>  (both optional, can be combined)."""
 
     def post(self, request, card_pk):
         entry = get_object_or_404(DeckCard, pk=card_pk)
         if entry.deck.user != request.user:
             raise PermissionDenied
-        cat_id = request.POST.get("category")
-        if cat_id:
-            cat = get_object_or_404(DeckCategory, pk=cat_id, deck=entry.deck)
-            entry.category = cat
-        else:
-            entry.category = None
-        entry.save(update_fields=["category"])
-        return JsonResponse({"ok": True, "category": str(entry.category_id) if entry.category_id else None})
+        add_id = request.POST.get("add")
+        remove_id = request.POST.get("remove")
+        if add_id:
+            cat = get_object_or_404(DeckCategory, pk=add_id, deck=entry.deck)
+            entry.categories.add(cat)
+        if remove_id:
+            cat = get_object_or_404(DeckCategory, pk=remove_id, deck=entry.deck)
+            entry.categories.remove(cat)
+        cat_pks = list(entry.categories.values_list("pk", flat=True))
+        return JsonResponse({"ok": True, "categories": [str(pk) for pk in cat_pks]})
 
 
 class DeckCardBulkMoveCategoryView(LoginRequiredMixin, View):
-    """POST: move multiple cards to a category (or uncategorized) at once."""
+    """POST: add a category to multiple cards at once."""
 
     def post(self, request, pk):
         import json
@@ -1369,9 +1405,12 @@ class DeckCardBulkMoveCategoryView(LoginRequiredMixin, View):
 
         if cat_id:
             cat = get_object_or_404(DeckCategory, pk=cat_id, deck=deck)
-            entries.update(category=cat)
+            for entry in entries:
+                entry.categories.add(cat)
         else:
-            entries.update(category=None)
+            # Clear all categories from selected cards
+            for entry in entries:
+                entry.categories.clear()
 
         return JsonResponse({"ok": True, "updated": entries.count()})
 

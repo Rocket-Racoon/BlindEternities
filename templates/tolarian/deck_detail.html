@@ -259,6 +259,10 @@
 
         {% for zone, zone_data in zones.items %}
         {% if not zone_data.categories %}
+        {% if forloop.first %}
+        <div class="my-1.5 border-t border-gray-200 dark:border-void-700"></div>
+        <p class="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 px-2 mb-0.5">Zonas</p>
+        {% endif %}
         <a href="#zone-{{ zone.value }}"
            class="flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs
                   text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800
@@ -341,10 +345,12 @@
         <!-- LIST VIEW -->
         <div x-show="view === 'list'">
           {% for zone, zone_data in zones.items %}
+            {% if zone.value != "commander" %}
             {% if zone_data.categories %}
               {% include "tolarian/partials/deck_zone_categorized.html" with zone=zone zone_data=zone_data %}
             {% else %}
               {% include "tolarian/partials/deck_zone.html" with zone=zone zone_data=zone_data %}
+            {% endif %}
             {% endif %}
           {% endfor %}
         </div>
@@ -587,14 +593,16 @@ function deckBuilder() {
           },
           onEnd: (evt) => {
             const cardPk = evt.item.dataset.cardPk;
+            const oldCategoryId = evt.from.dataset.categoryId || '';
             const newCategoryId = evt.to.dataset.categoryId || '';
-            console.log('[DnD] Move card', cardPk, '→ category', newCategoryId || '(uncategorized)');
-            if (!cardPk) return;
+            console.log('[DnD] Move card', cardPk, oldCategoryId, '→', newCategoryId || '(uncategorized)');
+            if (!cardPk || oldCategoryId === newCategoryId) return;
 
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
                            || document.cookie.match(/csrftoken=([^;]+)/)?.[1];
             const formData = new FormData();
-            formData.append('category', newCategoryId);
+            if (newCategoryId) formData.append('add', newCategoryId);
+            if (oldCategoryId) formData.append('remove', oldCategoryId);
 
             fetch(`/collection/deck-cards/${cardPk}/move-category/`, {
               method: 'POST',

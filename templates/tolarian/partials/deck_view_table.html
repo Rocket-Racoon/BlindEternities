@@ -19,6 +19,7 @@
   </thead>
   <tbody class="divide-y divide-gray-100 dark:divide-void-800/50">
     {% for entry in deck_entries %}
+    {% if entry.zone != "commander" %}
     {% with p=entry.print fallback=entry.card.primary_print %}
     {% with img=p.image_normal|default:fallback.image_normal|default:"" %}
     <tr class="hover:bg-gray-50 dark:hover:bg-void-900/50 transition-colors cursor-pointer"
@@ -79,6 +80,7 @@
     </tr>
     {% endwith %}
     {% endwith %}
+    {% endif %}
     {% endfor %}
   </tbody>
 </table>

@@ -2,6 +2,7 @@
 
 {# Archidekt-style grid view — grouped by zone/category with headers #}
 {% for zone, zone_data in zones.items %}
+{% if zone.value != "commander" %}
 
   {% if zone_data.categories %}
     {# Main deck: grouped by type category #}
@@ -31,7 +32,7 @@
     {% endfor %}
 
   {% else %}
-    {# Non-main zones (Commander, Sideboard, etc.) #}
+    {# Non-main zones (Sideboard, etc.) #}
     <div class="mb-6">
       <div class="flex items-center justify-between mb-2 px-1">
         <div class="flex items-center gap-2">
@@ -54,4 +55,5 @@
     </div>
   {% endif %}
 
+{% endif %}
 {% endfor %}
