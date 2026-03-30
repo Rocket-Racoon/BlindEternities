@@ -1,0 +1,46 @@
+{% load core_tags %}
+{# Stack card image — supports flip for double-faced cards, preview follows flip state #}
+{% if entry.has_back_face and entry.display_scryfall_id %}
+{% with sid=entry.display_scryfall_id %}
+<div x-data="{ flipped: false }" class="relative"
+     @mouseenter.stop="$dispatch('card-preview', {
+       image: flipped
+         ? 'https://api.scryfall.com/cards/{{ sid }}?format=image&version=normal&face=back'
+         : 'https://api.scryfall.com/cards/{{ sid }}?format=image&version=normal&face=front',
+       name: '{{ entry.card.name|escapejs }}' + (flipped ? ' (back)' : '')
+     })"
+     @mouseleave.stop="$dispatch('card-preview', { image: '', name: '' })">
+  <button @click.prevent.stop="flipped = !flipped"
+          class="absolute top-1 left-1 z-20 w-5 h-5 flex items-center justify-center
+                 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-sm shadow transition-colors"
+          :title="flipped ? 'Ver frente' : 'Ver reverso'">
+    <svg :class="flipped ? 'rotate-90' : 'rotate-0'"
+         class="w-2.5 h-2.5 text-white transition-transform duration-300"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+    </svg>
+  </button>
+  <div class="card-flip-container aspect-[63/88] rounded-lg overflow-hidden shadow hover:shadow-lg hover:z-50 relative transition-shadow">
+    <div class="card-flip-inner w-full h-full" :class="flipped ? 'flipped' : ''">
+      <div class="card-flip-front">
+        <img src="https://api.scryfall.com/cards/{{ sid }}?format=image&version=normal&face=front"
+             alt="{{ entry.card.name }}" loading="lazy" class="w-full h-full object-cover">
+      </div>
+      <div class="card-flip-back">
+        <img src="https://api.scryfall.com/cards/{{ sid }}?format=image&version=normal&face=back"
+             alt="{{ entry.card.name }} (back)" loading="lazy" class="w-full h-full object-cover">
+      </div>
+    </div>
+  </div>
+</div>
+{% endwith %}
+{% elif img %}
+<img src="{{ img }}" alt="{{ entry.card.name }}"
+     class="w-full rounded-lg shadow hover:shadow-lg hover:z-50 relative transition-shadow"
+     loading="lazy">
+{% else %}
+<div class="aspect-[63/88] rounded-lg bg-gray-100 dark:bg-void-800 flex items-center justify-center p-1">
+  <span class="text-[8px] text-gray-400 text-center">{{ entry.card.name }}</span>
+</div>
+{% endif %}

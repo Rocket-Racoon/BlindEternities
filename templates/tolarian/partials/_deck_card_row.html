@@ -1,55 +1,85 @@
 {% load core_tags %}
 
-{# Single card row — Archidekt compact style #}
+{# Single card row — Archidekt-style compact with type, set, price #}
 {% with p=entry.print %}
 {% with img=p.image_normal|default:entry.card.primary_print.image_normal|default:"" %}
-<div class="deck-card-row group flex items-center gap-2 px-3 py-1.5
-            hover:bg-void-50 dark:hover:bg-void-800/40 transition-colors text-sm cursor-pointer"
+<div class="deck-card-row group flex items-center gap-1.5 px-2.5 py-[5px]
+            hover:bg-void-50 dark:hover:bg-void-800/40 transition-colors text-xs cursor-pointer"
+     data-selectable-pk="{{ entry.pk }}"
+     :class="selectMode && selected.includes('{{ entry.pk }}') ? 'bg-void-100 dark:bg-void-800/60' : ''"
      {% if img %}
      @mouseenter="$dispatch('card-preview', { image: '{{ img }}', name: '{{ entry.card.name|escapejs }}' })"
      @mouseleave="$dispatch('card-preview', { image: '', name: '' })"
      {% endif %}
+     @click="if (selectMode) { $event.preventDefault(); $event.stopPropagation(); toggleSelect('{{ entry.pk }}'); }"
      hx-get="{% url 'tolarian:deck-card-edit' entry.pk %}"
      hx-target="#deck-card-modal"
-     hx-swap="innerHTML">
+     hx-swap="innerHTML"
+     :hx-disable="selectMode || undefined">
+
+  <!-- Checkbox (select mode) -->
+  <template x-if="selectMode">
+    <span class="shrink-0 flex items-center" @click.stop>
+      <input type="checkbox"
+             :checked="selected.includes('{{ entry.pk }}')"
+             @change="toggleSelect('{{ entry.pk }}')"
+             class="w-3.5 h-3.5 rounded border-gray-300 dark:border-void-600
+                    text-void-600 focus:ring-void-500 cursor-pointer">
+    </span>
+  </template>
 
   <!-- Qty -->
-  <span class="w-5 text-center text-xs font-bold text-gray-500 dark:text-gray-400 shrink-0">
-    {{ entry.quantity }}x
+  <span class="w-5 text-center text-[11px] font-bold text-gray-400 dark:text-gray-500 shrink-0 tabular-nums">
+    {{ entry.quantity }}
   </span>
 
   <!-- Name -->
-  <span class="flex-1 text-sm text-gray-900 dark:text-gray-100 truncate
-               group-hover:text-void-600 dark:group-hover:text-void-400 transition-colors">
+  <span class="flex-1 text-xs font-medium text-gray-900 dark:text-gray-100 truncate
+               group-hover:text-void-600 dark:group-hover:text-void-400 transition-colors min-w-0">
     {{ entry.card.name }}
   </span>
 
   <!-- Mana cost -->
   {% if entry.card.mana_cost %}
-  <span class="shrink-0 hidden sm:flex items-center gap-px text-xs">
+  <span class="shrink-0 hidden sm:flex items-center gap-px text-[11px]">
     {{ entry.card.mana_cost|mana_cost }}
+  </span>
+  {% endif %}
+
+  <!-- Set code badge -->
+  {% if entry.display_set %}
+  <span class="shrink-0 hidden md:inline text-[9px] font-medium text-gray-400 dark:text-gray-600
+               uppercase tracking-wide">
+    {{ entry.display_set }}
+  </span>
+  {% endif %}
+
+  <!-- Price -->
+  {% if entry.display_price %}
+  <span class="shrink-0 hidden sm:inline text-[10px] text-gray-400 dark:text-gray-600 tabular-nums w-12 text-right">
+    ${{ entry.display_price|floatformat:2 }}
   </span>
   {% endif %}
 
   <!-- Owned dot -->
   {% if entry.owned %}
-  <span class="w-2 h-2 rounded-full bg-green-500 shrink-0"
-        title="En tu coleccion"></span>
+  <span class="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" title="En tu coleccion"></span>
   {% endif %}
 
-  <!-- Delete (owner only) -->
+  <!-- Delete (owner only, hidden in select mode) -->
   {% if is_owner %}
   <form method="post"
         action="{% url 'tolarian:deck-card-delete' entry.pk %}"
         class="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+        x-show="!selectMode"
         onclick="event.stopPropagation();">
     {% csrf_token %}
     <button type="submit"
-            class="w-5 h-5 flex items-center justify-center rounded
+            class="w-4 h-4 flex items-center justify-center rounded
                    text-gray-300 hover:text-red-500
                    dark:text-void-600 dark:hover:text-red-400"
             onclick="event.stopPropagation(); return confirm('Eliminar {{ entry.card.name|escapejs }}?')">
-      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
       </svg>
     </button>

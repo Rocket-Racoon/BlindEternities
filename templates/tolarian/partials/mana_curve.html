@@ -1,30 +1,30 @@
 {% if curve %}
 {% with max_count=curve_max %}
-<div class="flex items-end justify-between gap-1" style="height: 72px;">
+<div class="flex items-end gap-px" style="height: 60px;">
   {% for cmc, count in curve.items %}
-  <div class="flex-1 flex flex-col items-center justify-end h-full">
-    <span class="text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 leading-none">
-      {{ count }}
+  <div class="flex-1 flex flex-col items-center justify-end h-full min-w-0">
+    <span class="text-[8px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 leading-none tabular-nums">
+      {% if count %}{{ count }}{% endif %}
     </span>
-    <div class="w-full rounded-t bg-void-500 dark:bg-void-400 transition-all min-w-[12px]"
+    <div class="w-full rounded-t bg-void-500 dark:bg-void-400 transition-all"
          style="height: {% if max_count %}{% widthratio count max_count 100 %}%{% else %}0{% endif %};
-                min-height: {% if count %}3px{% else %}0{% endif %};">
+                min-height: {% if count %}2px{% else %}0{% endif %};">
     </div>
   </div>
   {% endfor %}
 </div>
-<div class="flex justify-between gap-1 mt-1 border-t border-gray-100 dark:border-void-800 pt-1">
+<div class="flex gap-px mt-0.5 border-t border-gray-100 dark:border-void-800 pt-0.5">
   {% for cmc, count in curve.items %}
-  <div class="flex-1 text-center">
-    <span class="text-[10px] text-gray-400 dark:text-gray-500 font-medium">
-      {% if cmc == 7 %}7+{% else %}{{ cmc }}{% endif %}
+  <div class="flex-1 text-center min-w-0">
+    <span class="text-[8px] text-gray-400 dark:text-gray-500 font-medium tabular-nums">
+      {{ cmc }}
     </span>
   </div>
   {% endfor %}
 </div>
 {% endwith %}
 {% else %}
-<p class="text-[11px] text-gray-400 dark:text-gray-600 text-center py-6">
+<p class="text-[10px] text-gray-400 dark:text-gray-600 text-center py-4">
   Sin cartas en el maindeck.
 </p>
 {% endif %}

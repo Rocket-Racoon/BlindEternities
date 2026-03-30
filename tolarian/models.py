@@ -220,17 +220,17 @@ class Deck(BaseModel):
     def mana_curve(self):
         """
         Retorna un dict {cmc: cantidad} para maindeck + commander.
-        Solo cartas que no son tierras.
+        Lands are excluded — they don't have a mana value.
+        Each CMC shown individually (no 7+ grouping).
         """
         curve = {}
         for entry in self.cards.filter(
             zone__in=[DeckZone.MAIN, DeckZone.COMMANDER, DeckZone.COMPANION]
         ).select_related("card"):
             card = entry.card
-            if "Land" in card.type_line:
+            if "land" in card.type_line.lower():
                 continue
             cmc = int(card.cmc or 0)
-            cmc = min(cmc, 7)  # Agrupar 7+ juntos
             curve[cmc] = curve.get(cmc, 0) + entry.quantity
         return dict(sorted(curve.items()))
 
@@ -260,6 +260,47 @@ class Deck(BaseModel):
         return illegal
 
 
+class DeckCategory(BaseModel):
+    """
+    Custom user-defined category within a deck (e.g. Draw, Ramp, Removal).
+    Archidekt-style organisation layer on top of zones.
+    """
+    deck     = models.ForeignKey(Deck, on_delete=models.CASCADE, related_name="deck_categories")
+    name     = models.CharField(max_length=100)
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering            = ["position", "name"]
+        verbose_name        = "deck category"
+        verbose_name_plural = "deck categories"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["deck", "name"],
+                name="unique_deck_category_name",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.deck.name})"
+
+    # Default categories created for every new deck
+    DEFAULT_CATEGORIES = [
+        "Commander", "Draw", "Ramp", "Removal", "Board Wipe", "Tutor",
+        "Finisher", "Protection", "Recursion", "Utility",
+    ]
+
+    @classmethod
+    def ensure_defaults(cls, deck):
+        """Create the default set of categories if the deck has none yet."""
+        if deck.deck_categories.exists():
+            return
+        objs = [
+            cls(deck=deck, name=name, position=i)
+            for i, name in enumerate(cls.DEFAULT_CATEGORIES)
+        ]
+        cls.objects.bulk_create(objs, ignore_conflicts=True)
+
+
 class DeckCard(BaseModel):
     """
     Entrada de una carta en un deck con zona y cantidad.
@@ -279,6 +320,17 @@ class DeckCard(BaseModel):
         default=DeckZone.MAIN,
     )
     quantity = models.PositiveSmallIntegerField(default=1)
+
+    # Custom category assignment (Archidekt-style)
+    category = models.ForeignKey(
+        DeckCategory,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="cards",
+    )
+
+    # Game Changer — highlight key cards in the deck
+    is_game_changer = models.BooleanField(default=False)
 
     # ¿Tengo la copia física en mi colección?
     owned    = models.BooleanField(default=False)

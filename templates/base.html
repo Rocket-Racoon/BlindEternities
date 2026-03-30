@@ -48,7 +48,7 @@
   {% endif %}
 
   {# Contenido principal #}
-  <main class="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
+  <main class="flex-1 {% block main_class %}max-w-7xl mx-auto{% endblock %} w-full px-4 py-6">
     {% block content %}{% endblock %}
   </main>
 

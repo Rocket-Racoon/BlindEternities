@@ -1,43 +1,43 @@
 {% load core_tags %}
 
-<div class="space-y-4">
+<div class="space-y-3">
 
   <!-- Card count + value -->
-  <div class="space-y-1.5">
-    <div class="flex justify-between text-xs">
-      <span class="text-gray-500 dark:text-gray-400">Total cartas</span>
-      <span class="font-semibold text-gray-900 dark:text-gray-100">{{ total_cards }}</span>
+  <div class="space-y-1">
+    <div class="flex justify-between text-[11px]">
+      <span class="text-gray-500 dark:text-gray-400">Total</span>
+      <span class="font-semibold text-gray-900 dark:text-gray-100 tabular-nums">{{ total_cards }}</span>
     </div>
-    <div class="flex justify-between text-xs">
+    <div class="flex justify-between text-[11px]">
       <span class="text-gray-500 dark:text-gray-400">Maindeck</span>
-      <span class="font-medium text-gray-700 dark:text-gray-300">{{ main_count }}</span>
+      <span class="font-medium text-gray-700 dark:text-gray-300 tabular-nums">{{ main_count }}</span>
     </div>
     {% if side_count %}
-    <div class="flex justify-between text-xs">
+    <div class="flex justify-between text-[11px]">
       <span class="text-gray-500 dark:text-gray-400">Sideboard</span>
-      <span class="font-medium text-gray-700 dark:text-gray-300">{{ side_count }}</span>
+      <span class="font-medium text-gray-700 dark:text-gray-300 tabular-nums">{{ side_count }}</span>
     </div>
     {% endif %}
-    <div class="flex justify-between text-xs">
-      <span class="text-gray-500 dark:text-gray-400">Valor total</span>
-      <span class="font-semibold text-gray-900 dark:text-gray-100">${{ total_value }}</span>
+    <div class="flex justify-between text-[11px]">
+      <span class="text-gray-500 dark:text-gray-400">Valor</span>
+      <span class="font-semibold text-gray-900 dark:text-gray-100 tabular-nums">${{ total_value }}</span>
     </div>
   </div>
 
   <!-- Type breakdown -->
   {% if type_breakdown %}
-  <div>
-    <p class="text-[10px] font-semibold uppercase tracking-wider
-              text-gray-400 dark:text-gray-500 mb-2">Tipos</p>
+  <div class="pt-2 border-t border-gray-100 dark:border-void-800">
+    <p class="text-[10px] font-bold uppercase tracking-widest
+              text-gray-400 dark:text-gray-500 mb-1.5">Tipos</p>
     <div class="space-y-1">
       {% for type_name, qty in type_breakdown.items %}
-      <div class="flex items-center gap-2 text-xs">
-        <span class="flex-1 text-gray-600 dark:text-gray-400">{{ type_name }}</span>
-        <div class="w-16 bg-gray-100 dark:bg-void-800 rounded-full h-1.5 overflow-hidden">
+      <div class="flex items-center gap-1.5 text-[11px]">
+        <span class="flex-1 text-gray-600 dark:text-gray-400 truncate">{{ type_name }}</span>
+        <div class="w-14 bg-gray-100 dark:bg-void-800 rounded-full h-1 overflow-hidden">
           <div class="h-full bg-void-500 dark:bg-void-400 rounded-full"
                style="width: {% widthratio qty total_cards 100 %}%"></div>
         </div>
-        <span class="w-5 text-right font-medium text-gray-700 dark:text-gray-300">{{ qty }}</span>
+        <span class="w-4 text-right font-medium text-gray-700 dark:text-gray-300 tabular-nums">{{ qty }}</span>
       </div>
       {% endfor %}
     </div>
@@ -46,13 +46,23 @@
 
   <!-- Color distribution -->
   {% if color_dist %}
-  <div>
-    <p class="text-[10px] font-semibold uppercase tracking-wider
-              text-gray-400 dark:text-gray-500 mb-2">Colores</p>
-    <div class="flex gap-2">
+  <div class="pt-2 border-t border-gray-100 dark:border-void-800">
+    <p class="text-[10px] font-bold uppercase tracking-widest
+              text-gray-400 dark:text-gray-500 mb-1.5">Colores</p>
+
+    <!-- Color bar -->
+    <div class="flex rounded-full overflow-hidden h-2 mb-2">
       {% for color in color_dist %}
-      <div class="flex flex-col items-center gap-0.5">
-        <span class="text-sm">
+      <div style="flex: {{ color.count }};"
+           class="{% if color.code == 'W' %}bg-amber-100{% elif color.code == 'U' %}bg-blue-500{% elif color.code == 'B' %}bg-gray-800{% elif color.code == 'R' %}bg-red-500{% elif color.code == 'G' %}bg-green-600{% else %}bg-gray-400{% endif %}">
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="flex gap-2.5 flex-wrap">
+      {% for color in color_dist %}
+      <div class="flex items-center gap-1">
+        <span class="text-sm leading-none">
           {% if color.code == "W" %}<i class="ms ms-w ms-cost ms-shadow"></i>
           {% elif color.code == "U" %}<i class="ms ms-u ms-cost ms-shadow"></i>
           {% elif color.code == "B" %}<i class="ms ms-b ms-cost ms-shadow"></i>
@@ -61,7 +71,7 @@
           {% else %}<i class="ms ms-c ms-cost ms-shadow"></i>
           {% endif %}
         </span>
-        <span class="text-[10px] font-medium text-gray-600 dark:text-gray-400">{{ color.count }}</span>
+        <span class="text-[10px] font-medium text-gray-600 dark:text-gray-400 tabular-nums">{{ color.count }}</span>
       </div>
       {% endfor %}
     </div>
@@ -70,12 +80,12 @@
 
   <!-- Shared cards -->
   {% if shared %}
-  <div class="pt-3 border-t border-gray-100 dark:border-void-800">
-    <p class="text-[10px] font-semibold uppercase tracking-wider
-              text-gray-400 dark:text-gray-500 mb-2">Compartidas</p>
+  <div class="pt-2 border-t border-gray-100 dark:border-void-800">
+    <p class="text-[10px] font-bold uppercase tracking-widest
+              text-gray-400 dark:text-gray-500 mb-1.5">Compartidas</p>
     <div class="space-y-0.5">
       {% for card_name, deck_names in shared.items %}
-      <div class="text-[11px]">
+      <div class="text-[10px]">
         <span class="text-gray-700 dark:text-gray-300">{{ card_name }}</span>
         <span class="text-gray-400 dark:text-gray-600 ml-1">{{ deck_names|join:", " }}</span>
       </div>

@@ -1,0 +1,91 @@
+{% load core_tags %}
+
+{# Commander section — always pinned at the top, Archidekt-style #}
+{% if commander_entries %}
+<div class="mb-4" id="commander-section">
+  <div class="rounded-lg border border-amber-300/50 dark:border-amber-700/50 overflow-hidden
+              bg-gradient-to-r from-amber-50 to-transparent dark:from-amber-950/20 dark:to-void-900/0">
+
+    <!-- Header -->
+    <div class="flex items-center gap-2 px-3 py-1.5
+                border-b border-amber-200/50 dark:border-amber-800/30">
+      <span class="text-amber-600 dark:text-amber-400 text-sm">&#9813;</span>
+      <span class="text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+        Commander
+      </span>
+      <span class="text-[10px] font-medium text-amber-500 dark:text-amber-600">
+        ({{ commander_entries|length }})
+      </span>
+    </div>
+
+    <!-- Commander cards — displayed as image + info -->
+    <div class="p-3">
+      <div class="flex flex-wrap gap-4">
+        {% for entry in commander_entries %}
+        {% with p=entry.print|default:entry.card.primary_print %}
+        {% with img=p.image_normal|default:"" %}
+        <div class="flex gap-3 items-start cursor-pointer group"
+             data-selectable-pk="{{ entry.pk }}"
+             {% if img %}
+             @mouseenter="$dispatch('card-preview', { image: '{{ img }}', name: '{{ entry.card.name|escapejs }}' })"
+             @mouseleave="$dispatch('card-preview', { image: '', name: '' })"
+             {% endif %}
+             @click="if (selectMode) { $event.preventDefault(); toggleSelect('{{ entry.pk }}'); return; }"
+             hx-get="{% url 'tolarian:deck-card-edit' entry.pk %}"
+             hx-target="#deck-card-modal"
+             hx-swap="innerHTML"
+             :hx-disable="selectMode || undefined">
+
+          <!-- Select checkbox -->
+          <template x-if="selectMode">
+            <span class="shrink-0 flex items-center pt-1" @click.stop>
+              <input type="checkbox"
+                     :checked="selected.includes('{{ entry.pk }}')"
+                     @change="toggleSelect('{{ entry.pk }}')"
+                     class="w-3.5 h-3.5 rounded border-amber-400 dark:border-amber-700
+                            text-amber-600 focus:ring-amber-500 cursor-pointer">
+            </span>
+          </template>
+
+          <!-- Card image (small) -->
+          {% if img %}
+          <img src="{{ img }}" alt="{{ entry.card.name }}"
+               class="w-16 h-[89px] rounded-lg object-cover shadow
+                      group-hover:shadow-lg transition-shadow shrink-0"
+               loading="lazy">
+          {% else %}
+          <div class="w-16 h-[89px] rounded-lg bg-gray-200 dark:bg-void-800
+                      flex items-center justify-center shrink-0">
+            <span class="text-[7px] text-gray-400 text-center px-1">{{ entry.card.name }}</span>
+          </div>
+          {% endif %}
+
+          <!-- Card info -->
+          <div class="min-w-0 py-0.5">
+            <p class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate
+                       group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors">
+              {{ entry.card.name }}
+            </p>
+            <p class="text-[11px] text-gray-500 dark:text-gray-400 truncate">
+              {{ entry.card.type_line }}
+            </p>
+            {% if entry.card.mana_cost %}
+            <div class="flex items-center gap-px mt-1 text-xs">
+              {{ entry.card.mana_cost|mana_cost }}
+            </div>
+            {% endif %}
+            {% if entry.display_price %}
+            <p class="text-[10px] text-gray-400 dark:text-gray-600 mt-0.5 tabular-nums">
+              ${{ entry.display_price|floatformat:2 }}
+            </p>
+            {% endif %}
+          </div>
+        </div>
+        {% endwith %}
+        {% endwith %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}

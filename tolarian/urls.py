@@ -36,6 +36,16 @@ urlpatterns = [
     path("deck-cards/<uuid:card_pk>/edit/",     views.DeckCardEditView.as_view(),     name="deck-card-edit"),
     path("deck-cards/<uuid:card_pk>/delete/",   views.DeckCardDeleteView.as_view(),   name="deck-card-delete"),
 
+    # Deck categories
+    path("decks/<uuid:pk>/categories/create/",     views.DeckCategoryCreateView.as_view(),  name="deck-category-create"),
+    path("deck-categories/<uuid:cat_pk>/rename/",  views.DeckCategoryRenameView.as_view(),  name="deck-category-rename"),
+    path("deck-categories/<uuid:cat_pk>/delete/",  views.DeckCategoryDeleteView.as_view(),  name="deck-category-delete"),
+
+    # Deck card organisation
+    path("deck-cards/<uuid:card_pk>/move-category/",       views.DeckCardMoveCategoryView.as_view(),         name="deck-card-move-category"),
+    path("deck-cards/<uuid:card_pk>/toggle-game-changer/", views.DeckCardToggleGameChangerView.as_view(),    name="deck-card-toggle-gc"),
+    path("decks/<uuid:pk>/bulk-move-category/",            views.DeckCardBulkMoveCategoryView.as_view(),     name="deck-bulk-move-category"),
+
     # Parciales HTMX
     path("decks/<uuid:pk>/curve/",              views.DeckCurvePartialView.as_view(), name="partial-curve"),
     path("decks/<uuid:pk>/stats/",              views.DeckStatsPartialView.as_view(), name="partial-stats"),

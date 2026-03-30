@@ -19,7 +19,7 @@ from multiverse.models import Card, CardPrint
 from .mixins import CollectionOwnerMixin, DeckOwnerMixin
 from .models import (
     Collection, CollectionItem, CollectionType,
-    Deck, DeckCard, DeckZone, 
+    Deck, DeckCard, DeckCategory, DeckZone,
 )
 from .forms import (
     CollectionForm, CollectionItemForm,
@@ -481,7 +481,9 @@ class DeckDetailView(LoginRequiredMixin, TemplateView):
         """Classify a card into an Archidekt-style category by type_line."""
         tl = type_line.lower()
         if "land" in tl:
-            return "Lands"
+            if "basic" in tl:
+                return "Basic Lands"
+            return "Non-Basic Lands"
         if "creature" in tl:
             return "Creatures"
         if "planeswalker" in tl:
@@ -500,10 +502,37 @@ class DeckDetailView(LoginRequiredMixin, TemplateView):
 
     CATEGORY_ORDER = [
         "Creatures", "Planeswalkers", "Instants", "Sorceries",
-        "Enchantments", "Artifacts", "Battles", "Lands", "Other",
+        "Enchantments", "Artifacts", "Battles", "Non-Basic Lands",
+        "Basic Lands", "Other",
     ]
 
     COLOR_MAP = {"W": "White", "U": "Blue", "B": "Black", "R": "Red", "G": "Green"}
+
+    GROUPING_MODES = [
+        ("type",         "Tipos"),
+        ("category",     "Categorias"),
+        ("cmc",          "Mana Value"),
+        ("price",        "Precio"),
+        ("rarity",       "Rareza"),
+        ("color",        "Color"),
+        ("identity",     "Identidad"),
+        ("game_changer", "Game Changer"),
+    ]
+
+    RARITY_ORDER = ["mythic", "rare", "uncommon", "common", "special", "bonus"]
+    RARITY_LABELS = {
+        "mythic": "Mythic", "rare": "Rare", "uncommon": "Uncommon",
+        "common": "Common", "special": "Special", "bonus": "Bonus",
+    }
+
+    PRICE_BUCKETS = [
+        ("$0 – $0.49",   0,    0.50),
+        ("$0.50 – $1",   0.50, 1.01),
+        ("$1 – $5",      1.01, 5.01),
+        ("$5 – $10",     5.01, 10.01),
+        ("$10 – $25",    10.01, 25.01),
+        ("$25+",         25.01, 999999),
+    ]
 
     @staticmethod
     def _entry_price(entry):
@@ -513,24 +542,206 @@ class DeckDetailView(LoginRequiredMixin, TemplateView):
             return float(p.price_usd)
         return 0.0
 
+    # --- Grouping helpers (each returns OrderedDict-style {label: [entries]}) ---
+
+    def _group_by_type(self, entries):
+        categories = {}
+        for entry in entries:
+            cat = self._card_category(entry.card.type_line)
+            categories.setdefault(cat, []).append(entry)
+        ordered = {}
+        for cat in self.CATEGORY_ORDER:
+            if cat in categories:
+                ordered[cat] = sorted(categories[cat], key=lambda e: e.card.name)
+        return ordered
+
+    def _group_by_custom_category(self, entries, deck):
+        """Group by user-defined DeckCategory. Uncategorized cards go last.
+        Returns {name: entries} and also builds self._category_pk_map.
+        Always includes all categories (even empty) as drag-drop targets."""
+        cats = list(deck.deck_categories.all())
+        self._category_pk_map = {c.name: str(c.pk) for c in cats}
+        groups = {c.name: [] for c in cats}
+        groups["Sin categoria"] = []
+        for entry in entries:
+            if entry.category_id:
+                key = entry.category.name if entry.category else "Sin categoria"
+            else:
+                key = "Sin categoria"
+            groups.setdefault(key, []).append(entry)
+        # Always include ALL categories (even empty) so they're valid drop targets
+        ordered = {}
+        for c in cats:
+            ordered[c.name] = sorted(groups.get(c.name, []), key=lambda e: e.card.name)
+        # Uncategorized at the end — only if it has cards
+        if groups.get("Sin categoria"):
+            ordered["Sin categoria"] = sorted(groups["Sin categoria"], key=lambda e: e.card.name)
+        return ordered
+
+    def _group_by_cmc(self, entries):
+        groups = {}
+        for entry in entries:
+            tl = entry.card.type_line.lower()
+            if "land" in tl:
+                label = "Lands"
+            else:
+                cmc = int(entry.card.cmc or 0)
+                label = f"MV {cmc}"
+            groups.setdefault(label, []).append(entry)
+        # Sort: numeric CMC groups first, then Lands
+        def sort_key(item):
+            label = item[0]
+            if label == "Lands":
+                return (1, 0)
+            return (0, int(label.split()[1]))
+        return {k: sorted(v, key=lambda e: e.card.name)
+                for k, v in sorted(groups.items(), key=sort_key)}
+
+    def _group_by_price(self, entries):
+        groups = {}
+        for entry in entries:
+            price = entry.display_price
+            bucket = "$0 – $0.49"
+            for label, lo, hi in self.PRICE_BUCKETS:
+                if lo <= price < hi:
+                    bucket = label
+                    break
+            groups.setdefault(bucket, []).append(entry)
+        # Order by bucket order
+        ordered = {}
+        for label, _, _ in self.PRICE_BUCKETS:
+            if label in groups:
+                ordered[label] = sorted(groups[label], key=lambda e: e.card.name)
+        return ordered
+
+    def _group_by_rarity(self, entries):
+        groups = {}
+        for entry in entries:
+            r = (entry.display_rarity or "common").lower()
+            label = self.RARITY_LABELS.get(r, r.title())
+            groups.setdefault(label, []).append(entry)
+        ordered = {}
+        for r in self.RARITY_ORDER:
+            label = self.RARITY_LABELS.get(r, r.title())
+            if label in groups:
+                ordered[label] = sorted(groups[label], key=lambda e: e.card.name)
+        return ordered
+
+    def _group_by_color(self, entries):
+        color_labels = {"W": "White", "U": "Blue", "B": "Black", "R": "Red", "G": "Green"}
+        order = ["W", "U", "B", "R", "G"]
+        groups = {}
+        for entry in entries:
+            colors = entry.card.colors or []
+            if not colors:
+                key = "Colorless"
+            elif len(colors) > 1:
+                key = "Multicolor"
+            else:
+                key = color_labels.get(colors[0], colors[0])
+            groups.setdefault(key, []).append(entry)
+        ordered = {}
+        for c in order:
+            label = color_labels[c]
+            if label in groups:
+                ordered[label] = sorted(groups[label], key=lambda e: e.card.name)
+        if "Multicolor" in groups:
+            ordered["Multicolor"] = sorted(groups["Multicolor"], key=lambda e: e.card.name)
+        if "Colorless" in groups:
+            ordered["Colorless"] = sorted(groups["Colorless"], key=lambda e: e.card.name)
+        return ordered
+
+    def _group_by_identity(self, entries):
+        color_labels = {"W": "White", "U": "Blue", "B": "Black", "R": "Red", "G": "Green"}
+        order = ["W", "U", "B", "R", "G"]
+        groups = {}
+        for entry in entries:
+            ci = entry.card.color_identity or []
+            if not ci:
+                key = "Colorless"
+            elif len(ci) > 1:
+                key = "Multicolor"
+            else:
+                key = color_labels.get(ci[0], ci[0])
+            groups.setdefault(key, []).append(entry)
+        ordered = {}
+        for c in order:
+            label = color_labels[c]
+            if label in groups:
+                ordered[label] = sorted(groups[label], key=lambda e: e.card.name)
+        if "Multicolor" in groups:
+            ordered["Multicolor"] = sorted(groups["Multicolor"], key=lambda e: e.card.name)
+        if "Colorless" in groups:
+            ordered["Colorless"] = sorted(groups["Colorless"], key=lambda e: e.card.name)
+        return ordered
+
+    def _group_by_game_changer(self, entries):
+        gc = [e for e in entries if e.is_game_changer]
+        rest = [e for e in entries if not e.is_game_changer]
+        ordered = {}
+        if gc:
+            ordered["Game Changers"] = sorted(gc, key=lambda e: e.card.name)
+        if rest:
+            ordered["Other"] = sorted(rest, key=lambda e: e.card.name)
+        return ordered
+
+    def _build_categories(self, group_by, entries, deck):
+        """Route to the right grouping helper."""
+        if group_by == "category":
+            return self._group_by_custom_category(entries, deck)
+        if group_by == "cmc":
+            return self._group_by_cmc(entries)
+        if group_by == "price":
+            return self._group_by_price(entries)
+        if group_by == "rarity":
+            return self._group_by_rarity(entries)
+        if group_by == "color":
+            return self._group_by_color(entries)
+        if group_by == "identity":
+            return self._group_by_identity(entries)
+        if group_by == "game_changer":
+            return self._group_by_game_changer(entries)
+        return self._group_by_type(entries)
+
     def get_context_data(self, **kwargs):
         ctx  = super().get_context_data(**kwargs)
         deck = get_object_or_404(
             Deck.objects.prefetch_related(
                 "cards__card__faces",
                 "cards__print__cardset",
+                "cards__category",
+                "deck_categories",
             ),
             pk=self.kwargs["pk"],
         )
 
+        group_by = self.request.GET.get("group", "type")
+        if group_by not in dict(self.GROUPING_MODES):
+            group_by = "type"
+
+        # Ensure custom categories exist for owner
+        is_owner = deck.user == self.request.user
+        if is_owner:
+            DeckCategory.ensure_defaults(deck)
+
         all_entries = list(deck.cards.all())
         counted_zones = {DeckZone.MAYBEBOARD, DeckZone.RESERVE, DeckZone.EXTRAS}
 
-        # Agrupar cartas por zona, y dentro del main por categoría
+        # Annotate each entry with display-friendly price / set / flip data
+        for entry in all_entries:
+            p = entry.print or entry.card.primary_print
+            entry.display_price = float(p.price_usd) if p and p.price_usd else 0.0
+            entry.display_set = p.cardset.code.upper() if p and p.cardset else ""
+            entry.display_rarity = p.rarity if p else ""
+            entry.display_scryfall_id = str(p.scryfall_id) if p and p.scryfall_id else ""
+            entry.has_back_face = len(list(entry.card.faces.all())) > 1
+
+        # Build grouped zones
         zones = {}
         total_cards = 0
-        type_breakdown = {}   # {category_name: qty}
-        color_counts = {}     # {color_code: qty}
+        type_breakdown = {}
+        color_counts = {}
+        category_nav = []
 
         for zone in DeckZone:
             entries = [c for c in all_entries if c.zone == zone.value]
@@ -538,30 +749,31 @@ class DeckDetailView(LoginRequiredMixin, TemplateView):
                 continue
 
             if zone == DeckZone.MAIN:
-                categories = {}
-                for entry in entries:
-                    cat = self._card_category(entry.card.type_line)
-                    categories.setdefault(cat, []).append(entry)
+                self._category_pk_map = {}
+                raw_groups = self._build_categories(group_by, entries, deck)
+                pk_map = self._category_pk_map  # populated by _group_by_custom_category
                 ordered = {}
-                for cat in self.CATEGORY_ORDER:
-                    if cat in categories:
-                        cat_entries = sorted(categories[cat], key=lambda e: e.card.name)
-                        cat_qty = sum(e.quantity for e in cat_entries)
-                        cat_price = sum(
-                            self._entry_price(e) * e.quantity
-                            for e in cat_entries
-                        )
-                        ordered[cat] = {
-                            "entries": cat_entries,
-                            "qty": cat_qty,
-                            "price": round(cat_price, 2),
-                        }
-                        type_breakdown[cat] = cat_qty
+                for cat_name, cat_entries in raw_groups.items():
+                    cat_qty = sum(e.quantity for e in cat_entries)
+                    cat_price = sum(e.display_price * e.quantity for e in cat_entries)
+                    ordered[cat_name] = {
+                        "entries": cat_entries,
+                        "qty": cat_qty,
+                        "price": round(cat_price, 2),
+                        "category_pk": pk_map.get(cat_name, ""),
+                    }
+                    category_nav.append({
+                        "name": cat_name,
+                        "qty": cat_qty,
+                        "slug": cat_name.lower().replace(" ", "-").replace("+", "plus"),
+                    })
+                # type_breakdown always uses card type for stats sidebar
+                type_groups = self._group_by_type(entries)
+                for cat_name, cat_entries in type_groups.items():
+                    type_breakdown[cat_name] = sum(e.quantity for e in cat_entries)
                 zones[zone] = {"categories": ordered}
             else:
-                zone_price = sum(
-                    self._entry_price(e) * e.quantity for e in entries
-                )
+                zone_price = sum(e.display_price * e.quantity for e in entries)
                 zones[zone] = {
                     "entries": sorted(entries, key=lambda e: e.card.name),
                     "qty": sum(e.quantity for e in entries),
@@ -578,6 +790,12 @@ class DeckDetailView(LoginRequiredMixin, TemplateView):
         has_commander = any(
             c.zone == DeckZone.COMMANDER for c in all_entries
         )
+
+        # Extract commander entries for special rendering at the top
+        commander_entries = []
+        if DeckZone.COMMANDER in zones:
+            cmd_data = zones.pop(DeckZone.COMMANDER)
+            commander_entries = cmd_data.get("entries", [])
 
         # Color distribution with labels
         color_dist = []
@@ -604,25 +822,33 @@ class DeckDetailView(LoginRequiredMixin, TemplateView):
                 if others.exists():
                     shared[entry.card.name] = [o.deck.name for o in others]
 
-        # Flat list for grid/table/stacks views (excluding maybeboard)
+        # Flat list for grid/table/stacks views
         deck_entries = sorted(all_entries, key=lambda e: (e.zone, e.card.name))
 
+        # Deck categories for the template (for category mode management)
+        deck_categories = list(deck.deck_categories.all())
+
         ctx.update({
-            "deck":           deck,
-            "zones":          zones,
-            "deck_entries":   deck_entries,
-            "is_owner":       deck.user == self.request.user,
-            "illegal":        deck.validate_format(),
-            "curve":          deck.mana_curve,
-            "curve_max":      max(deck.mana_curve.values()) if deck.mana_curve else 0,
-            "has_commander":  has_commander,
-            "total_cards":    total_cards,
-            "main_count":     deck.main_count,
-            "side_count":     deck.sideboard_count,
-            "total_value":    deck.total_value,
-            "type_breakdown": type_breakdown,
-            "color_dist":     color_dist,
-            "shared":         shared,
+            "deck":            deck,
+            "zones":           zones,
+            "deck_entries":    deck_entries,
+            "is_owner":        is_owner,
+            "illegal":         deck.validate_format(),
+            "curve":           deck.mana_curve,
+            "curve_max":       max(deck.mana_curve.values()) if deck.mana_curve else 0,
+            "has_commander":      has_commander,
+            "commander_entries":  commander_entries,
+            "total_cards":     total_cards,
+            "main_count":      deck.main_count,
+            "side_count":      deck.sideboard_count,
+            "total_value":     deck.total_value,
+            "type_breakdown":  type_breakdown,
+            "color_dist":      color_dist,
+            "shared":          shared,
+            "category_nav":    category_nav,
+            "group_by":        group_by,
+            "grouping_modes":  self.GROUPING_MODES,
+            "deck_categories": deck_categories,
         })
         return ctx
 
@@ -634,8 +860,10 @@ class DeckCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.user = self.request.user
+        response = super().form_valid(form)
+        DeckCategory.ensure_defaults(self.object)
         messages.success(self.request, "Deck creado.")
-        return super().form_valid(form)
+        return response
 
     def get_success_url(self):
         return reverse("tolarian:deck-detail", kwargs={"pk": self.object.pk})
@@ -753,47 +981,91 @@ class DeckCardEditView(LoginRequiredMixin, View):
     def get(self, request, card_pk):
         entry = get_object_or_404(
             DeckCard.objects.select_related(
-                "card", "print__cardset", "deck",
-            ).prefetch_related("card__prints__cardset"),
+                "card", "print__cardset", "deck", "category",
+            ).prefetch_related("card__prints__cardset", "card__faces"),
             pk=card_pk,
         )
-        if entry.deck.user != request.user:
+        is_owner = entry.deck.user == request.user
+        if not is_owner and not entry.deck.is_public:
             raise PermissionDenied
 
-        form = DeckCardForm(instance=entry)
+        form = DeckCardForm(instance=entry) if is_owner else None
         prints = entry.card.prints.select_related("cardset").order_by(
             "-cardset__released_at"
         )
 
-        # Check if user owns this card in any collection
-        owned_qty = (
-            CollectionItem.objects
-            .filter(
-                collection__user=request.user,
-                card=entry.card,
-                collection__is_active=True,
-            )
-            .aggregate(total=Sum("quantity"))["total"] or 0
-        )
+        # Active print price info
+        active_print = entry.print or entry.card.primary_print
+        price_usd = float(active_print.price_usd) if active_print and active_print.price_usd else None
+        price_foil = float(active_print.price_usd_foil) if active_print and hasattr(active_print, "price_usd_foil") and active_print.price_usd_foil else None
+        rarity = active_print.rarity if active_print else None
 
-        # Other decks using this card
-        other_decks = (
+        # Collection records for this card (owned copies)
+        owned_qty = 0
+        collection_records = []
+        if request.user.is_authenticated:
+            col_items = (
+                CollectionItem.objects
+                .filter(
+                    collection__user=request.user,
+                    card=entry.card,
+                    collection__is_active=True,
+                )
+                .select_related("collection", "print__cardset")
+            )
+            for item in col_items:
+                owned_qty += item.quantity
+                collection_records.append(item)
+
+        # Other decks using this card (with zone info)
+        other_deck_entries = (
             DeckCard.objects
             .filter(card=entry.card, deck__user=request.user, deck__is_active=True)
             .exclude(deck=entry.deck)
             .select_related("deck")
-            .values_list("deck__name", flat=True)
-            .distinct()
         )
+        other_decks_info = []
+        for de in other_deck_entries:
+            other_decks_info.append({
+                "deck_name": de.deck.name,
+                "deck_pk": str(de.deck.pk),
+                "zone": de.get_zone_display(),
+                "qty": de.quantity,
+            })
+
+        # Categories assigned to this card + all deck categories
+        deck_categories = list(entry.deck.deck_categories.all())
+        entry_categories = []
+        if entry.category:
+            entry_categories.append(entry.category)
+
+        # Card oracle text / faces for Card info tab
+        card = entry.card
+        faces = list(card.faces.all()) if card.faces.exists() else []
+
+        # Rulings
+        rulings = []
+        if hasattr(card, 'rulings'):
+            rulings = list(card.rulings.all().order_by('-published_at')[:20])
 
         return render(request, "tolarian/partials/deck_card_modal.html", {
-            "entry":       entry,
-            "deck":        entry.deck,
-            "form":        form,
-            "prints":      prints,
-            "owned_qty":   owned_qty,
-            "other_decks": list(other_decks),
-            "is_owner":    entry.deck.user == request.user,
+            "entry":              entry,
+            "deck":               entry.deck,
+            "form":               form,
+            "prints":             prints,
+            "price_usd":          price_usd,
+            "price_foil":         price_foil,
+            "rarity":             rarity,
+            "owned_qty":          owned_qty,
+            "collection_records": collection_records,
+            "other_decks_info":   other_decks_info,
+            "is_owner":           is_owner,
+            "deck_categories":    deck_categories,
+            "entry_categories":   entry_categories,
+            "card":               card,
+            "faces":              faces,
+            "rulings":            rulings,
+            "zone_choices":       DeckZone.choices,
         })
 
     def post(self, request, card_pk):
@@ -993,3 +1265,119 @@ class CardSearchJSON(LoginRequiredMixin, View):
             })
 
         return JsonResponse(results, safe=False)
+
+
+# ---------------------------------------------------------------------------
+# API — Deck categories & card organisation
+# ---------------------------------------------------------------------------
+
+class DeckCategoryCreateView(LoginRequiredMixin, View):
+    """POST: create a new custom category for a deck."""
+
+    def post(self, request, pk):
+        deck = get_object_or_404(Deck, pk=pk)
+        if deck.user != request.user:
+            raise PermissionDenied
+        name = request.POST.get("name", "").strip()
+        if not name:
+            return JsonResponse({"error": "Nombre requerido."}, status=400)
+        if deck.deck_categories.filter(name=name).exists():
+            return JsonResponse({"error": "Ya existe esa categoria."}, status=400)
+        max_pos = deck.deck_categories.aggregate(m=models.Max("position"))["m"] or 0
+        cat = DeckCategory.objects.create(deck=deck, name=name, position=max_pos + 1)
+        return JsonResponse({"id": str(cat.pk), "name": cat.name, "position": cat.position})
+
+
+class DeckCategoryRenameView(LoginRequiredMixin, View):
+    """POST: rename a category."""
+
+    def post(self, request, cat_pk):
+        cat = get_object_or_404(DeckCategory, pk=cat_pk)
+        if cat.deck.user != request.user:
+            raise PermissionDenied
+        name = request.POST.get("name", "").strip()
+        if not name:
+            return JsonResponse({"error": "Nombre requerido."}, status=400)
+        if cat.deck.deck_categories.filter(name=name).exclude(pk=cat.pk).exists():
+            return JsonResponse({"error": "Ya existe esa categoria."}, status=400)
+        cat.name = name
+        cat.save(update_fields=["name"])
+        return JsonResponse({"id": str(cat.pk), "name": cat.name})
+
+
+class DeckCategoryDeleteView(LoginRequiredMixin, View):
+    """POST: delete a category. Cards in it become uncategorized."""
+
+    def post(self, request, cat_pk):
+        cat = get_object_or_404(DeckCategory, pk=cat_pk)
+        if cat.deck.user != request.user:
+            raise PermissionDenied
+        cat.cards.update(category=None)
+        cat.delete()
+        if request.headers.get("HX-Request"):
+            return HttpResponse(status=204)
+        return JsonResponse({"ok": True})
+
+
+class DeckCardMoveCategoryView(LoginRequiredMixin, View):
+    """POST: move a card to a different category (or null for uncategorized)."""
+
+    def post(self, request, card_pk):
+        entry = get_object_or_404(DeckCard, pk=card_pk)
+        if entry.deck.user != request.user:
+            raise PermissionDenied
+        cat_id = request.POST.get("category")
+        if cat_id:
+            cat = get_object_or_404(DeckCategory, pk=cat_id, deck=entry.deck)
+            entry.category = cat
+        else:
+            entry.category = None
+        entry.save(update_fields=["category"])
+        return JsonResponse({"ok": True, "category": str(entry.category_id) if entry.category_id else None})
+
+
+class DeckCardBulkMoveCategoryView(LoginRequiredMixin, View):
+    """POST: move multiple cards to a category (or uncategorized) at once."""
+
+    def post(self, request, pk):
+        import json
+        deck = get_object_or_404(Deck, pk=pk)
+        if deck.user != request.user:
+            raise PermissionDenied
+
+        # Accept card_pks as JSON array or repeated form field
+        body_type = request.content_type or ""
+        if "json" in body_type:
+            data = json.loads(request.body)
+            card_pks = data.get("card_pks", [])
+            cat_id = data.get("category", "")
+        else:
+            card_pks = request.POST.getlist("card_pks")
+            cat_id = request.POST.get("category", "")
+
+        if not card_pks:
+            return JsonResponse({"error": "No cards selected."}, status=400)
+
+        entries = DeckCard.objects.filter(pk__in=card_pks, deck=deck)
+        if not entries.exists():
+            return JsonResponse({"error": "Cards not found."}, status=404)
+
+        if cat_id:
+            cat = get_object_or_404(DeckCategory, pk=cat_id, deck=deck)
+            entries.update(category=cat)
+        else:
+            entries.update(category=None)
+
+        return JsonResponse({"ok": True, "updated": entries.count()})
+
+
+class DeckCardToggleGameChangerView(LoginRequiredMixin, View):
+    """POST: toggle the game changer flag on a deck card."""
+
+    def post(self, request, card_pk):
+        entry = get_object_or_404(DeckCard, pk=card_pk)
+        if entry.deck.user != request.user:
+            raise PermissionDenied
+        entry.is_game_changer = not entry.is_game_changer
+        entry.save(update_fields=["is_game_changer"])
+        return JsonResponse({"ok": True, "is_game_changer": entry.is_game_changer})
