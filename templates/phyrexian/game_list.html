@@ -14,9 +14,70 @@
     <a href="{% url 'phyrexian:game-create' %}" class="btn-primary">Log Game</a>
   </div>
 
+  <!-- Filters -->
+  <div class="card p-4 mb-6" x-data="{ open: {% if filter_result or filter_format or filter_deck or filter_from or filter_to %}true{% else %}false{% endif %} }">
+    <button @click="open = !open" class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 w-full">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+      </svg>
+      Filters
+      <svg class="w-3 h-3 ml-auto transition-transform" :class="open && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+      </svg>
+    </button>
+    <form x-show="open" x-transition method="get" class="mt-4 grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Result</label>
+        <select name="result" class="input text-sm">
+          <option value="">All</option>
+          {% for val, label in result_choices %}
+          <option value="{{ val }}" {% if filter_result == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Format</label>
+        <select name="format" class="input text-sm">
+          <option value="">All</option>
+          {% for val, label in format_choices %}
+          <option value="{{ val }}" {% if filter_format == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Deck</label>
+        <select name="deck" class="input text-sm">
+          <option value="">All</option>
+          {% for d in user_decks %}
+          <option value="{{ d.pk }}" {% if filter_deck == d.pk|slugify %}selected{% endif %}>{{ d.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">From</label>
+        <input type="date" name="from" value="{{ filter_from }}" class="input text-sm">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">To</label>
+        <input type="date" name="to" value="{{ filter_to }}" class="input text-sm">
+      </div>
+      <div class="col-span-2 md:col-span-5 flex gap-2">
+        <button type="submit"
+                class="px-4 py-1.5 text-sm rounded-lg bg-void-600 text-white hover:bg-void-700 transition-colors">
+          Apply
+        </button>
+        <a href="{% url 'phyrexian:game-list' %}"
+           class="px-4 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-void-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800 transition-colors">
+          Clear
+        </a>
+      </div>
+    </form>
+  </div>
+
   {% if not games %}
   <div class="card p-16 text-center text-gray-400 dark:text-gray-600">
-    <p class="text-sm">No games recorded yet.</p>
+    <p class="text-sm">No games found.</p>
     <a href="{% url 'phyrexian:game-create' %}"
        class="mt-4 inline-block text-sm text-void-600 dark:text-void-400 hover:underline">
       Log your first game &rarr;

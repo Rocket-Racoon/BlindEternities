@@ -34,53 +34,24 @@
 
   <div class="grid md:grid-cols-2 gap-6 mb-8">
 
-    <!-- Color distribution -->
+    <!-- Color distribution chart -->
     <div class="card p-6">
       <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Color Identity</h2>
       {% if color_distribution %}
-      <div class="space-y-2">
-        {% for color, count in color_distribution.items %}
-        <div class="flex items-center gap-3">
-          <span class="w-8 text-center"><i class="ms ms-{{ color|lower }} ms-cost"></i></span>
-          <div class="flex-1 bg-gray-200 dark:bg-void-700 rounded-full h-4 overflow-hidden">
-            <div class="h-4 rounded-full
-              {% if color == 'W' %}bg-yellow-200
-              {% elif color == 'U' %}bg-blue-500
-              {% elif color == 'B' %}bg-gray-700
-              {% elif color == 'R' %}bg-red-500
-              {% elif color == 'G' %}bg-green-500
-              {% else %}bg-gray-400{% endif %}"
-              style="width: {% widthratio count total_cards 100 %}%"></div>
-          </div>
-          <span class="text-sm text-gray-500 w-12 text-right">{{ count }}</span>
-        </div>
-        {% endfor %}
+      <div class="h-56 flex items-center justify-center">
+        <canvas id="colorPie"></canvas>
       </div>
       {% else %}
       <p class="text-sm text-gray-400">No data yet.</p>
       {% endif %}
     </div>
 
-    <!-- Rarity distribution -->
+    <!-- Rarity distribution chart -->
     <div class="card p-6">
       <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Rarity</h2>
       {% if rarity_distribution %}
-      <div class="space-y-2">
-        {% for rarity, count in rarity_distribution.items %}
-        <div class="flex items-center gap-3">
-          <span class="text-sm text-gray-700 dark:text-gray-300 w-24 capitalize">{{ rarity }}</span>
-          <div class="flex-1 bg-gray-200 dark:bg-void-700 rounded-full h-4 overflow-hidden">
-            <div class="h-4 rounded-full
-              {% if rarity == 'common' %}bg-gray-400
-              {% elif rarity == 'uncommon' %}bg-gray-500
-              {% elif rarity == 'rare' %}bg-yellow-500
-              {% elif rarity == 'mythic' %}bg-orange-500
-              {% else %}bg-purple-500{% endif %}"
-              style="width: {% widthratio count total_cards 100 %}%"></div>
-          </div>
-          <span class="text-sm text-gray-500 w-12 text-right">{{ count }}</span>
-        </div>
-        {% endfor %}
+      <div class="h-56 flex items-center justify-center">
+        <canvas id="rarityPie"></canvas>
       </div>
       {% else %}
       <p class="text-sm text-gray-400">No data yet.</p>
@@ -156,4 +127,36 @@
   {% endif %}
 
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+  const isDark = document.documentElement.classList.contains('dark');
+  Chart.defaults.color = isDark ? '#9CA3AF' : '#6B7280';
+
+  {% if color_distribution %}
+  const colorData = {{ color_chart_json|safe }};
+  new Chart(document.getElementById('colorPie'), {
+    type: 'doughnut',
+    data: {
+      labels: colorData.labels,
+      datasets: [{data: colorData.data, backgroundColor: colorData.colors, borderWidth: 2, borderColor: isDark ? '#1F2937' : '#FFFFFF'}]
+    },
+    options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position: 'right', labels: {boxWidth: 12, padding: 12}}}}
+  });
+  {% endif %}
+
+  {% if rarity_distribution %}
+  const rarityData = {{ rarity_chart_json|safe }};
+  new Chart(document.getElementById('rarityPie'), {
+    type: 'doughnut',
+    data: {
+      labels: rarityData.labels,
+      datasets: [{data: rarityData.data, backgroundColor: rarityData.colors, borderWidth: 2, borderColor: isDark ? '#1F2937' : '#FFFFFF'}]
+    },
+    options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position: 'right', labels: {boxWidth: 12, padding: 12}}}}
+  });
+  {% endif %}
+</script>
 {% endblock %}

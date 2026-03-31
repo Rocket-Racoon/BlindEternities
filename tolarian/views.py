@@ -878,6 +878,21 @@ class DeckDetailView(LoginRequiredMixin, TemplateView):
             "grouping_modes":  self.GROUPING_MODES,
             "deck_categories": deck_categories,
         })
+
+        # Game stats for this deck (from phyrexian)
+        from phyrexian.models import GameRecord, GameResult
+        deck_games = GameRecord.objects.filter(
+            user=deck.user, deck=deck, is_active=True
+        )
+        deck_game_count = deck_games.count()
+        if deck_game_count:
+            deck_wins = deck_games.filter(result=GameResult.WIN).count()
+            ctx["deck_game_count"] = deck_game_count
+            ctx["deck_wins"] = deck_wins
+            ctx["deck_losses"] = deck_games.filter(result=GameResult.LOSS).count()
+            ctx["deck_draws"] = deck_games.filter(result=GameResult.DRAW).count()
+            ctx["deck_win_rate"] = round(deck_wins / deck_game_count * 100, 1)
+
         return ctx
 
 

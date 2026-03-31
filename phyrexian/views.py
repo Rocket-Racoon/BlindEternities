@@ -1,4 +1,5 @@
 # phyrexian/views.py
+import json
 from collections import Counter
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Sum, Count, Q, F, Avg
@@ -14,6 +15,14 @@ from tolarian.models import Collection, CollectionItem, Deck, DeckCard, DeckZone
 from multiverse.models import Card, CardPrint
 from .models import GameRecord, GameResult
 from .forms import GameRecordForm
+
+# Color config shared by all chart views
+COLOR_LABELS = {"W": "White", "U": "Blue", "B": "Black", "R": "Red", "G": "Green", "C": "Colorless"}
+COLOR_HEX = {"W": "#F9E076", "U": "#0E68AB", "B": "#150B00", "R": "#D3202A", "G": "#00733E", "C": "#CBC2BF"}
+RARITY_HEX = {
+    "common": "#6B7280", "uncommon": "#9CA3AF", "rare": "#EAB308",
+    "mythic": "#F97316", "special": "#8B5CF6", "bonus": "#A855F7",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -40,24 +49,38 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         total = games.count()
         if total:
             wins = games.filter(result=GameResult.WIN).count()
+            losses = games.filter(result=GameResult.LOSS).count()
+            draws = games.filter(result=GameResult.DRAW).count()
             ctx["win_rate"] = round(wins / total * 100, 1)
             ctx["wins"] = wins
-            ctx["losses"] = games.filter(result=GameResult.LOSS).count()
-            ctx["draws"] = games.filter(result=GameResult.DRAW).count()
+            ctx["losses"] = losses
+            ctx["draws"] = draws
+            # Chart data for donut
+            ctx["winrate_chart_json"] = json.dumps({
+                "labels": ["Wins", "Losses", "Draws"],
+                "data": [wins, losses, draws],
+                "colors": ["#22C55E", "#EF4444", "#EAB308"],
+            })
         else:
             ctx["win_rate"] = 0
             ctx["wins"] = ctx["losses"] = ctx["draws"] = 0
+            ctx["winrate_chart_json"] = "null"
 
         # Recent games
         ctx["recent_games"] = games[:5]
 
         # Format distribution (decks)
-        ctx["format_distribution"] = (
+        format_dist = list(
             Deck.objects.filter(user=user, is_active=True)
             .values("format")
             .annotate(count=Count("id"))
             .order_by("-count")
         )
+        ctx["format_distribution"] = format_dist
+        ctx["format_chart_json"] = json.dumps({
+            "labels": [f["format"].title() for f in format_dist],
+            "data": [f["count"] for f in format_dist],
+        })
 
         return ctx
 
@@ -90,6 +113,13 @@ class CollectionStatsView(LoginRequiredMixin, TemplateView):
             if item.print:
                 rarity_counts[item.print.rarity] += item.quantity
         ctx["rarity_distribution"] = dict(rarity_counts.most_common())
+        # Rarity chart
+        rarity_labels = list(ctx["rarity_distribution"].keys())
+        ctx["rarity_chart_json"] = json.dumps({
+            "labels": [r.capitalize() for r in rarity_labels],
+            "data": [ctx["rarity_distribution"][r] for r in rarity_labels],
+            "colors": [RARITY_HEX.get(r, "#6B7280") for r in rarity_labels],
+        })
 
         # Color identity spread
         color_counts = Counter()
@@ -97,6 +127,13 @@ class CollectionStatsView(LoginRequiredMixin, TemplateView):
             for color in (item.card.color_identity or []):
                 color_counts[color] += item.quantity
         ctx["color_distribution"] = dict(color_counts.most_common())
+        # Color chart
+        color_keys = list(ctx["color_distribution"].keys())
+        ctx["color_chart_json"] = json.dumps({
+            "labels": [COLOR_LABELS.get(c, c) for c in color_keys],
+            "data": [ctx["color_distribution"][c] for c in color_keys],
+            "colors": [COLOR_HEX.get(c, "#6B7280") for c in color_keys],
+        })
 
         # Condition breakdown
         condition_counts = Counter()
@@ -156,11 +193,12 @@ class DeckStatsView(LoginRequiredMixin, TemplateView):
         ctx["most_used_cards"] = card_usage.most_common(15)
 
         # Format popularity
-        ctx["format_popularity"] = (
+        format_pop = list(
             decks.values("format")
             .annotate(count=Count("id"))
             .order_by("-count")
         )
+        ctx["format_popularity"] = format_pop
 
         # Average deck value
         values = [d.total_value for d in decks]
@@ -173,6 +211,13 @@ class DeckStatsView(LoginRequiredMixin, TemplateView):
             for color in (entry.card.color_identity or []):
                 color_counts[color] += entry.quantity
         ctx["color_distribution"] = dict(color_counts.most_common())
+        # Color chart
+        color_keys = list(ctx["color_distribution"].keys())
+        ctx["color_chart_json"] = json.dumps({
+            "labels": [COLOR_LABELS.get(c, c) for c in color_keys],
+            "data": [ctx["color_distribution"][c] for c in color_keys],
+            "colors": [COLOR_HEX.get(c, "#6B7280") for c in color_keys],
+        })
 
         # Average CMC
         cmcs = [float(e.card.cmc) for e in all_entries if e.card.cmc is not None and "land" not in e.card.type_line.lower()]
@@ -186,12 +231,31 @@ class DeckStatsView(LoginRequiredMixin, TemplateView):
                 if t in tl:
                     type_counts[t.capitalize()] += entry.quantity
         ctx["type_distribution"] = dict(type_counts.most_common())
+        # Type chart
+        type_labels = list(ctx["type_distribution"].keys())
+        ctx["type_chart_json"] = json.dumps({
+            "labels": type_labels,
+            "data": [ctx["type_distribution"][t] for t in type_labels],
+        })
+
+        # Aggregate mana curve across all decks
+        curve = Counter()
+        for entry in all_entries:
+            if "land" not in entry.card.type_line.lower() and entry.card.cmc is not None:
+                cmc = int(entry.card.cmc)
+                curve[cmc] += entry.quantity
+        curve_sorted = dict(sorted(curve.items()))
+        ctx["aggregate_curve"] = curve_sorted
+        ctx["curve_chart_json"] = json.dumps({
+            "labels": [str(k) for k in curve_sorted.keys()],
+            "data": list(curve_sorted.values()),
+        })
 
         return ctx
 
 
 # ---------------------------------------------------------------------------
-# Game Records CRUD
+# Game Records CRUD (with filtering)
 # ---------------------------------------------------------------------------
 class GameRecordListView(LoginRequiredMixin, ListView):
     model = GameRecord
@@ -200,10 +264,47 @@ class GameRecordListView(LoginRequiredMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        return (
+        qs = (
             GameRecord.objects.filter(user=self.request.user, is_active=True)
             .select_related("deck")
         )
+        # Filters
+        result = self.request.GET.get("result")
+        if result in dict(GameResult.choices):
+            qs = qs.filter(result=result)
+
+        fmt = self.request.GET.get("format")
+        if fmt:
+            qs = qs.filter(format=fmt)
+
+        deck_id = self.request.GET.get("deck")
+        if deck_id:
+            qs = qs.filter(deck_id=deck_id)
+
+        date_from = self.request.GET.get("from")
+        if date_from:
+            qs = qs.filter(date_played__gte=date_from)
+
+        date_to = self.request.GET.get("to")
+        if date_to:
+            qs = qs.filter(date_played__lte=date_to)
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["filter_result"] = self.request.GET.get("result", "")
+        ctx["filter_format"] = self.request.GET.get("format", "")
+        ctx["filter_deck"] = self.request.GET.get("deck", "")
+        ctx["filter_from"] = self.request.GET.get("from", "")
+        ctx["filter_to"] = self.request.GET.get("to", "")
+        ctx["user_decks"] = Deck.objects.filter(
+            user=self.request.user, is_active=True
+        ).order_by("name")
+        ctx["result_choices"] = GameResult.choices
+        from core.constants import MagicFormat
+        ctx["format_choices"] = MagicFormat.choices
+        return ctx
 
 
 class GameRecordCreateView(LoginRequiredMixin, CreateView):
@@ -258,10 +359,20 @@ class WinRateView(LoginRequiredMixin, TemplateView):
 
         ctx["has_data"] = True
         ctx["total_games"] = total
-        ctx["wins"] = games.filter(result=GameResult.WIN).count()
-        ctx["losses"] = games.filter(result=GameResult.LOSS).count()
-        ctx["draws"] = games.filter(result=GameResult.DRAW).count()
-        ctx["win_rate"] = round(ctx["wins"] / total * 100, 1)
+        wins = games.filter(result=GameResult.WIN).count()
+        losses = games.filter(result=GameResult.LOSS).count()
+        draws = games.filter(result=GameResult.DRAW).count()
+        ctx["wins"] = wins
+        ctx["losses"] = losses
+        ctx["draws"] = draws
+        ctx["win_rate"] = round(wins / total * 100, 1)
+
+        # Donut chart
+        ctx["winrate_chart_json"] = json.dumps({
+            "labels": ["Wins", "Losses", "Draws"],
+            "data": [wins, losses, draws],
+            "colors": ["#22C55E", "#EF4444", "#EAB308"],
+        })
 
         # Win rate by deck
         deck_stats = []
@@ -281,7 +392,7 @@ class WinRateView(LoginRequiredMixin, TemplateView):
         ctx["deck_stats"] = deck_stats
 
         # Win rate by format
-        format_stats = (
+        format_stats = list(
             games.values("format")
             .annotate(
                 total=Count("id"),
@@ -294,7 +405,7 @@ class WinRateView(LoginRequiredMixin, TemplateView):
         ctx["format_stats"] = format_stats
 
         # Win rate by opponent
-        opponent_stats = (
+        opponent_stats = list(
             games.exclude(opponent_name="")
             .values("opponent_name")
             .annotate(
@@ -322,4 +433,93 @@ class WinRateView(LoginRequiredMixin, TemplateView):
         ctx["streak_type"] = streak_type
         ctx["streak_count"] = streak_count
 
+        return ctx
+
+
+# ---------------------------------------------------------------------------
+# Price Analytics
+# ---------------------------------------------------------------------------
+class PriceAnalyticsView(LoginRequiredMixin, TemplateView):
+    template_name = "phyrexian/price_analytics.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        user = self.request.user
+
+        items = CollectionItem.objects.filter(
+            collection__user=user,
+            collection__is_active=True,
+            is_active=True,
+        ).select_related("card", "print", "print__cardset")
+
+        # Total value
+        total = 0
+        nonfoil_value = 0
+        foil_value = 0
+        valued_items = []
+        set_values = Counter()
+
+        for item in items:
+            if not item.print or not item.print.price_usd:
+                continue
+            price = float(item.print.price_usd)
+            item_total = price * item.quantity
+            total += item_total
+            valued_items.append({
+                "card": item.card,
+                "print": item.print,
+                "quantity": item.quantity,
+                "unit_price": price,
+                "total_price": item_total,
+                "finish": item.get_finish_display(),
+            })
+            if item.finish == "nonfoil":
+                nonfoil_value += item_total
+            else:
+                foil_value += item_total
+            if item.print.cardset:
+                set_values[item.print.cardset.code.upper()] += item_total
+
+        ctx["total_value"] = round(total, 2)
+        ctx["nonfoil_value"] = round(nonfoil_value, 2)
+        ctx["foil_value"] = round(foil_value, 2)
+        ctx["foil_premium_pct"] = round(foil_value / total * 100, 1) if total else 0
+
+        # Top valuable
+        valued_items.sort(key=lambda x: x["total_price"], reverse=True)
+        ctx["top_valuable"] = valued_items[:20]
+
+        # Value by set (top 15)
+        top_sets = set_values.most_common(15)
+        ctx["set_values"] = top_sets
+        ctx["set_chart_json"] = json.dumps({
+            "labels": [s[0] for s in top_sets],
+            "data": [round(s[1], 2) for s in top_sets],
+        })
+
+        # Foil vs nonfoil chart
+        ctx["foil_chart_json"] = json.dumps({
+            "labels": ["Non-Foil", "Foil / Special"],
+            "data": [round(nonfoil_value, 2), round(foil_value, 2)],
+            "colors": ["#6B7280", "#EAB308"],
+        })
+
+        return ctx
+
+
+# ---------------------------------------------------------------------------
+# HTMX Partials
+# ---------------------------------------------------------------------------
+class DashboardStatsPartialView(LoginRequiredMixin, TemplateView):
+    """HTMX partial: returns just the summary stats cards."""
+    template_name = "phyrexian/partials/dashboard_stats.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        user = self.request.user
+        ctx["total_decks"] = Deck.objects.filter(user=user, is_active=True).count()
+        ctx["total_collections"] = Collection.objects.filter(user=user, is_active=True).count()
+        ctx["total_games"] = GameRecord.objects.filter(user=user, is_active=True).count()
+        collections = Collection.objects.filter(user=user, is_active=True)
+        ctx["total_collection_value"] = sum(c.total_value for c in collections)
         return ctx

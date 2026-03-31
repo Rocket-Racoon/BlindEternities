@@ -410,6 +410,16 @@
           <span class="font-semibold text-gray-700 dark:text-gray-300">${{ deck.total_value }}</span>
         </div>
         {% endif %}
+        {% if deck_game_count %}
+        <div class="flex justify-between text-[11px]">
+          <span class="text-gray-400 dark:text-gray-500">Win Rate</span>
+          <span class="font-semibold text-green-600 dark:text-green-400">{{ deck_win_rate }}%</span>
+        </div>
+        <div class="flex justify-between text-[11px]">
+          <span class="text-gray-400 dark:text-gray-500">Record</span>
+          <span class="font-semibold text-gray-700 dark:text-gray-300">{{ deck_wins }}W / {{ deck_losses }}L / {{ deck_draws }}D</span>
+        </div>
+        {% endif %}
         </div>{# /deck-quick-stats #}
       </div>
     </aside>

@@ -16,8 +16,9 @@
     </a>
   </div>
 
-  <!-- Summary cards -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+  <!-- Summary cards (HTMX refreshable) -->
+  <div hx-get="{% url 'phyrexian:partial-stats' %}" hx-trigger="revealed" hx-swap="outerHTML"
+       class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8" id="dashboard-stats">
     <div class="card p-4 text-center">
       <p class="text-2xl font-bold text-void-600 dark:text-void-400">{{ total_decks }}</p>
       <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Decks</p>
@@ -39,27 +40,29 @@
   <!-- Win rate + recent games row -->
   <div class="grid md:grid-cols-2 gap-6 mb-8">
 
-    <!-- Win rate summary -->
+    <!-- Win rate summary with donut -->
     <div class="card p-6">
       <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Win Rate</h2>
       {% if total_games %}
       <div class="flex items-center gap-6">
-        <div class="text-center">
-          <p class="text-3xl font-bold text-void-600 dark:text-void-400">{{ win_rate }}%</p>
-          <p class="text-xs text-gray-500 mt-1">Overall</p>
+        <div class="w-32 h-32 shrink-0">
+          <canvas id="winrateDonut"></canvas>
         </div>
-        <div class="flex-1 grid grid-cols-3 gap-2 text-center text-sm">
-          <div>
-            <p class="font-semibold text-green-600 dark:text-green-400">{{ wins }}</p>
-            <p class="text-xs text-gray-400">Wins</p>
-          </div>
-          <div>
-            <p class="font-semibold text-red-600 dark:text-red-400">{{ losses }}</p>
-            <p class="text-xs text-gray-400">Losses</p>
-          </div>
-          <div>
-            <p class="font-semibold text-yellow-600 dark:text-yellow-400">{{ draws }}</p>
-            <p class="text-xs text-gray-400">Draws</p>
+        <div class="flex-1">
+          <p class="text-3xl font-bold text-void-600 dark:text-void-400">{{ win_rate }}%</p>
+          <div class="grid grid-cols-3 gap-2 text-center text-sm mt-3">
+            <div>
+              <p class="font-semibold text-green-600 dark:text-green-400">{{ wins }}</p>
+              <p class="text-xs text-gray-400">Wins</p>
+            </div>
+            <div>
+              <p class="font-semibold text-red-600 dark:text-red-400">{{ losses }}</p>
+              <p class="text-xs text-gray-400">Losses</p>
+            </div>
+            <div>
+              <p class="font-semibold text-yellow-600 dark:text-yellow-400">{{ draws }}</p>
+              <p class="text-xs text-gray-400">Draws</p>
+            </div>
           </div>
         </div>
       </div>
@@ -113,33 +116,25 @@
     </div>
   </div>
 
-  <!-- Format distribution -->
+  <!-- Format distribution chart -->
   {% if format_distribution %}
   <div class="card p-6 mb-8">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Decks by Format</h2>
-    <div class="space-y-2">
-      {% for fmt in format_distribution %}
-      <div class="flex items-center gap-3">
-        <span class="text-sm text-gray-700 dark:text-gray-300 w-28">{{ fmt.format|title }}</span>
-        <div class="flex-1 bg-gray-200 dark:bg-void-700 rounded-full h-4 overflow-hidden">
-          <div class="bg-void-500 h-4 rounded-full" style="width: {% widthratio fmt.count total_decks 100 %}%"></div>
-        </div>
-        <span class="text-sm text-gray-500 w-8 text-right">{{ fmt.count }}</span>
-      </div>
-      {% endfor %}
+    <div class="h-48">
+      <canvas id="formatChart"></canvas>
     </div>
   </div>
   {% endif %}
 
   <!-- Quick links -->
-  <div class="grid md:grid-cols-3 gap-4">
+  <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
     <a href="{% url 'phyrexian:collection-stats' %}"
        class="card p-6 hover:border-void-400 dark:hover:border-void-500 transition-colors group">
       <h3 class="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-void-600 dark:group-hover:text-void-400">
         Collection Stats
       </h3>
       <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-        Value breakdown, rarity distribution, color spread
+        Value, rarity, color spread
       </p>
     </a>
     <a href="{% url 'phyrexian:deck-stats' %}"
@@ -148,7 +143,7 @@
         Deck Analytics
       </h3>
       <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-        Most-used cards, type distribution, avg CMC
+        Most-used cards, types, avg CMC
       </p>
     </a>
     <a href="{% url 'phyrexian:win-rate' %}"
@@ -157,10 +152,57 @@
         Win Rates
       </h3>
       <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-        By deck, format, opponent, streaks
+        By deck, format, opponent
+      </p>
+    </a>
+    <a href="{% url 'phyrexian:price-analytics' %}"
+       class="card p-6 hover:border-void-400 dark:hover:border-void-500 transition-colors group">
+      <h3 class="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-void-600 dark:group-hover:text-void-400">
+        Price Analytics
+      </h3>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+        Value by set, foil premiums
       </p>
     </a>
   </div>
 
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+  const isDark = document.documentElement.classList.contains('dark');
+  const textColor = isDark ? '#9CA3AF' : '#6B7280';
+  Chart.defaults.color = textColor;
+  Chart.defaults.borderColor = isDark ? '#374151' : '#E5E7EB';
+
+  {% if total_games %}
+  const wrData = {{ winrate_chart_json|safe }};
+  new Chart(document.getElementById('winrateDonut'), {
+    type: 'doughnut',
+    data: {
+      labels: wrData.labels,
+      datasets: [{data: wrData.data, backgroundColor: wrData.colors, borderWidth: 0}]
+    },
+    options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {display: false}}, cutout: '65%'}
+  });
+  {% endif %}
+
+  {% if format_distribution %}
+  const fmtData = {{ format_chart_json|safe }};
+  new Chart(document.getElementById('formatChart'), {
+    type: 'bar',
+    data: {
+      labels: fmtData.labels,
+      datasets: [{data: fmtData.data, backgroundColor: isDark ? '#6366F1' : '#818CF8', borderRadius: 4}]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {legend: {display: false}},
+      scales: {y: {beginAtZero: true, ticks: {stepSize: 1}}}
+    }
+  });
+  {% endif %}
+</script>
 {% endblock %}

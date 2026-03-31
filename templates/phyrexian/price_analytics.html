@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% load core_tags %}
+
+{% block title %}Price Analytics — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <a href="{% url 'phyrexian:dashboard' %}" class="text-sm text-void-600 dark:text-void-400 hover:underline">&larr; Dashboard</a>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">Price Analytics</h1>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-green-600 dark:text-green-400">${{ total_value }}</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Total Value</p>
+    </div>
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-gray-700 dark:text-gray-300">${{ nonfoil_value }}</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Non-Foil Value</p>
+    </div>
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-yellow-600 dark:text-yellow-400">${{ foil_value }}</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Foil / Special Value</p>
+    </div>
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-void-600 dark:text-void-400">{{ foil_premium_pct }}%</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Foil % of Total</p>
+    </div>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-6 mb-8">
+
+    <!-- Foil vs non-foil chart -->
+    <div class="card p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Foil vs Non-Foil</h2>
+      {% if total_value %}
+      <div class="h-56 flex items-center justify-center">
+        <canvas id="foilChart"></canvas>
+      </div>
+      {% else %}
+      <p class="text-sm text-gray-400">No priced cards in collection.</p>
+      {% endif %}
+    </div>
+
+    <!-- Value by set chart -->
+    <div class="card p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Value by Set (Top 15)</h2>
+      {% if set_values %}
+      <div class="h-56">
+        <canvas id="setChart"></canvas>
+      </div>
+      {% else %}
+      <p class="text-sm text-gray-400">No data yet.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Top valuable cards -->
+  {% if top_valuable %}
+  <div class="card p-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Most Valuable Cards</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-void-700">
+            <th class="pb-2 font-medium">Card</th>
+            <th class="pb-2 font-medium">Set</th>
+            <th class="pb-2 font-medium">Finish</th>
+            <th class="pb-2 font-medium text-right">Qty</th>
+            <th class="pb-2 font-medium text-right">Price</th>
+            <th class="pb-2 font-medium text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100 dark:divide-void-800">
+          {% for item in top_valuable %}
+          <tr>
+            <td class="py-2 text-gray-800 dark:text-gray-200">{{ item.card.name }}</td>
+            <td class="py-2 text-gray-500">{{ item.print.cardset.code|upper }}</td>
+            <td class="py-2 text-gray-500">{{ item.finish }}</td>
+            <td class="py-2 text-right text-gray-500">{{ item.quantity }}</td>
+            <td class="py-2 text-right text-gray-500">${{ item.unit_price|floatformat:2 }}</td>
+            <td class="py-2 text-right font-medium text-green-600 dark:text-green-400">${{ item.total_price|floatformat:2 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+  const isDark = document.documentElement.classList.contains('dark');
+  Chart.defaults.color = isDark ? '#9CA3AF' : '#6B7280';
+  Chart.defaults.borderColor = isDark ? '#374151' : '#E5E7EB';
+
+  {% if total_value %}
+  const foilData = {{ foil_chart_json|safe }};
+  new Chart(document.getElementById('foilChart'), {
+    type: 'doughnut',
+    data: {
+      labels: foilData.labels,
+      datasets: [{data: foilData.data, backgroundColor: foilData.colors, borderWidth: 2, borderColor: isDark ? '#1F2937' : '#FFFFFF'}]
+    },
+    options: {responsive: true, maintainAspectRatio: false, cutout: '55%', plugins: {legend: {position: 'bottom', labels: {boxWidth: 12}}}}
+  });
+  {% endif %}
+
+  {% if set_values %}
+  const setData = {{ set_chart_json|safe }};
+  new Chart(document.getElementById('setChart'), {
+    type: 'bar',
+    data: {
+      labels: setData.labels,
+      datasets: [{data: setData.data, backgroundColor: isDark ? '#22C55E' : '#16A34A', borderRadius: 4}]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+      plugins: {legend: {display: false}},
+      scales: {x: {beginAtZero: true, ticks: {callback: v => '$' + v}}}
+    }
+  });
+  {% endif %}
+</script>
+{% endblock %}
