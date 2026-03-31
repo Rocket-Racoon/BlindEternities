@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% load static core_tags %}
+
+{% block title %}Comparar Decks — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+
+  {% if not deck_a %}
+  {# ── Deck Picker ── #}
+  <div class="max-w-xl mx-auto">
+    <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-6">Comparar Decks</h1>
+
+    <form method="get" class="space-y-4" x-data="{ a: '', b: '' }">
+      <div>
+        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Deck A</label>
+        <select name="a" x-model="a"
+                class="input w-full text-sm">
+          <option value="">Seleccionar deck...</option>
+          {% for d in user_decks %}
+          <option value="{{ d.pk }}">{{ d.name }} ({{ d.get_format_display }}) — {{ d.card_count|default:"0" }} cartas</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Deck B</label>
+        <select name="b" x-model="b"
+                class="input w-full text-sm">
+          <option value="">Seleccionar deck...</option>
+          {% for d in user_decks %}
+          <option value="{{ d.pk }}">{{ d.name }} ({{ d.get_format_display }}) — {{ d.card_count|default:"0" }} cartas</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit"
+              :disabled="!a || !b || a === b"
+              class="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed">
+        Comparar
+      </button>
+    </form>
+  </div>
+
+  {% else %}
+  {# ── Comparison Results ── #}
+  <div class="mb-6">
+    <div class="flex items-center justify-between">
+      <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100">Comparar Decks</h1>
+      <a href="{% url 'tolarian:deck-compare' %}"
+         class="text-xs text-void-600 dark:text-void-400 hover:underline">
+        Nueva comparacion
+      </a>
+    </div>
+
+    <!-- Deck headers -->
+    <div class="grid grid-cols-2 gap-4 mt-4">
+      <a href="{% url 'tolarian:deck-detail' deck_a.pk %}"
+         class="rounded-lg border border-gray-200 dark:border-void-700 p-3
+                hover:border-void-400 transition-colors">
+        <p class="font-semibold text-sm text-gray-900 dark:text-gray-100">{{ deck_a.name }}</p>
+        <p class="text-[11px] text-gray-500 dark:text-gray-400">
+          {{ deck_a.get_format_display }} &middot; {{ stats.a_total }} cartas
+        </p>
+      </a>
+      <a href="{% url 'tolarian:deck-detail' deck_b.pk %}"
+         class="rounded-lg border border-gray-200 dark:border-void-700 p-3
+                hover:border-void-400 transition-colors">
+        <p class="font-semibold text-sm text-gray-900 dark:text-gray-100">{{ deck_b.name }}</p>
+        <p class="text-[11px] text-gray-500 dark:text-gray-400">
+          {{ deck_b.get_format_display }} &middot; {{ stats.b_total }} cartas
+        </p>
+      </a>
+    </div>
+
+    <!-- Summary stats -->
+    <div class="flex gap-4 mt-3 text-xs text-gray-500 dark:text-gray-400">
+      <span class="px-2 py-1 rounded bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400">
+        +{{ stats.only_a_count }} solo en {{ deck_a.name|truncatechars:15 }}
+      </span>
+      <span class="px-2 py-1 rounded bg-gray-100 dark:bg-void-800 text-gray-600 dark:text-gray-300">
+        {{ stats.shared_count }} compartidas
+      </span>
+      <span class="px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
+        +{{ stats.only_b_count }} solo en {{ deck_b.name|truncatechars:15 }}
+      </span>
+    </div>
+  </div>
+
+  <!-- Comparison columns -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+    <!-- Only in Deck A -->
+    <div>
+      <div class="flex items-center gap-2 px-2.5 py-1.5 mb-1 border-b-2 border-green-400 dark:border-green-600">
+        <span class="text-xs font-bold text-green-700 dark:text-green-400">
+          Solo en {{ deck_a.name|truncatechars:20 }}
+        </span>
+        <span class="text-[10px] text-gray-400">({{ only_a|length }})</span>
+      </div>
+      {% for item in only_a %}
+      <div class="flex items-center gap-1.5 px-2.5 py-[5px] text-xs">
+        <span class="w-5 text-center text-[11px] font-bold text-green-500 tabular-nums">
+          +{{ item.qty }}
+        </span>
+        <span class="flex-1 font-medium text-gray-900 dark:text-gray-100 truncate">
+          {{ item.card.name }}
+        </span>
+        <span class="shrink-0 flex items-center gap-px text-[11px]">
+          {{ item.card|dfc_mana_cost }}
+        </span>
+      </div>
+      {% empty %}
+      <p class="px-2.5 py-2 text-xs text-gray-400 italic">Ninguna</p>
+      {% endfor %}
+    </div>
+
+    <!-- Shared cards -->
+    <div>
+      <div class="flex items-center gap-2 px-2.5 py-1.5 mb-1 border-b-2 border-gray-400 dark:border-gray-600">
+        <span class="text-xs font-bold text-gray-700 dark:text-gray-300">
+          En ambos
+        </span>
+        <span class="text-[10px] text-gray-400">({{ shared|length }})</span>
+      </div>
+      {% for item in shared %}
+      <div class="flex items-center gap-1.5 px-2.5 py-[5px] text-xs">
+        <span class="w-10 text-center text-[11px] font-bold tabular-nums shrink-0
+                     {% if item.diff > 0 %}text-green-500
+                     {% elif item.diff < 0 %}text-blue-500
+                     {% else %}text-gray-400{% endif %}">
+          {{ item.qty_a }}/{{ item.qty_b }}
+        </span>
+        <span class="flex-1 font-medium text-gray-900 dark:text-gray-100 truncate">
+          {{ item.card.name }}
+        </span>
+        {% if item.diff != 0 %}
+        <span class="shrink-0 text-[10px] tabular-nums
+                     {% if item.diff > 0 %}text-green-500{% else %}text-blue-500{% endif %}">
+          {% if item.diff > 0 %}+{% endif %}{{ item.diff }}
+        </span>
+        {% endif %}
+      </div>
+      {% empty %}
+      <p class="px-2.5 py-2 text-xs text-gray-400 italic">Ninguna</p>
+      {% endfor %}
+    </div>
+
+    <!-- Only in Deck B -->
+    <div>
+      <div class="flex items-center gap-2 px-2.5 py-1.5 mb-1 border-b-2 border-blue-400 dark:border-blue-600">
+        <span class="text-xs font-bold text-blue-700 dark:text-blue-400">
+          Solo en {{ deck_b.name|truncatechars:20 }}
+        </span>
+        <span class="text-[10px] text-gray-400">({{ only_b|length }})</span>
+      </div>
+      {% for item in only_b %}
+      <div class="flex items-center gap-1.5 px-2.5 py-[5px] text-xs">
+        <span class="w-5 text-center text-[11px] font-bold text-blue-500 tabular-nums">
+          +{{ item.qty }}
+        </span>
+        <span class="flex-1 font-medium text-gray-900 dark:text-gray-100 truncate">
+          {{ item.card.name }}
+        </span>
+        <span class="shrink-0 flex items-center gap-px text-[11px]">
+          {{ item.card|dfc_mana_cost }}
+        </span>
+      </div>
+      {% empty %}
+      <p class="px-2.5 py-2 text-xs text-gray-400 italic">Ninguna</p>
+      {% endfor %}
+    </div>
+
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

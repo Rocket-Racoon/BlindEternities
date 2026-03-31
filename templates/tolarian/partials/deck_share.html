@@ -1,0 +1,33 @@
+{% load core_tags %}
+
+<div class="space-y-3">
+  <p class="text-xs text-gray-500 dark:text-gray-400">
+    Cualquier persona con este enlace puede ver tu deck:
+  </p>
+
+  <div class="flex items-center gap-2">
+    <input type="text" value="{{ share_url }}" readonly
+           id="share-url-input"
+           class="input text-xs flex-1 bg-gray-50 dark:bg-void-900 select-all"
+           @click="$el.select()">
+    <button type="button"
+            @click="navigator.clipboard.writeText($refs.shareInput?.value || document.getElementById('share-url-input').value); $el.textContent = 'Copiado!'; setTimeout(() => $el.textContent = 'Copiar', 2000)"
+            class="px-3 py-1.5 text-xs font-medium rounded-md
+                   bg-void-600 text-white hover:bg-void-700 transition-colors shrink-0">
+      Copiar
+    </button>
+  </div>
+
+  {% if deck.share_token %}
+  <form hx-delete="{% url 'tolarian:deck-share' deck.pk %}"
+        hx-swap="outerHTML"
+        hx-target="closest div"
+        class="pt-1">
+    {% csrf_token %}
+    <button type="submit"
+            class="text-xs text-red-500 hover:text-red-400 transition-colors">
+      Desactivar enlace compartido
+    </button>
+  </form>
+  {% endif %}
+</div>

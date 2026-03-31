@@ -31,6 +31,22 @@ urlpatterns = [
     path("decks/<uuid:pk>/import/",             views.DeckImportView.as_view(),  name="deck-import"),
     path("decks/<uuid:pk>/validate/",           views.DeckValidateView.as_view(),name="deck-validate"),
 
+    path("decks/<uuid:pk>/set-cover/",            views.DeckSetCoverView.as_view(),     name="deck-set-cover"),
+    path("decks/<uuid:pk>/clone/",               views.DeckCloneView.as_view(),        name="deck-clone"),
+    path("decks/<uuid:pk>/share/",               views.DeckShareView.as_view(),        name="deck-share"),
+
+    # Deck versioning
+    path("decks/<uuid:pk>/versions/",            views.DeckVersionListView.as_view(),   name="deck-version-list"),
+    path("decks/<uuid:pk>/versions/create/",     views.DeckVersionCreateView.as_view(), name="deck-version-create"),
+    path("deck-versions/<uuid:version_pk>/",     views.DeckVersionDetailView.as_view(), name="deck-version-detail"),
+    path("deck-versions/<uuid:version_pk>/restore/", views.DeckVersionRestoreView.as_view(), name="deck-version-restore"),
+
+    # Deck comparison
+    path("decks/compare/",                       views.DeckCompareView.as_view(),      name="deck-compare"),
+
+    # Shared deck (public, no login)
+    path("shared/<str:token>/",                  views.DeckSharedView.as_view(),       name="deck-shared"),
+
     # Deck cards
     path("decks/<uuid:pk>/add/",                views.DeckAddCardView.as_view(),      name="deck-add-card"),
     path("deck-cards/<uuid:card_pk>/edit/",     views.DeckCardEditView.as_view(),     name="deck-card-edit"),

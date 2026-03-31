@@ -149,6 +149,10 @@ class Deck(BaseModel):
         null=True, blank=True,
         related_name="+",
     )
+    # Sharing
+    share_token = models.CharField(
+        max_length=32, unique=True, null=True, blank=True, db_index=True,
+    )
     # Metadata de builds
     featured    = models.BooleanField(default=False)
     notes       = models.TextField(blank=True)
@@ -233,6 +237,65 @@ class Deck(BaseModel):
             cmc = int(card.cmc or 0)
             curve[cmc] = curve.get(cmc, 0) + entry.quantity
         return dict(sorted(curve.items()))
+
+    def create_snapshot(self):
+        """Build a JSON snapshot dict of the current deck state."""
+        cards_data = []
+        for entry in self.cards.select_related("card").prefetch_related("categories"):
+            cards_data.append({
+                "card_id": str(entry.card_id),
+                "card_name": entry.card.name,
+                "print_id": str(entry.print_id) if entry.print_id else None,
+                "zone": entry.zone,
+                "quantity": entry.quantity,
+                "is_game_changer": entry.is_game_changer,
+                "categories": [c.name for c in entry.categories.all()],
+            })
+        categories_data = [
+            {"name": c.name, "position": c.position}
+            for c in self.deck_categories.all()
+        ]
+        return {
+            "cards": cards_data,
+            "categories": categories_data,
+            "total_cards": sum(c["quantity"] for c in cards_data),
+            "format": self.format,
+        }
+
+    def restore_from_snapshot(self, snapshot):
+        """Overwrite current deck cards and categories from a snapshot dict."""
+        self.cards.all().delete()
+        self.deck_categories.all().delete()
+
+        # Recreate categories
+        cat_map = {}
+        for cat_data in snapshot.get("categories", []):
+            cat = DeckCategory.objects.create(
+                deck=self, name=cat_data["name"], position=cat_data["position"]
+            )
+            cat_map[cat_data["name"]] = cat
+
+        # Recreate cards
+        for card_data in snapshot.get("cards", []):
+            try:
+                card = Card.objects.get(pk=card_data["card_id"])
+            except Card.DoesNotExist:
+                continue
+            print_obj = None
+            if card_data.get("print_id"):
+                print_obj = CardPrint.objects.filter(pk=card_data["print_id"]).first()
+
+            entry = DeckCard.objects.create(
+                deck=self,
+                card=card,
+                print=print_obj,
+                zone=card_data["zone"],
+                quantity=card_data["quantity"],
+                is_game_changer=card_data.get("is_game_changer", False),
+            )
+            for cat_name in card_data.get("categories", []):
+                if cat_name in cat_map:
+                    entry.categories.add(cat_map[cat_name])
 
     def validate_format(self):
         """
@@ -365,3 +428,27 @@ class DeckCard(BaseModel):
             .exclude(deck=self.deck)
             .select_related("deck")
         )
+
+
+class DeckVersion(BaseModel):
+    """Point-in-time snapshot of a deck's state."""
+    deck    = models.ForeignKey(Deck, on_delete=models.CASCADE, related_name="versions")
+    version = models.PositiveIntegerField()
+    label   = models.CharField(max_length=100, blank=True)
+    notes   = models.TextField(blank=True)
+    snapshot = models.JSONField()
+
+    class Meta:
+        ordering            = ["-version"]
+        verbose_name        = "deck version"
+        verbose_name_plural = "deck versions"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["deck", "version"],
+                name="unique_deck_version_number",
+            )
+        ]
+
+    def __str__(self):
+        label = f" — {self.label}" if self.label else ""
+        return f"v{self.version}{label} ({self.deck.name})"

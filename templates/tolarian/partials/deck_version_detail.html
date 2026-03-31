@@ -1,0 +1,15 @@
+{# Read-only card list for a version snapshot, grouped by zone #}
+
+{% for zone_label, cards in zone_groups.items %}
+<div class="mb-1.5">
+  <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-0.5">
+    {{ zone_label }} ({{ cards|length }})
+  </p>
+  {% for c in cards %}
+  <div class="flex items-center gap-1 px-1 py-px text-[11px]">
+    <span class="text-gray-400 w-4 text-center tabular-nums">{{ c.quantity }}</span>
+    <span class="text-gray-800 dark:text-gray-200 truncate">{{ c.card_name }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}

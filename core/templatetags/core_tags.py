@@ -20,6 +20,26 @@ def mana_cost(value):
 
 
 @register.filter
+def dfc_mana_cost(card):
+    """
+    Render mana cost for a card, showing both faces for DFCs separated by //.
+    Usage: {{ entry.card|dfc_mana_cost }}
+    """
+    faces = list(card.faces.all())  # uses prefetch if available
+    if len(faces) >= 2:
+        parts = []
+        for face in sorted(faces, key=lambda f: f.face_index):
+            parts.append(format_mana_cost(face.mana_cost) if face.mana_cost else "")
+        # Only show separator if at least one face has a cost
+        if any(parts):
+            separator = ' <span class="text-gray-400 dark:text-gray-600 mx-0.5">//</span> '
+            return mark_safe(separator.join(parts))
+        return ""
+    # Single-face: use the card-level mana cost
+    return mark_safe(format_mana_cost(card.mana_cost))
+
+
+@register.filter
 def oracle_symbols(value):
     """
     Convierte los símbolos {X} en el texto oracle a spans de mana-font.

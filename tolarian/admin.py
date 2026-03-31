@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Collection, CollectionItem, Deck, DeckCard
+from .models import Collection, CollectionItem, Deck, DeckCard, DeckVersion
 
 class CollectionItemInline(admin.TabularInline):
     model         = CollectionItem
@@ -68,3 +68,12 @@ class DeckCardAdmin(admin.ModelAdmin):
     search_fields   = ("card__name", "deck__name")
     readonly_fields = ("id", "created_at", "updated_at")
     raw_id_fields   = ("deck", "card", "print")
+
+
+@admin.register(DeckVersion)
+class DeckVersionAdmin(admin.ModelAdmin):
+    list_display    = ("deck", "version", "label", "created_at")
+    list_filter     = ("deck__format",)
+    search_fields   = ("deck__name", "label")
+    readonly_fields = ("id", "snapshot", "created_at", "updated_at")
+    raw_id_fields   = ("deck",)

@@ -1,5 +1,6 @@
 import csv
 import io
+import secrets
 from django.core.exceptions import PermissionDenied
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
@@ -19,7 +20,7 @@ from multiverse.models import Card, CardPrint
 from .mixins import CollectionOwnerMixin, DeckOwnerMixin
 from .models import (
     Collection, CollectionItem, CollectionType,
-    Deck, DeckCard, DeckCategory, DeckZone,
+    Deck, DeckCard, DeckCategory, DeckVersion, DeckZone,
 )
 from .forms import (
     CollectionForm, CollectionItemForm,
@@ -453,16 +454,31 @@ class DeckListView(LoginRequiredMixin, TemplateView):
     template_name = "tolarian/deck_list.html"
 
     def get_context_data(self, **kwargs):
-        ctx   = super().get_context_data(**kwargs)
+        ctx = super().get_context_data(**kwargs)
         decks = (
             Deck.objects
             .filter(user=self.request.user, is_active=True)
-            .annotate(card_count=Sum("cards__quantity"))
+            .annotate(card_count=Sum("cards__quantity", filter=~models.Q(cards__zone=DeckZone.EXTRAS)))
+            .select_related("cover_card__cardset", "cover_card__card")
             .order_by("-updated_at")
         )
+
+        # Distinct formats for filter pills
+        format_values = decks.values_list("format", flat=True).distinct()
+        formats = [
+            (f, dict(MagicFormat.choices).get(f, f))
+            for f in sorted(format_values) if f
+        ]
+
+        # Apply format filter
+        selected_format = self.request.GET.get("format", "")
+        if selected_format:
+            decks = decks.filter(format=selected_format)
+
         ctx.update({
-            "decks":  decks,
-            "format": self.request.GET.get("format", ""),
+            "decks": decks,
+            "format": selected_format,
+            "formats": formats,
         })
         return ctx
 
@@ -907,6 +923,27 @@ class DeckDeleteView(DeckOwnerMixin, DeleteView):
     def form_valid(self, form):
         messages.success(self.request, "Deck eliminado.")
         return super().form_valid(form)
+
+
+class DeckSetCoverView(DeckOwnerMixin, View):
+    """Set or clear the cover card for a deck via HTMX."""
+
+    def post(self, request, pk):
+        deck = get_object_or_404(Deck, pk=pk)
+        print_id = request.POST.get("print_id", "").strip()
+
+        if print_id:
+            card_print = get_object_or_404(CardPrint, pk=print_id)
+            deck.cover_card = card_print
+        else:
+            deck.cover_card = None
+        deck.save(update_fields=["cover_card"])
+
+        return render(
+            request,
+            "tolarian/partials/deck_card.html",
+            {"deck": deck},
+        )
 
 
 class DeckAddCardView(DeckOwnerMixin, View):
@@ -1425,3 +1462,292 @@ class DeckCardToggleGameChangerView(LoginRequiredMixin, View):
         entry.is_game_changer = not entry.is_game_changer
         entry.save(update_fields=["is_game_changer"])
         return JsonResponse({"ok": True, "is_game_changer": entry.is_game_changer})
+
+
+# ─── Deck Cloning ────────────────────────────────────────────────────────
+
+class DeckCloneView(LoginRequiredMixin, View):
+    """POST: clone a deck (own or public) into current user's collection."""
+
+    def post(self, request, pk):
+        source = get_object_or_404(Deck, pk=pk, is_active=True)
+        if source.user != request.user and not source.is_public and not source.share_token:
+            raise PermissionDenied
+
+        # Create new deck
+        new_deck = Deck.objects.create(
+            user=request.user,
+            name=f"{source.name} (Copia)",
+            description=source.description,
+            format=source.format,
+            is_public=False,
+            cover_card=source.cover_card,
+            notes=source.notes,
+        )
+
+        # Clone categories and build mapping
+        cat_map = {}
+        for cat in source.deck_categories.all():
+            new_cat = DeckCategory.objects.create(
+                deck=new_deck, name=cat.name, position=cat.position,
+            )
+            cat_map[cat.pk] = new_cat
+
+        # Clone cards with category assignments
+        for entry in source.cards.select_related("card", "print").prefetch_related("categories"):
+            new_entry = DeckCard.objects.create(
+                deck=new_deck,
+                card=entry.card,
+                print=entry.print,
+                zone=entry.zone,
+                quantity=entry.quantity,
+                is_game_changer=entry.is_game_changer,
+                owned=False,
+            )
+            for old_cat in entry.categories.all():
+                if old_cat.pk in cat_map:
+                    new_entry.categories.add(cat_map[old_cat.pk])
+
+        messages.success(request, f"Deck clonado: {new_deck.name}")
+        return redirect("tolarian:deck-detail", pk=new_deck.pk)
+
+
+# ─── Deck Sharing ────────────────────────────────────────────────────────
+
+class DeckShareView(DeckOwnerMixin, View):
+    """POST: generate or return share token for a deck."""
+
+    def post(self, request, pk):
+        deck = get_object_or_404(Deck, pk=pk)
+        if not deck.share_token:
+            deck.share_token = secrets.token_urlsafe(16)
+            deck.save(update_fields=["share_token"])
+
+        share_url = request.build_absolute_uri(
+            reverse("tolarian:deck-shared", kwargs={"token": deck.share_token})
+        )
+        return render(request, "tolarian/partials/deck_share.html", {
+            "deck": deck,
+            "share_url": share_url,
+        })
+
+    def delete(self, request, pk):
+        deck = get_object_or_404(Deck, pk=pk)
+        deck.share_token = None
+        deck.save(update_fields=["share_token"])
+        return HttpResponse(status=204)
+
+
+class DeckSharedView(View):
+    """GET: public read-only deck view by share token (no login required)."""
+
+    def get(self, request, token):
+        deck = get_object_or_404(Deck, share_token=token, is_active=True)
+
+        entries = list(
+            deck.cards
+            .select_related("card", "print__cardset")
+            .prefetch_related("card__faces", "categories")
+            .order_by("zone", "card__name")
+        )
+
+        # Annotate display fields
+        for entry in entries:
+            p = entry.print or entry.card.primary_print
+            entry.display_price = float(p.price_usd) if p and p.price_usd else 0.0
+            entry.display_set = p.cardset.code.upper() if p and p.cardset else ""
+
+        # Group by zone
+        zones = {}
+        for zone_choice in DeckZone:
+            zone_entries = [e for e in entries if e.zone == zone_choice.value]
+            if zone_entries:
+                qty = sum(e.quantity for e in zone_entries)
+                price = round(sum(e.display_price * e.quantity for e in zone_entries), 2)
+                zones[zone_choice] = {
+                    "entries": zone_entries,
+                    "qty": qty,
+                    "price": price,
+                }
+
+        total_cards = sum(
+            e.quantity for e in entries
+            if e.zone != DeckZone.EXTRAS
+        )
+
+        return render(request, "tolarian/deck_shared.html", {
+            "deck": deck,
+            "zones": zones,
+            "deck_entries": entries,
+            "total_cards": total_cards,
+            "is_owner": False,
+        })
+
+
+# ─── Deck Versioning ─────────────────────────────────────────────────────
+
+class DeckVersionCreateView(DeckOwnerMixin, View):
+    """POST: snapshot current deck state into a new DeckVersion."""
+
+    def post(self, request, pk):
+        deck = get_object_or_404(Deck, pk=pk)
+        last_version = deck.versions.aggregate(max_v=models.Max("version"))["max_v"] or 0
+        version = DeckVersion.objects.create(
+            deck=deck,
+            version=last_version + 1,
+            label=request.POST.get("label", "").strip(),
+            notes=request.POST.get("notes", "").strip(),
+            snapshot=deck.create_snapshot(),
+        )
+        messages.success(request, f"Version v{version.version} guardada.")
+
+        if request.headers.get("HX-Request"):
+            versions = deck.versions.filter(is_active=True)
+            return render(request, "tolarian/partials/deck_versions.html", {
+                "deck": deck, "versions": versions, "is_owner": True,
+            })
+        return redirect("tolarian:deck-detail", pk=deck.pk)
+
+
+class DeckVersionListView(LoginRequiredMixin, View):
+    """GET: HTMX partial — version timeline for a deck."""
+
+    def get(self, request, pk):
+        deck = get_object_or_404(Deck, pk=pk, is_active=True)
+        if deck.user != request.user and not deck.is_public and not deck.share_token:
+            raise PermissionDenied
+
+        versions = deck.versions.filter(is_active=True)
+        is_owner = deck.user == request.user
+        return render(request, "tolarian/partials/deck_versions.html", {
+            "deck": deck, "versions": versions, "is_owner": is_owner,
+        })
+
+
+class DeckVersionDetailView(LoginRequiredMixin, View):
+    """GET: HTMX partial — read-only view of a version snapshot."""
+
+    def get(self, request, version_pk):
+        version = get_object_or_404(
+            DeckVersion.objects.select_related("deck"),
+            pk=version_pk,
+        )
+        deck = version.deck
+        if deck.user != request.user and not deck.is_public and not deck.share_token:
+            raise PermissionDenied
+
+        snapshot = version.snapshot
+        # Group cards by zone for display
+        zone_groups = {}
+        for card_data in snapshot.get("cards", []):
+            zone_label = dict(DeckZone.choices).get(card_data["zone"], card_data["zone"])
+            zone_groups.setdefault(zone_label, []).append(card_data)
+
+        return render(request, "tolarian/partials/deck_version_detail.html", {
+            "version": version,
+            "deck": deck,
+            "zone_groups": zone_groups,
+            "snapshot": snapshot,
+        })
+
+
+class DeckVersionRestoreView(DeckOwnerMixin, View):
+    """POST: restore deck state from a version snapshot."""
+
+    def post(self, request, version_pk):
+        version = get_object_or_404(
+            DeckVersion.objects.select_related("deck"),
+            pk=version_pk,
+        )
+        deck = version.deck
+        if deck.user != request.user:
+            raise PermissionDenied
+
+        deck.restore_from_snapshot(version.snapshot)
+        messages.success(request, f"Deck restaurado a v{version.version}.")
+        return redirect("tolarian:deck-detail", pk=deck.pk)
+
+
+# ─── Deck Comparison ──────────────────────────────────────────────────────
+
+class DeckCompareView(LoginRequiredMixin, TemplateView):
+    """GET: side-by-side comparison of two decks."""
+    template_name = "tolarian/deck_compare.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        a_pk = self.request.GET.get("a")
+        b_pk = self.request.GET.get("b")
+
+        if not a_pk or not b_pk:
+            # Show deck picker
+            user_decks = (
+                Deck.objects
+                .filter(user=self.request.user, is_active=True)
+                .annotate(card_count=Sum("cards__quantity"))
+                .select_related("cover_card__card")
+                .order_by("name")
+            )
+            ctx["user_decks"] = user_decks
+            return ctx
+
+        deck_a = get_object_or_404(Deck, pk=a_pk, is_active=True)
+        deck_b = get_object_or_404(Deck, pk=b_pk, is_active=True)
+
+        # Check access
+        for d in (deck_a, deck_b):
+            if d.user != self.request.user and not d.is_public and not d.share_token:
+                raise PermissionDenied
+
+        # Build card maps: {card_name: {zone: qty}}
+        def build_card_map(deck):
+            result = {}
+            for entry in deck.cards.select_related("card").exclude(zone=DeckZone.EXTRAS):
+                name = entry.card.name
+                if name not in result:
+                    result[name] = {"total_qty": 0, "zones": {}, "card": entry.card}
+                result[name]["total_qty"] += entry.quantity
+                result[name]["zones"][entry.zone] = (
+                    result[name]["zones"].get(entry.zone, 0) + entry.quantity
+                )
+            return result
+
+        map_a = build_card_map(deck_a)
+        map_b = build_card_map(deck_b)
+
+        all_names = sorted(set(map_a.keys()) | set(map_b.keys()))
+
+        only_a = []
+        only_b = []
+        shared = []
+
+        for name in all_names:
+            in_a = map_a.get(name)
+            in_b = map_b.get(name)
+            if in_a and not in_b:
+                only_a.append({"card": in_a["card"], "qty": in_a["total_qty"]})
+            elif in_b and not in_a:
+                only_b.append({"card": in_b["card"], "qty": in_b["total_qty"]})
+            else:
+                shared.append({
+                    "card": in_a["card"],
+                    "qty_a": in_a["total_qty"],
+                    "qty_b": in_b["total_qty"],
+                    "diff": in_a["total_qty"] - in_b["total_qty"],
+                })
+
+        ctx.update({
+            "deck_a": deck_a,
+            "deck_b": deck_b,
+            "only_a": only_a,
+            "only_b": only_b,
+            "shared": shared,
+            "stats": {
+                "a_total": sum(m["total_qty"] for m in map_a.values()),
+                "b_total": sum(m["total_qty"] for m in map_b.values()),
+                "only_a_count": len(only_a),
+                "only_b_count": len(only_b),
+                "shared_count": len(shared),
+            },
+        })
+        return ctx

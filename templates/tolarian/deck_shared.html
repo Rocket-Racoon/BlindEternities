@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load static core_tags %}
+
+{% block title %}{{ deck.name }} — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+
+  <!-- Header -->
+  <div class="bg-white dark:bg-void-900 border border-gray-200 dark:border-void-700 rounded-lg p-4 mb-4">
+    <div class="flex items-center justify-between gap-4">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2">
+          <h1 class="text-lg font-bold text-gray-900 dark:text-gray-100 truncate">{{ deck.name }}</h1>
+          <span class="shrink-0 inline-flex items-center px-2 py-0.5 rounded text-[11px]
+                       bg-void-100 dark:bg-void-800 text-void-700 dark:text-void-300 font-semibold uppercase tracking-wide">
+            {{ deck.get_format_display }}
+          </span>
+        </div>
+        <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+          {{ total_cards }} cartas &middot; Compartido por {{ deck.user.username }}
+        </p>
+        {% if deck.description %}
+        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ deck.description }}</p>
+        {% endif %}
+      </div>
+
+      {% if user.is_authenticated %}
+      <form method="post" action="{% url 'tolarian:deck-clone' deck.pk %}">
+        {% csrf_token %}
+        <button type="submit"
+                class="px-3 py-1.5 text-xs font-medium rounded-md
+                       bg-void-600 text-white hover:bg-void-700 transition-colors">
+          Clonar deck
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Card list by zone -->
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+    {% for zone, zone_data in zones.items %}
+    <div>
+      <!-- Zone header -->
+      <div class="flex items-center justify-between px-2.5 py-1.5 mb-1
+                  border-b-2 border-gray-300 dark:border-void-600">
+        <span class="text-xs font-bold text-gray-700 dark:text-gray-200">
+          {{ zone.label }}
+        </span>
+        <span class="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
+          Qty: {{ zone_data.qty }}
+          {% if zone_data.price %}&middot; ${{ zone_data.price }}{% endif %}
+        </span>
+      </div>
+
+      <!-- Cards -->
+      {% for entry in zone_data.entries %}
+      <div class="flex items-center gap-1.5 px-2.5 py-[5px] text-xs
+                  hover:bg-void-50 dark:hover:bg-void-800/40 transition-colors">
+        <span class="w-5 text-center text-[11px] font-bold text-gray-400 dark:text-gray-500 shrink-0 tabular-nums">
+          {{ entry.quantity }}
+        </span>
+        <span class="flex-1 font-medium text-gray-900 dark:text-gray-100 truncate min-w-0">
+          {{ entry.card.name }}
+        </span>
+        <span class="shrink-0 flex items-center gap-px text-[11px]">
+          {{ entry.card|dfc_mana_cost }}
+        </span>
+        {% if entry.display_set %}
+        <span class="shrink-0 text-[9px] font-medium text-gray-400 dark:text-gray-600 uppercase tracking-wide">
+          {{ entry.display_set }}
+        </span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}
