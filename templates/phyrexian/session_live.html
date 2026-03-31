@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Game — Blind Eternities</title>
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/main.css' %}">
+  <style>
+    [x-cloak]{display:none!important}
+    body { overscroll-behavior: none; }
+    .life-btn { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }
+    .player-panel { transition: all 0.2s ease; }
+    .player-panel.dead { opacity: 0.5; filter: grayscale(0.5); }
+    .delta-flash {
+      animation: deltaFlash 0.6s ease-out forwards;
+      pointer-events: none;
+    }
+    @keyframes deltaFlash {
+      0% { opacity: 1; transform: translateY(0) scale(1.2); }
+      100% { opacity: 0; transform: translateY(-20px) scale(1); }
+    }
+  </style>
+</head>
+<body class="h-full bg-gray-900 text-white overflow-hidden"
+      x-data="liveGame()"
+      @keydown.escape="showMenu = !showMenu">
+
+  <!-- Top Bar -->
+  <div class="fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-3 py-2 bg-gray-900/90 backdrop-blur-sm border-b border-gray-800">
+    <div class="flex items-center gap-3">
+      <button @click="showMenu = !showMenu" class="p-1 text-gray-400 hover:text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      </button>
+      <span class="text-xs text-gray-400 uppercase tracking-wider">{{ session.get_format_display }}</span>
+    </div>
+
+    <!-- Turn counter -->
+    <div id="turn-counter" class="flex items-center gap-2">
+      <span class="text-xs text-gray-500">Turn</span>
+      <span class="text-sm font-bold text-gray-200" x-text="turn">{{ session.current_turn }}</span>
+      <button @click="nextTurn()" class="p-1 text-gray-400 hover:text-white" title="Next turn">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button @click="showLog = !showLog" class="p-1 text-gray-400 hover:text-white" title="Game log">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Player Grid -->
+  <div class="pt-12 h-full grid gap-1 p-1"
+       :class="gridClass">
+    <template x-for="(player, idx) in players" :key="player.pk">
+      <div class="player-panel relative rounded-xl overflow-hidden flex flex-col items-center justify-center"
+           :class="player.life <= 0 || player.poison >= 10 ? 'dead' : ''"
+           :style="`background: linear-gradient(135deg, ${player.color}22, ${player.color}44); border: 2px solid ${player.color}66;`"
+           :id="'player-' + player.pk">
+
+        <!-- Player name -->
+        <div class="absolute top-2 left-3 right-3 flex items-center justify-between">
+          <span class="text-xs font-semibold truncate opacity-80" x-text="player.name"></span>
+          <div class="flex items-center gap-1.5">
+            <!-- Monarch badge -->
+            <span x-show="player.is_monarch" x-cloak class="text-yellow-400 text-xs" title="Monarch">&#9813;</span>
+            <!-- Initiative badge -->
+            <span x-show="player.has_initiative" x-cloak class="text-cyan-400 text-xs" title="Initiative">&#9733;</span>
+          </div>
+        </div>
+
+        <!-- Life total (main interaction) -->
+        <div class="flex items-center gap-0 select-none">
+          <button @click="changeLife(idx, -1)" @dblclick.prevent
+                  class="life-btn w-16 h-24 sm:w-20 sm:h-28 flex items-center justify-center text-white/30 hover:text-white/60 active:text-white/80 text-3xl font-bold rounded-l-xl">
+            &minus;
+          </button>
+          <div class="relative flex flex-col items-center px-2">
+            <span class="text-5xl sm:text-6xl font-bold tabular-nums leading-none" x-text="player.life"></span>
+            <!-- Delta flash -->
+            <div x-show="player.deltaShow" x-cloak
+                 class="absolute -top-5 delta-flash text-lg font-bold"
+                 :class="player.lastDelta > 0 ? 'text-green-400' : 'text-red-400'"
+                 x-text="(player.lastDelta > 0 ? '+' : '') + player.lastDelta"></div>
+          </div>
+          <button @click="changeLife(idx, 1)" @dblclick.prevent
+                  class="life-btn w-16 h-24 sm:w-20 sm:h-28 flex items-center justify-center text-white/30 hover:text-white/60 active:text-white/80 text-3xl font-bold rounded-r-xl">
+            +
+          </button>
+        </div>
+
+        <!-- Counters row -->
+        <div class="absolute bottom-2 left-2 right-2 flex items-center justify-center gap-3 text-[10px]">
+          <!-- Poison -->
+          <div class="flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity"
+               :class="player.poison > 0 && 'opacity-100 !text-green-400'">
+            <button @click="changeCounter(idx, 'poison', -1)" class="life-btn px-1">-</button>
+            <span class="font-bold" x-text="player.poison"></span>
+            <span>&#9760;</span>
+            <button @click="changeCounter(idx, 'poison', 1)" class="life-btn px-1">+</button>
+          </div>
+          <!-- Energy -->
+          <div class="flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity"
+               :class="player.energy > 0 && 'opacity-100 !text-yellow-400'">
+            <button @click="changeCounter(idx, 'energy', -1)" class="life-btn px-1">-</button>
+            <span class="font-bold" x-text="player.energy"></span>
+            <span>&#9889;</span>
+            <button @click="changeCounter(idx, 'energy', 1)" class="life-btn px-1">+</button>
+          </div>
+          <!-- Experience -->
+          <div class="flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity"
+               :class="player.experience > 0 && 'opacity-100 !text-purple-400'">
+            <button @click="changeCounter(idx, 'experience', -1)" class="life-btn px-1">-</button>
+            <span class="font-bold" x-text="player.experience"></span>
+            <span>&#10026;</span>
+            <button @click="changeCounter(idx, 'experience', 1)" class="life-btn px-1">+</button>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- Side menu -->
+  <div x-show="showMenu" x-cloak x-transition:enter="transition ease-out duration-200"
+       x-transition:enter-start="-translate-x-full" x-transition:enter-end="translate-x-0"
+       x-transition:leave="transition ease-in duration-150"
+       x-transition:leave-start="translate-x-0" x-transition:leave-end="-translate-x-full"
+       @click.away="showMenu = false"
+       class="fixed top-0 left-0 bottom-0 w-64 bg-gray-800 border-r border-gray-700 z-50 flex flex-col p-4 shadow-2xl">
+    <h2 class="text-lg font-bold mb-4">Game Menu</h2>
+
+    <div class="space-y-2 flex-1">
+      <!-- Monarch -->
+      <p class="text-xs text-gray-500 uppercase tracking-wider mt-3 mb-1">Assign Monarch</p>
+      <template x-for="(player, idx) in players" :key="'m-' + player.pk">
+        <button @click="toggleStatus(idx, 'monarch'); showMenu = false"
+                class="w-full text-left px-3 py-1.5 rounded text-sm transition-colors"
+                :class="player.is_monarch ? 'bg-yellow-500/20 text-yellow-400' : 'text-gray-300 hover:bg-gray-700'"
+                x-text="player.name + (player.is_monarch ? ' &#9813;' : '')"></button>
+      </template>
+
+      <!-- Initiative -->
+      <p class="text-xs text-gray-500 uppercase tracking-wider mt-3 mb-1">Assign Initiative</p>
+      <template x-for="(player, idx) in players" :key="'i-' + player.pk">
+        <button @click="toggleStatus(idx, 'initiative'); showMenu = false"
+                class="w-full text-left px-3 py-1.5 rounded text-sm transition-colors"
+                :class="player.has_initiative ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-300 hover:bg-gray-700'"
+                x-text="player.name + (player.has_initiative ? ' &#9733;' : '')"></button>
+      </template>
+
+      <!-- Dice -->
+      <p class="text-xs text-gray-500 uppercase tracking-wider mt-4 mb-1">Tools</p>
+      <button @click="rollDice(6)" class="w-full text-left px-3 py-1.5 rounded text-sm text-gray-300 hover:bg-gray-700">
+        Roll d6 <span x-show="lastRoll && lastDie === 6" class="font-bold text-white" x-text="'→ ' + lastRoll"></span>
+      </button>
+      <button @click="rollDice(20)" class="w-full text-left px-3 py-1.5 rounded text-sm text-gray-300 hover:bg-gray-700">
+        Roll d20 <span x-show="lastRoll && lastDie === 20" class="font-bold text-white" x-text="'→ ' + lastRoll"></span>
+      </button>
+      <button @click="flipCoin()" class="w-full text-left px-3 py-1.5 rounded text-sm text-gray-300 hover:bg-gray-700">
+        Flip Coin <span x-show="coinResult" class="font-bold text-white" x-text="'→ ' + coinResult"></span>
+      </button>
+      <button @click="randomPlayer()" class="w-full text-left px-3 py-1.5 rounded text-sm text-gray-300 hover:bg-gray-700">
+        Random Player <span x-show="randomPick" class="font-bold text-white" x-text="'→ ' + randomPick"></span>
+      </button>
+    </div>
+
+    <div class="pt-4 border-t border-gray-700 space-y-2">
+      <button @click="resetGame()" class="w-full px-3 py-2 rounded text-sm bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors">
+        Reset Life Totals
+      </button>
+      <a href="{% url 'phyrexian:session-end' session.pk %}"
+         class="block w-full px-3 py-2 rounded text-sm text-center bg-red-600/80 text-white hover:bg-red-600 transition-colors">
+        End Game
+      </a>
+      <a href="{% url 'phyrexian:dashboard' %}"
+         class="block w-full px-3 py-2 rounded text-sm text-center text-gray-400 hover:text-white transition-colors">
+        Back to Dashboard
+      </a>
+    </div>
+  </div>
+
+  <!-- Game Log Sidebar -->
+  <div x-show="showLog" x-cloak x-transition:enter="transition ease-out duration-200"
+       x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
+       x-transition:leave="transition ease-in duration-150"
+       x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"
+       @click.away="showLog = false"
+       class="fixed top-0 right-0 bottom-0 w-72 bg-gray-800 border-l border-gray-700 z-50 flex flex-col shadow-2xl">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+      <h2 class="text-sm font-bold">Game Log</h2>
+      <button @click="showLog = false" class="text-gray-400 hover:text-white">&times;</button>
+    </div>
+    <div id="life-log" class="flex-1 overflow-y-auto p-3 space-y-1"
+         hx-get="{% url 'phyrexian:session-log' session.pk %}"
+         hx-trigger="every 3s"
+         hx-swap="innerHTML">
+      {% include "phyrexian/partials/life_log.html" %}
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script>
+    function liveGame() {
+      const players = {{ players_json|safe }};
+      // Add client-side state
+      players.forEach(p => { p.deltaShow = false; p.lastDelta = 0; });
+
+      return {
+        players,
+        turn: {{ session.current_turn }},
+        showMenu: false,
+        showLog: false,
+        lastRoll: null,
+        lastDie: null,
+        coinResult: '',
+        randomPick: '',
+
+        get gridClass() {
+          const n = this.players.length;
+          if (n === 2) return 'grid-cols-1 grid-rows-2';
+          if (n === 3) return 'grid-cols-1 sm:grid-cols-2 grid-rows-2';
+          if (n === 4) return 'grid-cols-2 grid-rows-2';
+          if (n === 5) return 'grid-cols-2 sm:grid-cols-3 grid-rows-2';
+          return 'grid-cols-2 sm:grid-cols-3 grid-rows-2';
+        },
+
+        changeLife(idx, delta) {
+          const player = this.players[idx];
+          player.life += delta;
+          player.lastDelta = delta;
+          player.deltaShow = true;
+          setTimeout(() => { player.deltaShow = false; }, 600);
+
+          // Persist to server
+          fetch(`/stats/session/${player.pk}/life/`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: `delta=${delta}`
+          });
+        },
+
+        changeCounter(idx, counter, delta) {
+          const player = this.players[idx];
+          player[counter] = Math.max(0, player[counter] + delta);
+
+          fetch(`/stats/session/${player.pk}/counter/`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: `counter=${counter}&delta=${delta}`
+          });
+        },
+
+        toggleStatus(idx, flag) {
+          if (flag === 'monarch') {
+            this.players.forEach(p => p.is_monarch = false);
+            this.players[idx].is_monarch = true;
+          } else if (flag === 'initiative') {
+            this.players.forEach(p => p.has_initiative = false);
+            this.players[idx].has_initiative = true;
+          }
+
+          fetch(`/stats/session/${this.players[idx].pk}/toggle/`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: `flag=${flag}`
+          });
+        },
+
+        nextTurn() {
+          this.turn++;
+          fetch(`/stats/session/{{ session.pk }}/next-turn/`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-CSRFToken': '{{ csrf_token }}',
+            },
+          });
+        },
+
+        resetGame() {
+          if (!confirm('Reset all life totals?')) return;
+          this.players.forEach(p => {
+            p.life = {{ session.starting_life }};
+            p.poison = 0;
+            p.energy = 0;
+            p.experience = 0;
+          });
+          this.turn = 1;
+
+          fetch(`/stats/session/{{ session.pk }}/reset/`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-CSRFToken': '{{ csrf_token }}',
+            },
+          });
+        },
+
+        rollDice(sides) {
+          this.lastDie = sides;
+          this.lastRoll = Math.floor(Math.random() * sides) + 1;
+        },
+
+        flipCoin() {
+          this.coinResult = Math.random() < 0.5 ? 'Heads' : 'Tails';
+        },
+
+        randomPlayer() {
+          const alive = this.players.filter(p => p.life > 0 && p.poison < 10);
+          if (alive.length) {
+            this.randomPick = alive[Math.floor(Math.random() * alive.length)].name;
+          }
+        }
+      };
+    }
+  </script>
+</body>
+</html>

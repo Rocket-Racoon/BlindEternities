@@ -11,9 +11,15 @@
     <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">
       Stats Dashboard
     </h1>
-    <a href="{% url 'phyrexian:game-create' %}" class="btn-primary">
-      Log Game
-    </a>
+    <div class="flex items-center gap-2">
+      <a href="{% url 'phyrexian:session-setup' %}"
+         class="px-4 py-2 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors font-medium">
+        Start Game
+      </a>
+      <a href="{% url 'phyrexian:game-create' %}" class="btn-primary">
+        Log Game
+      </a>
+    </div>
   </div>
 
   <!-- Summary cards (HTMX refreshable) -->

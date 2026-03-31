@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}End Game — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+
+  <div class="mb-6">
+    <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">End Game</h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+      {{ session.get_format_display }} — {{ session.player_count }} players — Turn {{ session.current_turn }}
+    </p>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="card p-6 mb-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Select Winner</h2>
+      <div class="space-y-2">
+        {% for player in players %}
+        <label class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-void-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-void-800/30 transition-colors">
+          <input type="radio" name="winner" value="{{ player.pk }}" class="accent-void-600">
+          <div class="w-3 h-3 rounded-full" style="background-color: {{ player.color }}"></div>
+          <span class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ player.name }}</span>
+          <span class="ml-auto text-sm text-gray-500">{{ player.life }} life</span>
+        </label>
+        {% endfor %}
+        <label class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-void-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-void-800/30 transition-colors">
+          <input type="radio" name="winner" value="" class="accent-void-600">
+          <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Draw / No winner</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Final standings -->
+    <div class="card p-6 mb-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Final Standings</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-void-700">
+              <th class="pb-2 font-medium">Player</th>
+              <th class="pb-2 font-medium text-right">Life</th>
+              <th class="pb-2 font-medium text-right">Poison</th>
+              <th class="pb-2 font-medium text-right">Energy</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 dark:divide-void-800">
+            {% for player in players %}
+            <tr>
+              <td class="py-2 flex items-center gap-2">
+                <div class="w-2.5 h-2.5 rounded-full" style="background-color: {{ player.color }}"></div>
+                <span class="text-gray-800 dark:text-gray-200">{{ player.name }}</span>
+              </td>
+              <td class="py-2 text-right font-mono {% if player.life <= 0 %}text-red-500{% else %}text-gray-700 dark:text-gray-300{% endif %}">{{ player.life }}</td>
+              <td class="py-2 text-right font-mono {% if player.poison >= 10 %}text-green-500{% else %}text-gray-500{% endif %}">{{ player.poison }}</td>
+              <td class="py-2 text-right font-mono text-gray-500">{{ player.energy }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-3">
+      <a href="{% url 'phyrexian:session-live' session.pk %}"
+         class="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-void-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800 transition-colors">
+        Back to Game
+      </a>
+      <button type="submit" class="btn-primary">End &amp; Save</button>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

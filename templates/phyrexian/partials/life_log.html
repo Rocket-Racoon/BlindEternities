@@ -1,0 +1,20 @@
+{# Life change log entries — HTMX partial #}
+{% for change in recent_changes %}
+<div class="flex items-center justify-between text-xs py-1 border-b border-gray-700/50">
+  <div class="flex items-center gap-2">
+    <span class="w-1.5 h-1.5 rounded-full shrink-0"
+          style="background-color: {{ change.player.color }}"></span>
+    <span class="text-gray-300 truncate max-w-[100px]">{{ change.player.name }}</span>
+  </div>
+  <div class="flex items-center gap-2">
+    <span class="font-mono font-bold
+      {% if change.delta > 0 %}text-green-400{% else %}text-red-400{% endif %}">
+      {% if change.delta > 0 %}+{% endif %}{{ change.delta }}
+    </span>
+    <span class="text-gray-500">&rarr; {{ change.life_after }}</span>
+  </div>
+  <span class="text-gray-600 text-[10px]">T{{ change.turn }}</span>
+</div>
+{% empty %}
+<p class="text-xs text-gray-500 text-center py-4">No changes yet.</p>
+{% endfor %}

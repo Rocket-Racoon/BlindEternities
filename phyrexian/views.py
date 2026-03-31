@@ -13,8 +13,11 @@ from django.views.generic import (
 from core.mixins import OwnerRequiredMixin
 from tolarian.models import Collection, CollectionItem, Deck, DeckCard, DeckZone
 from multiverse.models import Card, CardPrint
-from .models import GameRecord, GameResult
-from .forms import GameRecordForm
+from .models import (
+    GameRecord, GameResult, GameSession, PlayerSlot, LifeChange,
+    SessionStatus, FORMAT_STARTING_LIFE,
+)
+from .forms import GameRecordForm, SessionSetupForm, PLAYER_COLORS
 
 # Color config shared by all chart views
 COLOR_LABELS = {"W": "White", "U": "Blue", "B": "Black", "R": "Red", "G": "Green", "C": "Colorless"}
@@ -522,4 +525,263 @@ class DashboardStatsPartialView(LoginRequiredMixin, TemplateView):
         ctx["total_games"] = GameRecord.objects.filter(user=user, is_active=True).count()
         collections = Collection.objects.filter(user=user, is_active=True)
         ctx["total_collection_value"] = sum(c.total_value for c in collections)
+        return ctx
+
+
+# ---------------------------------------------------------------------------
+# Live Game Session
+# ---------------------------------------------------------------------------
+class SessionSetupView(LoginRequiredMixin, TemplateView):
+    """Step 1: Configure format, player count, and starting life."""
+    template_name = "phyrexian/session_setup.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["form"] = SessionSetupForm()
+        ctx["player_colors"] = PLAYER_COLORS
+        ctx["format_life_map"] = json.dumps(FORMAT_STARTING_LIFE)
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        form = SessionSetupForm(request.POST)
+        if not form.is_valid():
+            return self.render_to_response({"form": form, "player_colors": PLAYER_COLORS, "format_life_map": json.dumps(FORMAT_STARTING_LIFE)})
+
+        fmt = form.cleaned_data["format"]
+        player_count = form.cleaned_data["player_count"]
+        starting_life = form.cleaned_data["starting_life"]
+
+        # Create session
+        session = GameSession.objects.create(
+            host=request.user,
+            format=fmt,
+            starting_life=starting_life,
+        )
+
+        # Create player slots from POST data
+        for i in range(player_count):
+            name = request.POST.get(f"player_{i}_name", f"Player {i + 1}").strip()
+            color = request.POST.get(f"player_{i}_color", PLAYER_COLORS[i % len(PLAYER_COLORS)])
+            if not name:
+                name = f"Player {i + 1}"
+            PlayerSlot.objects.create(
+                session=session,
+                name=name,
+                position=i,
+                life=starting_life,
+                color=color,
+            )
+
+        from django.shortcuts import redirect
+        return redirect("phyrexian:session-live", pk=session.pk)
+
+
+class SessionLiveView(LoginRequiredMixin, TemplateView):
+    """The full-screen live game tracker."""
+    template_name = "phyrexian/session_live.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        session = get_object_or_404(GameSession, pk=kwargs["pk"])
+        players = list(session.players.all())
+
+        ctx["session"] = session
+        ctx["players"] = players
+        ctx["players_json"] = json.dumps([
+            {
+                "pk": str(p.pk),
+                "name": p.name,
+                "life": p.life,
+                "poison": p.poison,
+                "energy": p.energy,
+                "experience": p.experience,
+                "is_monarch": p.is_monarch,
+                "has_initiative": p.has_initiative,
+                "commander_damage": p.commander_damage,
+                "color": p.color,
+                "is_dead": p.is_dead,
+            }
+            for p in players
+        ])
+        ctx["recent_changes"] = session.life_changes.order_by("-created_at")[:20]
+        return ctx
+
+
+class SessionLifeChangeView(LoginRequiredMixin, TemplateView):
+    """HTMX endpoint: apply a life change and return updated player panel."""
+    template_name = "phyrexian/partials/player_panel.html"
+
+    def post(self, request, *args, **kwargs):
+        player = get_object_or_404(PlayerSlot, pk=kwargs["player_pk"])
+        session = player.session
+
+        if session.status != SessionStatus.ACTIVE:
+            from django.http import HttpResponseBadRequest
+            return HttpResponseBadRequest("Session is not active.")
+
+        delta = int(request.POST.get("delta", 0))
+        if delta == 0:
+            from django.http import HttpResponseBadRequest
+            return HttpResponseBadRequest("Delta cannot be zero.")
+
+        player.life += delta
+        player.save(update_fields=["life", "updated_at"])
+
+        LifeChange.objects.create(
+            session=session,
+            player=player,
+            delta=delta,
+            life_after=player.life,
+            turn=session.current_turn,
+        )
+
+        return self.render_to_response({"player": player, "session": session})
+
+
+class SessionCounterChangeView(LoginRequiredMixin, TemplateView):
+    """HTMX endpoint: change a counter (poison, energy, experience) on a player."""
+    template_name = "phyrexian/partials/player_panel.html"
+
+    def post(self, request, *args, **kwargs):
+        player = get_object_or_404(PlayerSlot, pk=kwargs["player_pk"])
+
+        counter = request.POST.get("counter", "")
+        delta = int(request.POST.get("delta", 0))
+
+        if counter == "poison":
+            player.poison = max(0, player.poison + delta)
+            player.save(update_fields=["poison", "updated_at"])
+        elif counter == "energy":
+            player.energy = max(0, player.energy + delta)
+            player.save(update_fields=["energy", "updated_at"])
+        elif counter == "experience":
+            player.experience = max(0, player.experience + delta)
+            player.save(update_fields=["experience", "updated_at"])
+
+        return self.render_to_response({"player": player, "session": player.session})
+
+
+class SessionToggleStatusView(LoginRequiredMixin, TemplateView):
+    """HTMX endpoint: toggle monarch, initiative, city's blessing."""
+    template_name = "phyrexian/partials/player_panel.html"
+
+    def post(self, request, *args, **kwargs):
+        player = get_object_or_404(PlayerSlot, pk=kwargs["player_pk"])
+        flag = request.POST.get("flag", "")
+
+        if flag == "monarch":
+            # Only one player can be monarch at a time
+            player.session.players.update(is_monarch=False)
+            player.is_monarch = True
+            player.save(update_fields=["is_monarch", "updated_at"])
+        elif flag == "initiative":
+            player.session.players.update(has_initiative=False)
+            player.has_initiative = True
+            player.save(update_fields=["has_initiative", "updated_at"])
+        elif flag == "citys_blessing":
+            player.has_citys_blessing = not player.has_citys_blessing
+            player.save(update_fields=["has_citys_blessing", "updated_at"])
+
+        # Return all players since monarch/initiative affects everyone
+        from django.shortcuts import render
+        players = list(player.session.players.all())
+        return render(request, "phyrexian/partials/all_players.html", {
+            "players": players, "session": player.session,
+        })
+
+
+class SessionNextTurnView(LoginRequiredMixin, TemplateView):
+    """HTMX endpoint: advance the turn counter."""
+    template_name = "phyrexian/partials/turn_counter.html"
+
+    def post(self, request, *args, **kwargs):
+        session = get_object_or_404(GameSession, pk=kwargs["pk"])
+        session.current_turn += 1
+        session.save(update_fields=["current_turn", "updated_at"])
+        return self.render_to_response({"session": session})
+
+
+class SessionEndView(LoginRequiredMixin, TemplateView):
+    """End the session and optionally create GameRecords."""
+    template_name = "phyrexian/session_end.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        session = get_object_or_404(GameSession, pk=kwargs["pk"])
+        ctx["session"] = session
+        ctx["players"] = list(session.players.all())
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        session = get_object_or_404(GameSession, pk=kwargs["pk"])
+        winner_pk = request.POST.get("winner")
+
+        if winner_pk:
+            winner = get_object_or_404(PlayerSlot, pk=winner_pk, session=session)
+            session.winner = winner
+        session.status = SessionStatus.FINISHED
+        session.save(update_fields=["status", "winner", "updated_at"])
+
+        # Auto-create a GameRecord for the host if they played
+        host_slot = session.players.filter(user=request.user).first()
+        if host_slot:
+            if winner_pk and str(host_slot.pk) == winner_pk:
+                result = GameResult.WIN
+            elif winner_pk:
+                result = GameResult.LOSS
+            else:
+                result = GameResult.DRAW
+
+            opponents = session.players.exclude(pk=host_slot.pk)
+            opponent_names = ", ".join(p.name for p in opponents)
+
+            GameRecord.objects.create(
+                user=request.user,
+                deck=host_slot.deck,
+                format=session.format,
+                result=result,
+                opponent_name=opponent_names,
+                turns=session.current_turn,
+                date_played=timezone.now().date(),
+                session=session,
+                notes=f"Live session — {session.player_count} players",
+            )
+
+        from django.shortcuts import redirect
+        return redirect("phyrexian:session-summary", pk=session.pk)
+
+
+class SessionSummaryView(LoginRequiredMixin, TemplateView):
+    """Post-game summary with life change history."""
+    template_name = "phyrexian/session_summary.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        session = get_object_or_404(GameSession, pk=kwargs["pk"])
+        ctx["session"] = session
+        ctx["players"] = list(session.players.all())
+        ctx["life_changes"] = session.life_changes.select_related("player").order_by("created_at")
+        ctx["total_changes"] = session.life_changes.count()
+        return ctx
+
+
+class SessionResetView(LoginRequiredMixin, TemplateView):
+    """Reset life totals for a new game within the same session."""
+    template_name = "phyrexian/partials/all_players.html"
+
+    def post(self, request, *args, **kwargs):
+        session = get_object_or_404(GameSession, pk=kwargs["pk"])
+        session.reset_life()
+        players = list(session.players.all())
+        return self.render_to_response({"players": players, "session": session})
+
+
+class SessionLogPartialView(LoginRequiredMixin, TemplateView):
+    """HTMX partial: return recent life change log entries."""
+    template_name = "phyrexian/partials/life_log.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        session = get_object_or_404(GameSession, pk=kwargs["pk"])
+        ctx["recent_changes"] = session.life_changes.select_related("player").order_by("-created_at")[:20]
         return ctx

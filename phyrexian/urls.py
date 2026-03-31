@@ -19,6 +19,20 @@ urlpatterns = [
     path("games/<uuid:pk>/edit/", views.GameRecordUpdateView.as_view(), name="game-edit"),
     path("games/<uuid:pk>/delete/", views.GameRecordDeleteView.as_view(), name="game-delete"),
 
+    # Live game sessions
+    path("session/new/", views.SessionSetupView.as_view(), name="session-setup"),
+    path("session/<uuid:pk>/", views.SessionLiveView.as_view(), name="session-live"),
+    path("session/<uuid:pk>/end/", views.SessionEndView.as_view(), name="session-end"),
+    path("session/<uuid:pk>/summary/", views.SessionSummaryView.as_view(), name="session-summary"),
+    path("session/<uuid:pk>/next-turn/", views.SessionNextTurnView.as_view(), name="session-next-turn"),
+    path("session/<uuid:pk>/reset/", views.SessionResetView.as_view(), name="session-reset"),
+    path("session/<uuid:pk>/log/", views.SessionLogPartialView.as_view(), name="session-log"),
+
+    # Session HTMX endpoints (per-player)
+    path("session/<uuid:player_pk>/life/", views.SessionLifeChangeView.as_view(), name="session-life"),
+    path("session/<uuid:player_pk>/counter/", views.SessionCounterChangeView.as_view(), name="session-counter"),
+    path("session/<uuid:player_pk>/toggle/", views.SessionToggleStatusView.as_view(), name="session-toggle"),
+
     # HTMX partials
     path("partials/stats/", views.DashboardStatsPartialView.as_view(), name="partial-stats"),
 ]
