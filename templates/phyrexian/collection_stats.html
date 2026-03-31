@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% load core_tags %}
+
+{% block title %}Collection Stats — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <a href="{% url 'phyrexian:dashboard' %}" class="text-sm text-void-600 dark:text-void-400 hover:underline">&larr; Dashboard</a>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">Collection Stats</h1>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-void-600 dark:text-void-400">{{ total_cards }}</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Total Cards</p>
+    </div>
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-green-600 dark:text-green-400">${{ total_value|floatformat:2 }}</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Total Value (USD)</p>
+    </div>
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-void-600 dark:text-void-400">
+        {% if top_valuable %}${{ top_valuable.0.unit_price|floatformat:2 }}{% else %}—{% endif %}
+      </p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Most Expensive Card</p>
+    </div>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-6 mb-8">
+
+    <!-- Color distribution -->
+    <div class="card p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Color Identity</h2>
+      {% if color_distribution %}
+      <div class="space-y-2">
+        {% for color, count in color_distribution.items %}
+        <div class="flex items-center gap-3">
+          <span class="w-8 text-center"><i class="ms ms-{{ color|lower }} ms-cost"></i></span>
+          <div class="flex-1 bg-gray-200 dark:bg-void-700 rounded-full h-4 overflow-hidden">
+            <div class="h-4 rounded-full
+              {% if color == 'W' %}bg-yellow-200
+              {% elif color == 'U' %}bg-blue-500
+              {% elif color == 'B' %}bg-gray-700
+              {% elif color == 'R' %}bg-red-500
+              {% elif color == 'G' %}bg-green-500
+              {% else %}bg-gray-400{% endif %}"
+              style="width: {% widthratio count total_cards 100 %}%"></div>
+          </div>
+          <span class="text-sm text-gray-500 w-12 text-right">{{ count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-gray-400">No data yet.</p>
+      {% endif %}
+    </div>
+
+    <!-- Rarity distribution -->
+    <div class="card p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Rarity</h2>
+      {% if rarity_distribution %}
+      <div class="space-y-2">
+        {% for rarity, count in rarity_distribution.items %}
+        <div class="flex items-center gap-3">
+          <span class="text-sm text-gray-700 dark:text-gray-300 w-24 capitalize">{{ rarity }}</span>
+          <div class="flex-1 bg-gray-200 dark:bg-void-700 rounded-full h-4 overflow-hidden">
+            <div class="h-4 rounded-full
+              {% if rarity == 'common' %}bg-gray-400
+              {% elif rarity == 'uncommon' %}bg-gray-500
+              {% elif rarity == 'rare' %}bg-yellow-500
+              {% elif rarity == 'mythic' %}bg-orange-500
+              {% else %}bg-purple-500{% endif %}"
+              style="width: {% widthratio count total_cards 100 %}%"></div>
+          </div>
+          <span class="text-sm text-gray-500 w-12 text-right">{{ count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-gray-400">No data yet.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-6 mb-8">
+
+    <!-- Condition breakdown -->
+    <div class="card p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Condition</h2>
+      {% if condition_distribution %}
+      <div class="space-y-2">
+        {% for condition, count in condition_distribution.items %}
+        <div class="flex items-center justify-between text-sm">
+          <span class="text-gray-700 dark:text-gray-300">{{ condition }}</span>
+          <span class="text-gray-500">{{ count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-gray-400">No data yet.</p>
+      {% endif %}
+    </div>
+
+    <!-- Creature types -->
+    <div class="card p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Top Creature Types</h2>
+      {% if creature_types %}
+      <div class="flex flex-wrap gap-2">
+        {% for type, count in creature_types.items %}
+        <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs border border-gray-200 dark:border-void-700 text-gray-700 dark:text-gray-300">
+          {{ type }} <span class="text-gray-400">{{ count }}</span>
+        </span>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-gray-400">No data yet.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Top valuable cards -->
+  {% if top_valuable %}
+  <div class="card p-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Most Valuable Cards</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-void-700">
+            <th class="pb-2 font-medium">Card</th>
+            <th class="pb-2 font-medium">Set</th>
+            <th class="pb-2 font-medium text-right">Qty</th>
+            <th class="pb-2 font-medium text-right">Price</th>
+            <th class="pb-2 font-medium text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100 dark:divide-void-800">
+          {% for item in top_valuable %}
+          <tr>
+            <td class="py-2 text-gray-800 dark:text-gray-200">{{ item.card.name }}</td>
+            <td class="py-2 text-gray-500">{{ item.print.cardset.code|upper }}</td>
+            <td class="py-2 text-right text-gray-500">{{ item.quantity }}</td>
+            <td class="py-2 text-right text-gray-500">${{ item.unit_price|floatformat:2 }}</td>
+            <td class="py-2 text-right font-medium text-green-600 dark:text-green-400">${{ item.total_price|floatformat:2 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

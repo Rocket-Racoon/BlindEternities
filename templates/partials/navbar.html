@@ -22,7 +22,7 @@
            class="nav-link {% active_url 'collection' %}">Collection</a>
         <a href="{% url 'tolarian:deck-list' %}"
            class="nav-link {% active_url 'deck-list' %}">Decks</a>
-        <a href="#"
+        <a href="{% url 'phyrexian:dashboard' %}"
            class="nav-link {% active_url 'stats' %}">Stats</a>
         {% endif %}
         <a href="#"
@@ -106,7 +106,7 @@
       {% if request.user.is_authenticated %}
       <a href="{% url 'tolarian:collection-list' %}" class="block nav-link">Collection</a>
       <a href="{% url 'tolarian:deck-list' %}" class="block nav-link">Decks</a>
-      <a href="#" class="block nav-link">Stats</a>
+      <a href="{% url 'phyrexian:dashboard' %}" class="block nav-link">Stats</a>
       {% endif %}
       <a href="#" class="block nav-link">Trades</a>
     </div>

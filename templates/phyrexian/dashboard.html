@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% load core_tags %}
+
+{% block title %}Stats — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+      Stats Dashboard
+    </h1>
+    <a href="{% url 'phyrexian:game-create' %}" class="btn-primary">
+      Log Game
+    </a>
+  </div>
+
+  <!-- Summary cards -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-void-600 dark:text-void-400">{{ total_decks }}</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Decks</p>
+    </div>
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-void-600 dark:text-void-400">{{ total_collections }}</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Collections</p>
+    </div>
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-void-600 dark:text-void-400">{{ total_games }}</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Games Played</p>
+    </div>
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-green-600 dark:text-green-400">${{ total_collection_value|floatformat:2 }}</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Collection Value</p>
+    </div>
+  </div>
+
+  <!-- Win rate + recent games row -->
+  <div class="grid md:grid-cols-2 gap-6 mb-8">
+
+    <!-- Win rate summary -->
+    <div class="card p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Win Rate</h2>
+      {% if total_games %}
+      <div class="flex items-center gap-6">
+        <div class="text-center">
+          <p class="text-3xl font-bold text-void-600 dark:text-void-400">{{ win_rate }}%</p>
+          <p class="text-xs text-gray-500 mt-1">Overall</p>
+        </div>
+        <div class="flex-1 grid grid-cols-3 gap-2 text-center text-sm">
+          <div>
+            <p class="font-semibold text-green-600 dark:text-green-400">{{ wins }}</p>
+            <p class="text-xs text-gray-400">Wins</p>
+          </div>
+          <div>
+            <p class="font-semibold text-red-600 dark:text-red-400">{{ losses }}</p>
+            <p class="text-xs text-gray-400">Losses</p>
+          </div>
+          <div>
+            <p class="font-semibold text-yellow-600 dark:text-yellow-400">{{ draws }}</p>
+            <p class="text-xs text-gray-400">Draws</p>
+          </div>
+        </div>
+      </div>
+      <div class="mt-4">
+        <a href="{% url 'phyrexian:win-rate' %}"
+           class="text-sm text-void-600 dark:text-void-400 hover:underline">
+          View detailed win rates &rarr;
+        </a>
+      </div>
+      {% else %}
+      <p class="text-sm text-gray-400">No games recorded yet.</p>
+      {% endif %}
+    </div>
+
+    <!-- Recent games -->
+    <div class="card p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Recent Games</h2>
+      {% if recent_games %}
+      <div class="space-y-3">
+        {% for game in recent_games %}
+        <div class="flex items-center justify-between text-sm">
+          <div class="flex items-center gap-2">
+            <span class="inline-block w-2 h-2 rounded-full
+              {% if game.result == 'win' %}bg-green-500
+              {% elif game.result == 'loss' %}bg-red-500
+              {% else %}bg-yellow-500{% endif %}"></span>
+            <span class="font-medium text-gray-800 dark:text-gray-200">
+              {{ game.get_result_display }}
+            </span>
+          </div>
+          <span class="text-gray-500 dark:text-gray-400 truncate max-w-[40%]">
+            {% if game.deck %}{{ game.deck.name }}{% else %}—{% endif %}
+          </span>
+          <span class="text-gray-400 text-xs">{{ game.date_played }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="mt-4">
+        <a href="{% url 'phyrexian:game-list' %}"
+           class="text-sm text-void-600 dark:text-void-400 hover:underline">
+          All games &rarr;
+        </a>
+      </div>
+      {% else %}
+      <p class="text-sm text-gray-400">No games recorded yet.</p>
+      <a href="{% url 'phyrexian:game-create' %}"
+         class="mt-2 inline-block text-sm text-void-600 dark:text-void-400 hover:underline">
+        Log your first game &rarr;
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Format distribution -->
+  {% if format_distribution %}
+  <div class="card p-6 mb-8">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Decks by Format</h2>
+    <div class="space-y-2">
+      {% for fmt in format_distribution %}
+      <div class="flex items-center gap-3">
+        <span class="text-sm text-gray-700 dark:text-gray-300 w-28">{{ fmt.format|title }}</span>
+        <div class="flex-1 bg-gray-200 dark:bg-void-700 rounded-full h-4 overflow-hidden">
+          <div class="bg-void-500 h-4 rounded-full" style="width: {% widthratio fmt.count total_decks 100 %}%"></div>
+        </div>
+        <span class="text-sm text-gray-500 w-8 text-right">{{ fmt.count }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Quick links -->
+  <div class="grid md:grid-cols-3 gap-4">
+    <a href="{% url 'phyrexian:collection-stats' %}"
+       class="card p-6 hover:border-void-400 dark:hover:border-void-500 transition-colors group">
+      <h3 class="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-void-600 dark:group-hover:text-void-400">
+        Collection Stats
+      </h3>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+        Value breakdown, rarity distribution, color spread
+      </p>
+    </a>
+    <a href="{% url 'phyrexian:deck-stats' %}"
+       class="card p-6 hover:border-void-400 dark:hover:border-void-500 transition-colors group">
+      <h3 class="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-void-600 dark:group-hover:text-void-400">
+        Deck Analytics
+      </h3>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+        Most-used cards, type distribution, avg CMC
+      </p>
+    </a>
+    <a href="{% url 'phyrexian:win-rate' %}"
+       class="card p-6 hover:border-void-400 dark:hover:border-void-500 transition-colors group">
+      <h3 class="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-void-600 dark:group-hover:text-void-400">
+        Win Rates
+      </h3>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+        By deck, format, opponent, streaks
+      </p>
+    </a>
+  </div>
+
+</div>
+{% endblock %}

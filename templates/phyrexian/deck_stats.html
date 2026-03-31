@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% load core_tags %}
+
+{% block title %}Deck Analytics — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <a href="{% url 'phyrexian:dashboard' %}" class="text-sm text-void-600 dark:text-void-400 hover:underline">&larr; Dashboard</a>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">Deck Analytics</h1>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-void-600 dark:text-void-400">{{ decks.count }}</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Total Decks</p>
+    </div>
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-void-600 dark:text-void-400">{{ avg_cmc }}</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Avg CMC</p>
+    </div>
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-green-600 dark:text-green-400">${{ avg_deck_value }}</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Avg Deck Value</p>
+    </div>
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-green-600 dark:text-green-400">${{ total_deck_value }}</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Total Value</p>
+    </div>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-6 mb-8">
+
+    <!-- Color distribution -->
+    <div class="card p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Color Distribution</h2>
+      {% if color_distribution %}
+      <div class="space-y-2">
+        {% for color, count in color_distribution.items %}
+        <div class="flex items-center gap-3">
+          <span class="w-8 text-center"><i class="ms ms-{{ color|lower }} ms-cost"></i></span>
+          <div class="flex-1 bg-gray-200 dark:bg-void-700 rounded-full h-4 overflow-hidden">
+            <div class="h-4 rounded-full
+              {% if color == 'W' %}bg-yellow-200
+              {% elif color == 'U' %}bg-blue-500
+              {% elif color == 'B' %}bg-gray-700
+              {% elif color == 'R' %}bg-red-500
+              {% elif color == 'G' %}bg-green-500
+              {% else %}bg-gray-400{% endif %}"
+              style="width: {{ count }}%"></div>
+          </div>
+          <span class="text-sm text-gray-500 w-12 text-right">{{ count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-gray-400">No data yet.</p>
+      {% endif %}
+    </div>
+
+    <!-- Card type distribution -->
+    <div class="card p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Card Types</h2>
+      {% if type_distribution %}
+      <div class="space-y-2">
+        {% for type, count in type_distribution.items %}
+        <div class="flex items-center gap-3">
+          <span class="text-sm text-gray-700 dark:text-gray-300 w-28">{{ type }}</span>
+          <div class="flex-1 bg-gray-200 dark:bg-void-700 rounded-full h-4 overflow-hidden">
+            <div class="bg-void-500 h-4 rounded-full" style="width: {{ count }}px; max-width: 100%"></div>
+          </div>
+          <span class="text-sm text-gray-500 w-12 text-right">{{ count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-gray-400">No data yet.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-6 mb-8">
+
+    <!-- Format popularity -->
+    <div class="card p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Format Popularity</h2>
+      {% if format_popularity %}
+      <div class="space-y-2">
+        {% for fmt in format_popularity %}
+        <div class="flex items-center justify-between text-sm">
+          <span class="text-gray-700 dark:text-gray-300 capitalize">{{ fmt.format }}</span>
+          <span class="font-medium text-gray-900 dark:text-gray-100">{{ fmt.count }} deck{{ fmt.count|pluralize }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-gray-400">No decks yet.</p>
+      {% endif %}
+    </div>
+
+    <!-- Most used cards -->
+    <div class="card p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Most-Used Cards</h2>
+      {% if most_used_cards %}
+      <div class="space-y-2">
+        {% for card_name, deck_count in most_used_cards %}
+        <div class="flex items-center justify-between text-sm">
+          <span class="text-gray-700 dark:text-gray-300">{{ card_name }}</span>
+          <span class="text-gray-500">{{ deck_count }} deck{{ deck_count|pluralize }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-gray-400">No data yet.</p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

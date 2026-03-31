@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Win Rates — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <a href="{% url 'phyrexian:dashboard' %}" class="text-sm text-void-600 dark:text-void-400 hover:underline">&larr; Dashboard</a>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">Win Rates</h1>
+    </div>
+    <a href="{% url 'phyrexian:game-create' %}" class="btn-primary">Log Game</a>
+  </div>
+
+  {% if not has_data %}
+  <div class="card p-16 text-center text-gray-400 dark:text-gray-600">
+    <p class="text-sm">No games recorded yet.</p>
+    <a href="{% url 'phyrexian:game-create' %}"
+       class="mt-4 inline-block text-sm text-void-600 dark:text-void-400 hover:underline">
+      Log your first game &rarr;
+    </a>
+  </div>
+  {% else %}
+
+  <!-- Overall summary -->
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-void-600 dark:text-void-400">{{ win_rate }}%</p>
+      <p class="text-xs text-gray-500 mt-1">Win Rate</p>
+    </div>
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-gray-700 dark:text-gray-300">{{ total_games }}</p>
+      <p class="text-xs text-gray-500 mt-1">Games</p>
+    </div>
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-green-600 dark:text-green-400">{{ wins }}</p>
+      <p class="text-xs text-gray-500 mt-1">Wins</p>
+    </div>
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-red-600 dark:text-red-400">{{ losses }}</p>
+      <p class="text-xs text-gray-500 mt-1">Losses</p>
+    </div>
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold
+        {% if streak_type == 'win' %}text-green-600 dark:text-green-400
+        {% elif streak_type == 'loss' %}text-red-600 dark:text-red-400
+        {% else %}text-yellow-600 dark:text-yellow-400{% endif %}">
+        {{ streak_count }}
+      </p>
+      <p class="text-xs text-gray-500 mt-1">
+        {% if streak_type == 'win' %}Win{% elif streak_type == 'loss' %}Loss{% else %}Draw{% endif %} Streak
+      </p>
+    </div>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-6 mb-8">
+
+    <!-- By deck -->
+    <div class="card p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">By Deck</h2>
+      {% if deck_stats %}
+      <div class="space-y-3">
+        {% for d in deck_stats %}
+        <div>
+          <div class="flex items-center justify-between text-sm mb-1">
+            <span class="text-gray-700 dark:text-gray-300 truncate max-w-[60%]">
+              {{ d.deck__name|default:"No deck" }}
+            </span>
+            <span class="font-medium text-void-600 dark:text-void-400">{{ d.win_rate }}%</span>
+          </div>
+          <div class="flex h-3 rounded-full overflow-hidden bg-gray-200 dark:bg-void-700">
+            {% if d.total %}
+            <div class="bg-green-500" style="width: {% widthratio d.wins d.total 100 %}%"></div>
+            <div class="bg-red-500" style="width: {% widthratio d.losses d.total 100 %}%"></div>
+            <div class="bg-yellow-500" style="width: {% widthratio d.draws d.total 100 %}%"></div>
+            {% endif %}
+          </div>
+          <div class="flex gap-3 text-xs text-gray-400 mt-1">
+            <span>{{ d.wins }}W</span>
+            <span>{{ d.losses }}L</span>
+            <span>{{ d.draws }}D</span>
+            <span class="ml-auto">{{ d.total }} games</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-gray-400">No deck-linked games.</p>
+      {% endif %}
+    </div>
+
+    <!-- By format -->
+    <div class="card p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">By Format</h2>
+      {% if format_stats %}
+      <div class="space-y-3">
+        {% for f in format_stats %}
+        <div class="flex items-center justify-between text-sm">
+          <span class="text-gray-700 dark:text-gray-300 capitalize">{{ f.format }}</span>
+          <div class="flex items-center gap-3">
+            <span class="text-gray-500">{{ f.total }} games</span>
+            <span class="font-medium text-void-600 dark:text-void-400 w-14 text-right">{{ f.win_rate }}%</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-gray-400">No data.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- By opponent -->
+  {% if opponent_stats %}
+  <div class="card p-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">By Opponent</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-void-700">
+            <th class="pb-2 font-medium">Opponent</th>
+            <th class="pb-2 font-medium text-right">Games</th>
+            <th class="pb-2 font-medium text-right">Wins</th>
+            <th class="pb-2 font-medium text-right">Win Rate</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100 dark:divide-void-800">
+          {% for o in opponent_stats %}
+          <tr>
+            <td class="py-2 text-gray-800 dark:text-gray-200">{{ o.opponent_name }}</td>
+            <td class="py-2 text-right text-gray-500">{{ o.total }}</td>
+            <td class="py-2 text-right text-gray-500">{{ o.wins }}</td>
+            <td class="py-2 text-right font-medium text-void-600 dark:text-void-400">{{ o.win_rate }}%</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% endif %}
+</div>
+{% endblock %}

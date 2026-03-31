@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Game History — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <a href="{% url 'phyrexian:dashboard' %}" class="text-sm text-void-600 dark:text-void-400 hover:underline">&larr; Dashboard</a>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">Game History</h1>
+    </div>
+    <a href="{% url 'phyrexian:game-create' %}" class="btn-primary">Log Game</a>
+  </div>
+
+  {% if not games %}
+  <div class="card p-16 text-center text-gray-400 dark:text-gray-600">
+    <p class="text-sm">No games recorded yet.</p>
+    <a href="{% url 'phyrexian:game-create' %}"
+       class="mt-4 inline-block text-sm text-void-600 dark:text-void-400 hover:underline">
+      Log your first game &rarr;
+    </a>
+  </div>
+  {% else %}
+
+  <div class="card overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-void-800/50 border-b border-gray-200 dark:border-void-700">
+          <th class="px-4 py-3 font-medium">Result</th>
+          <th class="px-4 py-3 font-medium">Deck</th>
+          <th class="px-4 py-3 font-medium">Format</th>
+          <th class="px-4 py-3 font-medium">Opponent</th>
+          <th class="px-4 py-3 font-medium">Date</th>
+          <th class="px-4 py-3 font-medium text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100 dark:divide-void-800">
+        {% for game in games %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-void-800/30 transition-colors">
+          <td class="px-4 py-3">
+            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium
+              {% if game.result == 'win' %}bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400
+              {% elif game.result == 'loss' %}bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400
+              {% else %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400{% endif %}">
+              {{ game.get_result_display }}
+            </span>
+          </td>
+          <td class="px-4 py-3 text-gray-800 dark:text-gray-200">
+            {% if game.deck %}
+            <a href="{{ game.deck.get_absolute_url }}" class="hover:text-void-600 dark:hover:text-void-400">
+              {{ game.deck.name }}
+            </a>
+            {% else %}—{% endif %}
+          </td>
+          <td class="px-4 py-3 text-gray-500 capitalize">{{ game.format }}</td>
+          <td class="px-4 py-3 text-gray-700 dark:text-gray-300">
+            {{ game.opponent_name|default:"—" }}
+            {% if game.opponent_deck_name %}
+            <span class="text-gray-400 text-xs">({{ game.opponent_deck_name }})</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-gray-500">{{ game.date_played }}</td>
+          <td class="px-4 py-3 text-right">
+            <a href="{% url 'phyrexian:game-edit' game.pk %}"
+               class="text-xs text-void-600 dark:text-void-400 hover:underline mr-2">Edit</a>
+            <a href="{% url 'phyrexian:game-delete' game.pk %}"
+               class="text-xs text-red-600 dark:text-red-400 hover:underline">Delete</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if is_paginated %}
+  <div class="mt-6 flex justify-center">
+    <nav class="flex items-center gap-1">
+      {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}"
+         class="px-3 py-1.5 text-sm rounded border border-gray-200 dark:border-void-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800">
+        &larr;
+      </a>
+      {% endif %}
+      <span class="px-3 py-1.5 text-sm text-gray-500">
+        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+      </span>
+      {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}"
+         class="px-3 py-1.5 text-sm rounded border border-gray-200 dark:border-void-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800">
+        &rarr;
+      </a>
+      {% endif %}
+    </nav>
+  </div>
+  {% endif %}
+
+  {% endif %}
+</div>
+{% endblock %}

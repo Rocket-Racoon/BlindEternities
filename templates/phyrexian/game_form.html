@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}{% if object %}Edit Game{% else %}Log Game{% endif %} — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+
+  <!-- Header -->
+  <div class="mb-6">
+    <a href="{% url 'phyrexian:game-list' %}" class="text-sm text-void-600 dark:text-void-400 hover:underline">&larr; Game History</a>
+    <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">
+      {% if object %}Edit Game Record{% else %}Log a Game{% endif %}
+    </h1>
+  </div>
+
+  <div class="card p-6">
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Result</label>
+          {{ form.result }}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Format</label>
+          {{ form.format }}
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Deck</label>
+          {{ form.deck }}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Opponent</label>
+          {{ form.opponent_name }}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Opponent's Deck</label>
+          {{ form.opponent_deck_name }}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date Played</label>
+          {{ form.date_played }}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Turns</label>
+          {{ form.turns }}
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
+          {{ form.notes }}
+        </div>
+      </div>
+
+      {% if form.errors %}
+      <div class="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm">
+        {% for field, errors in form.errors.items %}
+          {% for error in errors %}
+          <p>{{ error }}</p>
+          {% endfor %}
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="mt-6 flex justify-end gap-3">
+        <a href="{% url 'phyrexian:game-list' %}"
+           class="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-void-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800 transition-colors">
+          Cancel
+        </a>
+        <button type="submit" class="btn-primary">
+          {% if object %}Save Changes{% else %}Log Game{% endif %}
+        </button>
+      </div>
+    </form>
+  </div>
+
+</div>
+{% endblock %}
