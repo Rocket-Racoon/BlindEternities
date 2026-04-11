@@ -83,7 +83,12 @@ class CardSearchForm(forms.Form):
     )
     color_exact = forms.BooleanField(
         required=False,
-        label="Solo estos colores (excluir otros)",
+        label="Exacto (debe tener todos los seleccionados)",
+        widget=forms.CheckboxInput(attrs={"class": "w-4 h-4 rounded"}),
+    )
+    color_exclude = forms.BooleanField(
+        required=False,
+        label="Excluir no seleccionados",
         widget=forms.CheckboxInput(attrs={"class": "w-4 h-4 rounded"}),
     )
     rarity = forms.MultipleChoiceField(
@@ -242,45 +247,39 @@ class CardSearchForm(forms.Form):
         # --- Filtros del usuario ---
 
         if data.get("color"):
+            from django.db.models import Q
             colors_selected = set(data["color"])  # set of color codes
             use_identity = data.get("color_identity", False)
             exact = data.get("color_exact", False)
+            exclude = data.get("color_exclude", False) or use_identity
             field = "color_identity" if use_identity else "colors"
             has_colorless = "C" in colors_selected
             real_colors = colors_selected - {"C"}
             all_wubrg = {"W", "U", "B", "R", "G"}
 
-            if use_identity or exact:
-                # Subset logic: exclude cards with colors NOT in selection.
-                # Cards whose identity/colors are a subset of real_colors.
-                # If C is selected, colorless cards (empty []) are also included.
+            if exact:
+                # Must have ALL selected colors
+                for c in real_colors:
+                    qs = qs.filter(**{f"{field}__icontains": f'"{c}"'})
+                if has_colorless and not real_colors:
+                    qs = qs.filter(**{field: "[]"})
+
+            if exclude:
+                # Forbid non-selected colors
                 excluded = all_wubrg - real_colors
                 for c in excluded:
                     qs = qs.exclude(**{f"{field}__icontains": f'"{c}"'})
-                # If C is NOT selected, require at least one of the real colors
-                if real_colors and not has_colorless:
-                    from django.db.models import Q
+
+            if not exact:
+                # Need at least one selected color (OR logic)
+                if real_colors:
                     q = Q()
+                    if has_colorless and not exclude:
+                        q = Q(**{field: "[]"})
                     for c in real_colors:
                         q |= Q(**{f"{field}__icontains": f'"{c}"'})
                     qs = qs.filter(q)
-            else:
-                # Include logic: must have at least one selected color
-                if real_colors:
-                    from django.db.models import Q
-                    if has_colorless:
-                        # Cards with any of the real colors OR colorless
-                        q = Q(**{field: "[]"})  # empty = colorless
-                        for c in real_colors:
-                            q |= Q(**{f"{field}__icontains": f'"{c}"'})
-                        qs = qs.filter(q)
-                    else:
-                        q = Q()
-                        for c in real_colors:
-                            q |= Q(**{f"{field}__icontains": f'"{c}"'})
-                        qs = qs.filter(q)
                 elif has_colorless:
-                    # Only colorless selected
                     qs = qs.filter(**{field: "[]"})
 
         if data.get("rarity"):

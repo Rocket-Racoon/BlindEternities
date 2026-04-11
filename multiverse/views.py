@@ -135,7 +135,7 @@ class CardListView(TemplateView):
 
     # Set types to exclude by default
     EXCLUDED_SET_TYPES = ["un_set", "funny", "minigame", "token"]
-    SKIP_PILL_KEYS = {"page", "sort", "cmc_op", "color_identity", "color_exact"}
+    SKIP_PILL_KEYS = {"page", "sort", "cmc_op", "color_identity", "color_exact", "color_exclude"}
 
     def _build_active_filters(self):
         """Build list of (label, value, remove_url) for active filter pills."""

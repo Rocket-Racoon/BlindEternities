@@ -161,6 +161,11 @@
                class="w-3.5 h-3.5 rounded border-void-600 bg-void-800 text-void-500 focus:ring-void-500/30">
         Exacto
       </label>
+      <label class="inline-flex items-center gap-1 text-[11px] text-gray-500 cursor-pointer">
+        <input type="checkbox" name="color_exclude" {% if request.GET.color_exclude %}checked{% endif %}
+               class="w-3.5 h-3.5 rounded border-void-600 bg-void-800 text-void-500 focus:ring-void-500/30">
+        Excluir no seleccionados
+      </label>
 
       <span class="h-5 w-px bg-void-700/40"></span>
 
