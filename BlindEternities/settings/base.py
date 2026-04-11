@@ -65,6 +65,7 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 # Middleware
 # ──────────────────────────────────────────────
 MIDDLEWARE = [
+    'core.middleware.DatabaseLockedMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
