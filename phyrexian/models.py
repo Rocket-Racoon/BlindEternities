@@ -141,7 +141,12 @@ class GameSession(BaseModel):
 
     def reset_life(self):
         """Reset all players to starting life for a new game within the session."""
-        self.players.update(life=self.starting_life, poison=0)
+        self.players.update(
+            life=self.starting_life, poison=0, energy=0, experience=0,
+            commander_tax=0, treasure=0, rad=0, storm_count=0,
+            commander_damage={}, is_monarch=False, has_initiative=False,
+            has_citys_blessing=False,
+        )
         self.current_turn = 1
         self.status = SessionStatus.ACTIVE
         self.winner = None
@@ -169,6 +174,10 @@ class PlayerSlot(BaseModel):
     poison = models.PositiveSmallIntegerField(default=0)
     energy = models.PositiveSmallIntegerField(default=0)
     experience = models.PositiveSmallIntegerField(default=0)
+    commander_tax = models.PositiveSmallIntegerField(default=0)
+    treasure = models.PositiveSmallIntegerField(default=0)
+    rad = models.PositiveSmallIntegerField(default=0)
+    storm_count = models.PositiveSmallIntegerField(default=0)
 
     # Commander damage received (JSON: {"<player_slot_pk>": amount})
     commander_damage = models.JSONField(default=dict, blank=True)
@@ -177,11 +186,16 @@ class PlayerSlot(BaseModel):
     is_monarch = models.BooleanField(default=False)
     has_initiative = models.BooleanField(default=False)
     has_citys_blessing = models.BooleanField(default=False)
+    is_day = models.BooleanField(default=True, help_text="Day/Night cycle: True=Day, False=Night")
 
     # Display
     color = models.CharField(
         max_length=7, default="#6366F1",
         help_text="Hex color for player panel.",
+    )
+    background_image = models.URLField(
+        blank=True,
+        help_text="Card art URL for player panel background.",
     )
 
     # Deck link (optional)
@@ -208,7 +222,7 @@ class PlayerSlot(BaseModel):
 
     @property
     def is_dead(self):
-        return self.life <= 0 or self.poison >= 10
+        return self.life <= 0 or self.poison >= 10 or self.total_commander_damage >= 21
 
     @property
     def total_commander_damage(self):

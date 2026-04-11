@@ -1342,6 +1342,7 @@ class CardSearchJSON(LoginRequiredMixin, View):
                     "set_name": p.cardset.name if p.cardset else "",
                     "collector_number": p.collector_number,
                     "image": p.image_uris.get("small", ""),
+                    "art_crop": p.image_uris.get("art_crop", ""),
                     "price_usd": p.prices.get("usd"),
                 }
                 for p in card.prints.all()[:20]

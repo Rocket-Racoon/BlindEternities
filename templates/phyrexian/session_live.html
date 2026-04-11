@@ -8,201 +8,280 @@
   <link rel="stylesheet" href="{% static 'css/main.css' %}">
   <style>
     [x-cloak]{display:none!important}
-    body { overscroll-behavior: none; }
-    .life-btn { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }
-    .player-panel { transition: all 0.2s ease; }
-    .player-panel.dead { opacity: 0.5; filter: grayscale(0.5); }
+    * { -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; margin: 0; }
+    body { overscroll-behavior: none; touch-action: manipulation; }
+    .life-zone { user-select: none; cursor: pointer; }
+    .player-panel { transition: opacity 0.3s ease; min-height: 0; }
+    .player-panel.dead { opacity: 0.4; filter: grayscale(0.5); }
+    /* Force grid rows to fill available height */
+    .game-grid { height: calc(100vh - 3rem); }
+    .game-grid.rows-1 { grid-template-rows: 1fr; }
+    .game-grid.rows-2 { grid-template-rows: 1fr 1fr; }
+    .game-grid.rows-3 { grid-template-rows: 1fr 1fr 1fr; }
     .delta-flash {
-      animation: deltaFlash 0.6s ease-out forwards;
+      animation: deltaFlash 0.7s ease-out forwards;
       pointer-events: none;
     }
     @keyframes deltaFlash {
-      0% { opacity: 1; transform: translateY(0) scale(1.2); }
-      100% { opacity: 0; transform: translateY(-20px) scale(1); }
+      0% { opacity: 1; transform: translateY(0) scale(1.3); }
+      100% { opacity: 0; transform: translateY(-24px) scale(0.9); }
     }
+    .counter-grid button { touch-action: manipulation; }
+    .modal-backdrop { background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
   </style>
 </head>
-<body class="h-full bg-gray-900 text-white overflow-hidden"
-      x-data="liveGame()"
-      @keydown.escape="showMenu = !showMenu">
+<body class="h-full bg-black text-white overflow-hidden" x-data="liveGame()" @keydown.escape="closeAllModals()">
 
-  <!-- Top Bar -->
-  <div class="fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-3 py-2 bg-gray-900/90 backdrop-blur-sm border-b border-gray-800">
-    <div class="flex items-center gap-3">
-      <button @click="showMenu = !showMenu" class="p-1 text-gray-400 hover:text-white">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-        </svg>
-      </button>
-      <span class="text-xs text-gray-400 uppercase tracking-wider">{{ session.get_format_display }}</span>
-    </div>
-
-    <!-- Turn counter -->
-    <div id="turn-counter" class="flex items-center gap-2">
-      <span class="text-xs text-gray-500">Turn</span>
-      <span class="text-sm font-bold text-gray-200" x-text="turn">{{ session.current_turn }}</span>
-      <button @click="nextTurn()" class="p-1 text-gray-400 hover:text-white" title="Next turn">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-        </svg>
-      </button>
-    </div>
-
-    <div class="flex items-center gap-2">
-      <button @click="showLog = !showLog" class="p-1 text-gray-400 hover:text-white" title="Game log">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-        </svg>
-      </button>
-    </div>
-  </div>
-
-  <!-- Player Grid -->
-  <div class="pt-12 h-full grid gap-1 p-1"
-       :class="gridClass">
+  <!-- ═══ Player Grid ═══ -->
+  <div class="game-grid grid gap-[3px] p-[3px]" :class="gridClass">
     <template x-for="(player, idx) in players" :key="player.pk">
-      <div class="player-panel relative rounded-xl overflow-hidden flex flex-col items-center justify-center"
-           :class="player.life <= 0 || player.poison >= 10 ? 'dead' : ''"
-           :style="`background: linear-gradient(135deg, ${player.color}22, ${player.color}44); border: 2px solid ${player.color}66;`"
-           :id="'player-' + player.pk">
+      <div class="player-panel relative rounded-xl overflow-hidden"
+           :class="(player.life <= 0 || player.poison >= 10) ? 'dead' : ''"
+           :id="'panel-' + player.pk">
 
-        <!-- Player name -->
-        <div class="absolute top-2 left-3 right-3 flex items-center justify-between">
-          <span class="text-xs font-semibold truncate opacity-80" x-text="player.name"></span>
-          <div class="flex items-center gap-1.5">
-            <!-- Monarch badge -->
-            <span x-show="player.is_monarch" x-cloak class="text-yellow-400 text-xs" title="Monarch">&#9813;</span>
-            <!-- Initiative badge -->
-            <span x-show="player.has_initiative" x-cloak class="text-cyan-400 text-xs" title="Initiative">&#9733;</span>
+        {# Background: card art or gradient #}
+        <div class="absolute inset-0"
+             :style="player.background_image
+               ? `background: url(${player.background_image}) center/cover no-repeat;`
+               : `background: linear-gradient(135deg, ${player.color}33, ${player.color}66);`"></div>
+        <div class="absolute inset-0"
+             :style="`background: linear-gradient(to bottom, ${player.color}22, ${player.color}55);`"></div>
+
+        {# Life total — full panel is tappable #}
+        <div class="relative h-full flex">
+          {# Minus zone (left half) #}
+          <div class="life-zone flex-1 flex items-start justify-start p-2 pt-3"
+               @click="changeLife(idx, -1)">
+            <span class="text-white/30 text-xl font-bold">&minus;</span>
+          </div>
+
+          {# Center content #}
+          <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            {# Player name + badges #}
+            <div class="flex items-center gap-1.5 mb-1">
+              <span class="text-[11px] font-semibold text-white/80 drop-shadow-md" x-text="player.name"></span>
+              <span x-show="player.is_monarch" x-cloak class="text-yellow-400 text-[10px]" title="Monarch">&#9813;</span>
+              <span x-show="player.has_initiative" x-cloak class="text-cyan-400 text-[10px]" title="Initiative">&#9733;</span>
+              <span x-show="player.has_citys_blessing" x-cloak class="text-purple-400 text-[10px]" title="Ascend">&#10026;</span>
+            </div>
+
+            {# Life number #}
+            <div class="relative">
+              <span class="text-[3.5rem] sm:text-[4.5rem] font-black tabular-nums leading-none drop-shadow-lg" x-text="player.life"></span>
+              <div x-show="player.deltaShow" x-cloak
+                   class="absolute -top-6 left-1/2 -translate-x-1/2 delta-flash text-xl font-bold"
+                   :class="player.lastDelta > 0 ? 'text-green-400' : 'text-red-400'"
+                   x-text="(player.lastDelta > 0 ? '+' : '') + player.lastDelta"></div>
+            </div>
+          </div>
+
+          {# Plus zone (right half) #}
+          <div class="life-zone flex-1 flex items-end justify-end p-2 pb-3"
+               @click="changeLife(idx, 1)">
+            <span class="text-white/30 text-xl font-bold">+</span>
           </div>
         </div>
 
-        <!-- Life total (main interaction) -->
-        <div class="flex items-center gap-0 select-none">
-          <button @click="changeLife(idx, -1)" @dblclick.prevent
-                  class="life-btn w-16 h-24 sm:w-20 sm:h-28 flex items-center justify-center text-white/30 hover:text-white/60 active:text-white/80 text-3xl font-bold rounded-l-xl">
-            &minus;
+        {# Counter grid (top-left) — shows non-zero counters #}
+        <div class="absolute top-1 left-1 pointer-events-auto" @click.stop>
+          <button @click="openCounterModal(idx)"
+                  class="flex flex-wrap gap-[2px] max-w-[100px] p-1 rounded-md bg-black/40 backdrop-blur-sm hover:bg-black/60 transition-colors">
+            {# Always show poison & commander damage #}
+            <template x-for="ct in getVisibleCounters(idx)" :key="ct.key">
+              <div class="flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded bg-white/10">
+                <span x-text="ct.icon"></span>
+                <span class="font-bold tabular-nums" x-text="ct.value"></span>
+              </div>
+            </template>
+            <div class="text-[8px] text-white/50 px-0.5">tap</div>
           </button>
-          <div class="relative flex flex-col items-center px-2">
-            <span class="text-5xl sm:text-6xl font-bold tabular-nums leading-none" x-text="player.life"></span>
-            <!-- Delta flash -->
-            <div x-show="player.deltaShow" x-cloak
-                 class="absolute -top-5 delta-flash text-lg font-bold"
-                 :class="player.lastDelta > 0 ? 'text-green-400' : 'text-red-400'"
-                 x-text="(player.lastDelta > 0 ? '+' : '') + player.lastDelta"></div>
-          </div>
-          <button @click="changeLife(idx, 1)" @dblclick.prevent
-                  class="life-btn w-16 h-24 sm:w-20 sm:h-28 flex items-center justify-center text-white/30 hover:text-white/60 active:text-white/80 text-3xl font-bold rounded-r-xl">
-            +
-          </button>
         </div>
 
-        <!-- Counters row -->
-        <div class="absolute bottom-2 left-2 right-2 flex items-center justify-center gap-3 text-[10px]">
-          <!-- Poison -->
-          <div class="flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity"
-               :class="player.poison > 0 && 'opacity-100 !text-green-400'">
-            <button @click="changeCounter(idx, 'poison', -1)" class="life-btn px-1">-</button>
-            <span class="font-bold" x-text="player.poison"></span>
-            <span>&#9760;</span>
-            <button @click="changeCounter(idx, 'poison', 1)" class="life-btn px-1">+</button>
-          </div>
-          <!-- Energy -->
-          <div class="flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity"
-               :class="player.energy > 0 && 'opacity-100 !text-yellow-400'">
-            <button @click="changeCounter(idx, 'energy', -1)" class="life-btn px-1">-</button>
-            <span class="font-bold" x-text="player.energy"></span>
-            <span>&#9889;</span>
-            <button @click="changeCounter(idx, 'energy', 1)" class="life-btn px-1">+</button>
-          </div>
-          <!-- Experience -->
-          <div class="flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity"
-               :class="player.experience > 0 && 'opacity-100 !text-purple-400'">
-            <button @click="changeCounter(idx, 'experience', -1)" class="life-btn px-1">-</button>
-            <span class="font-bold" x-text="player.experience"></span>
-            <span>&#10026;</span>
-            <button @click="changeCounter(idx, 'experience', 1)" class="life-btn px-1">+</button>
+        {# Commander damage grid (top-right) #}
+        <div class="absolute top-1 right-1 pointer-events-auto" @click.stop
+             x-show="players.length <= 6">
+          <div class="flex flex-col gap-[2px] p-1 rounded-md bg-black/40 backdrop-blur-sm">
+            <template x-for="(other, oi) in players.filter((_, j) => j !== idx)" :key="other.pk">
+              <div class="flex items-center gap-1">
+                <div class="w-3 h-3 rounded-full border border-white/40"
+                     :style="`background-color: ${other.color}`"></div>
+                <button @click="changeCmdrDamage(idx, other.pk, 1)"
+                        class="text-[10px] font-bold tabular-nums min-w-[16px] text-center hover:text-red-400"
+                        x-text="player.commander_damage[other.pk] || 0"></button>
+                <button @click="changeCmdrDamage(idx, other.pk, -1)"
+                        class="text-[8px] text-white/40 hover:text-white">-</button>
+              </div>
+            </template>
           </div>
         </div>
+
       </div>
     </template>
   </div>
 
-  <!-- Side menu -->
-  <div x-show="showMenu" x-cloak x-transition:enter="transition ease-out duration-200"
-       x-transition:enter-start="-translate-x-full" x-transition:enter-end="translate-x-0"
-       x-transition:leave="transition ease-in duration-150"
-       x-transition:leave-start="translate-x-0" x-transition:leave-end="-translate-x-full"
-       @click.away="showMenu = false"
-       class="fixed top-0 left-0 bottom-0 w-64 bg-gray-800 border-r border-gray-700 z-50 flex flex-col p-4 shadow-2xl">
-    <h2 class="text-lg font-bold mb-4">Game Menu</h2>
+  <!-- ═══ Bottom Toolbar ═══ -->
+  <div class="fixed bottom-0 left-0 right-0 h-12 bg-gray-900/95 backdrop-blur-sm border-t border-gray-800 flex items-center justify-around px-4 z-40">
+    {# Reset #}
+    <button @click="if(confirm('Reset all life totals?')) resetGame()" class="p-2 text-gray-400 hover:text-white transition-colors" title="Reset">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+    </button>
 
-    <div class="space-y-2 flex-1">
-      <!-- Monarch -->
-      <p class="text-xs text-gray-500 uppercase tracking-wider mt-3 mb-1">Assign Monarch</p>
-      <template x-for="(player, idx) in players" :key="'m-' + player.pk">
-        <button @click="toggleStatus(idx, 'monarch'); showMenu = false"
-                class="w-full text-left px-3 py-1.5 rounded text-sm transition-colors"
-                :class="player.is_monarch ? 'bg-yellow-500/20 text-yellow-400' : 'text-gray-300 hover:bg-gray-700'"
-                x-text="player.name + (player.is_monarch ? ' &#9813;' : '')"></button>
-      </template>
+    {# Turn counter #}
+    <button @click="nextTurn()" class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-void-600/80 hover:bg-void-600 transition-colors" title="Next turn">
+      <span class="text-[10px] text-white/60">Turn</span>
+      <span class="text-sm font-bold" x-text="turn"></span>
+    </button>
 
-      <!-- Initiative -->
-      <p class="text-xs text-gray-500 uppercase tracking-wider mt-3 mb-1">Assign Initiative</p>
-      <template x-for="(player, idx) in players" :key="'i-' + player.pk">
-        <button @click="toggleStatus(idx, 'initiative'); showMenu = false"
-                class="w-full text-left px-3 py-1.5 rounded text-sm transition-colors"
-                :class="player.has_initiative ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-300 hover:bg-gray-700'"
-                x-text="player.name + (player.has_initiative ? ' &#9733;' : '')"></button>
-      </template>
+    {# Menu #}
+    <button @click="showMenu = !showMenu" class="p-2 text-gray-400 hover:text-white transition-colors" title="Menu">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+    </button>
 
-      <!-- Dice -->
-      <p class="text-xs text-gray-500 uppercase tracking-wider mt-4 mb-1">Tools</p>
-      <button @click="rollDice(6)" class="w-full text-left px-3 py-1.5 rounded text-sm text-gray-300 hover:bg-gray-700">
-        Roll d6 <span x-show="lastRoll && lastDie === 6" class="font-bold text-white" x-text="'→ ' + lastRoll"></span>
-      </button>
-      <button @click="rollDice(20)" class="w-full text-left px-3 py-1.5 rounded text-sm text-gray-300 hover:bg-gray-700">
-        Roll d20 <span x-show="lastRoll && lastDie === 20" class="font-bold text-white" x-text="'→ ' + lastRoll"></span>
-      </button>
-      <button @click="flipCoin()" class="w-full text-left px-3 py-1.5 rounded text-sm text-gray-300 hover:bg-gray-700">
-        Flip Coin <span x-show="coinResult" class="font-bold text-white" x-text="'→ ' + coinResult"></span>
-      </button>
-      <button @click="randomPlayer()" class="w-full text-left px-3 py-1.5 rounded text-sm text-gray-300 hover:bg-gray-700">
-        Random Player <span x-show="randomPick" class="font-bold text-white" x-text="'→ ' + randomPick"></span>
-      </button>
-    </div>
+    {# Dice #}
+    <button @click="rollResult = 'Roll: ' + (Math.floor(Math.random()*20)+1); setTimeout(()=>rollResult='', 2000)"
+            class="p-2 text-gray-400 hover:text-white transition-colors relative" title="Roll d20">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+      <span x-show="rollResult" x-cloak x-text="rollResult"
+            class="absolute -top-8 left-1/2 -translate-x-1/2 bg-white text-gray-900 text-xs font-bold px-2 py-1 rounded shadow whitespace-nowrap"></span>
+    </button>
 
-    <div class="pt-4 border-t border-gray-700 space-y-2">
-      <button @click="resetGame()" class="w-full px-3 py-2 rounded text-sm bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors">
-        Reset Life Totals
-      </button>
-      <a href="{% url 'phyrexian:session-end' session.pk %}"
-         class="block w-full px-3 py-2 rounded text-sm text-center bg-red-600/80 text-white hover:bg-red-600 transition-colors">
-        End Game
-      </a>
-      <a href="{% url 'phyrexian:dashboard' %}"
-         class="block w-full px-3 py-2 rounded text-sm text-center text-gray-400 hover:text-white transition-colors">
-        Back to Dashboard
-      </a>
+    {# Log #}
+    <button @click="showLog = !showLog" class="p-2 text-gray-400 hover:text-white transition-colors" title="Game Log">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+    </button>
+  </div>
+
+  <!-- ═══ Counter Modal ═══ -->
+  <div x-show="counterModal.open" x-cloak @click.self="counterModal.open = false"
+       class="fixed inset-0 z-50 modal-backdrop flex items-end sm:items-center justify-center p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="translate-y-full sm:translate-y-0 sm:scale-95 opacity-0"
+         x-transition:enter-end="translate-y-0 sm:scale-100 opacity-100">
+
+      {# Modal header #}
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 rounded-full" :style="`background-color: ${counterModal.player?.color}`"></div>
+          <span class="text-sm font-semibold text-gray-900 dark:text-white" x-text="counterModal.player?.name"></span>
+        </div>
+        <button @click="counterModal.open = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-white text-lg">&times;</button>
+      </div>
+
+      {# Counters tab #}
+      <div class="p-4">
+        <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Counters</p>
+        <div class="grid grid-cols-4 sm:grid-cols-5 gap-2">
+          <template x-for="ct in allCounters" :key="ct.key">
+            <div class="flex flex-col items-center gap-1">
+              <div class="text-lg" x-text="ct.icon"></div>
+              <div class="flex items-center gap-0.5">
+                <button @click="modifyCounter(ct.key, -1)" class="w-6 h-6 rounded bg-gray-200 dark:bg-gray-700 text-xs font-bold hover:bg-gray-300 dark:hover:bg-gray-600">-</button>
+                <span class="w-6 text-center text-sm font-bold tabular-nums text-gray-900 dark:text-white"
+                      x-text="counterModal.player?.[ct.key] || 0"></span>
+                <button @click="modifyCounter(ct.key, 1)" class="w-6 h-6 rounded bg-gray-200 dark:bg-gray-700 text-xs font-bold hover:bg-gray-300 dark:hover:bg-gray-600">+</button>
+              </div>
+              <span class="text-[9px] text-gray-500" x-text="ct.label"></span>
+            </div>
+          </template>
+        </div>
+
+        {# Status toggles #}
+        <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-4 mb-2">Status</p>
+        <div class="flex flex-wrap gap-2">
+          <button @click="togglePlayerStatus('monarch')"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                  :class="counterModal.player?.is_monarch ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 ring-1 ring-yellow-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
+            &#9813; Monarch
+          </button>
+          <button @click="togglePlayerStatus('initiative')"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                  :class="counterModal.player?.has_initiative ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 ring-1 ring-cyan-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
+            &#9733; Initiative
+          </button>
+          <button @click="togglePlayerStatus('citys_blessing')"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                  :class="counterModal.player?.has_citys_blessing ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400 ring-1 ring-purple-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
+            &#10026; Ascend
+          </button>
+          <button @click="toggleDayNight()"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                  :class="counterModal.player?.is_day ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' : 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400'">
+            <span x-text="counterModal.player?.is_day ? '&#9788; Day' : '&#9789; Night'"></span>
+          </button>
+        </div>
+
+        {# Commander damage section #}
+        <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-4 mb-2">Commander Damage</p>
+        <div class="space-y-2">
+          <template x-for="other in players.filter(p => p.pk !== counterModal.player?.pk)" :key="'cd-'+other.pk">
+            <div class="flex items-center gap-2 p-2 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+              <div class="w-4 h-4 rounded-full" :style="`background-color: ${other.color}`"></div>
+              <span class="text-xs text-gray-700 dark:text-gray-300 flex-1 truncate" x-text="other.name"></span>
+              <button @click="changeCmdrDamage(counterModal.playerIdx, other.pk, -1)" class="w-6 h-6 rounded bg-gray-200 dark:bg-gray-600 text-xs font-bold">-</button>
+              <span class="w-6 text-center text-sm font-bold tabular-nums text-gray-900 dark:text-white"
+                    x-text="counterModal.player?.commander_damage[other.pk] || 0"></span>
+              <button @click="changeCmdrDamage(counterModal.playerIdx, other.pk, 1)" class="w-6 h-6 rounded bg-gray-200 dark:bg-gray-600 text-xs font-bold">+</button>
+            </div>
+          </template>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Game Log Sidebar -->
-  <div x-show="showLog" x-cloak x-transition:enter="transition ease-out duration-200"
-       x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
-       x-transition:leave="transition ease-in duration-150"
-       x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"
-       @click.away="showLog = false"
-       class="fixed top-0 right-0 bottom-0 w-72 bg-gray-800 border-l border-gray-700 z-50 flex flex-col shadow-2xl">
-    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-700">
-      <h2 class="text-sm font-bold">Game Log</h2>
-      <button @click="showLog = false" class="text-gray-400 hover:text-white">&times;</button>
+  <!-- ═══ Side Menu ═══ -->
+  <div x-show="showMenu" x-cloak @click.self="showMenu = false"
+       class="fixed inset-0 z-50 modal-backdrop">
+    <div class="fixed top-0 left-0 bottom-0 w-64 bg-gray-800 border-r border-gray-700 flex flex-col p-4 shadow-2xl"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="-translate-x-full" x-transition:enter-end="translate-x-0"
+         x-transition:leave="transition ease-in duration-150" x-transition:leave-start="translate-x-0" x-transition:leave-end="-translate-x-full">
+      <h2 class="text-lg font-bold mb-4">Menu</h2>
+
+      <div class="space-y-2 flex-1">
+        <p class="text-xs text-gray-500 uppercase tracking-wider mt-1 mb-1">Tools</p>
+        <button @click="rollDice(6); showMenu=false" class="w-full text-left px-3 py-2 rounded text-sm text-gray-300 hover:bg-gray-700">
+          Roll d6 <span x-show="lastDie===6" class="font-bold text-white" x-text="'→ ' + lastRoll"></span>
+        </button>
+        <button @click="rollDice(20); showMenu=false" class="w-full text-left px-3 py-2 rounded text-sm text-gray-300 hover:bg-gray-700">
+          Roll d20 <span x-show="lastDie===20" class="font-bold text-white" x-text="'→ ' + lastRoll"></span>
+        </button>
+        <button @click="flipCoin(); showMenu=false" class="w-full text-left px-3 py-2 rounded text-sm text-gray-300 hover:bg-gray-700">
+          Flip Coin <span x-show="coinResult" class="font-bold text-white" x-text="'→ ' + coinResult"></span>
+        </button>
+        <button @click="randomPlayer(); showMenu=false" class="w-full text-left px-3 py-2 rounded text-sm text-gray-300 hover:bg-gray-700">
+          Random Player <span x-show="randomPick" class="font-bold text-white" x-text="'→ ' + randomPick"></span>
+        </button>
+      </div>
+
+      <div class="pt-4 border-t border-gray-700 space-y-2">
+        <a href="{% url 'phyrexian:session-end' session.pk %}"
+           class="block w-full px-3 py-2 rounded text-sm text-center bg-red-600/80 text-white hover:bg-red-600 transition-colors">
+          End Game
+        </a>
+        <a href="{% url 'phyrexian:dashboard' %}"
+           class="block w-full px-3 py-2 rounded text-sm text-center text-gray-400 hover:text-white transition-colors">
+          Back to Dashboard
+        </a>
+      </div>
     </div>
-    <div id="life-log" class="flex-1 overflow-y-auto p-3 space-y-1"
-         hx-get="{% url 'phyrexian:session-log' session.pk %}"
-         hx-trigger="every 3s"
-         hx-swap="innerHTML">
-      {% include "phyrexian/partials/life_log.html" %}
+  </div>
+
+  <!-- ═══ Game Log ═══ -->
+  <div x-show="showLog" x-cloak @click.self="showLog = false"
+       class="fixed inset-0 z-50 modal-backdrop">
+    <div class="fixed top-0 right-0 bottom-0 w-72 bg-gray-800 border-l border-gray-700 flex flex-col shadow-2xl"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
+         x-transition:leave="transition ease-in duration-150" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+        <h2 class="text-sm font-bold">Game Log</h2>
+        <button @click="showLog = false" class="text-gray-400 hover:text-white">&times;</button>
+      </div>
+      <div id="life-log" class="flex-1 overflow-y-auto p-3 space-y-1"
+           hx-get="{% url 'phyrexian:session-log' session.pk %}"
+           hx-trigger="every 3s"
+           hx-swap="innerHTML">
+        {% include "phyrexian/partials/life_log.html" %}
+      </div>
     </div>
   </div>
 
@@ -210,9 +289,12 @@
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
   <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
   <script>
+    const CSRF = '{{ csrf_token }}';
+    const SESSION_PK = '{{ session.pk }}';
+    const STARTING_LIFE = {{ session.starting_life }};
+
     function liveGame() {
       const players = {{ players_json|safe }};
-      // Add client-side state
       players.forEach(p => { p.deltaShow = false; p.lastDelta = 0; });
 
       return {
@@ -220,115 +302,117 @@
         turn: {{ session.current_turn }},
         showMenu: false,
         showLog: false,
-        lastRoll: null,
-        lastDie: null,
-        coinResult: '',
-        randomPick: '',
+        rollResult: '',
+        lastRoll: null, lastDie: null, coinResult: '', randomPick: '',
+        counterModal: { open: false, playerIdx: 0, player: null },
+
+        allCounters: [
+          {key: 'poison', icon: '☠', label: 'Poison'},
+          {key: 'energy', icon: '⚡', label: 'Energy'},
+          {key: 'experience', icon: '✪', label: 'Exp'},
+          {key: 'commander_tax', icon: '⚔', label: 'C.Tax'},
+          {key: 'treasure', icon: '💰', label: 'Treasure'},
+          {key: 'rad', icon: '☢', label: 'Rad'},
+          {key: 'storm_count', icon: '🌪', label: 'Storm'},
+        ],
 
         get gridClass() {
           const n = this.players.length;
-          if (n === 2) return 'grid-cols-1 grid-rows-2';
-          if (n === 3) return 'grid-cols-1 sm:grid-cols-2 grid-rows-2';
-          if (n === 4) return 'grid-cols-2 grid-rows-2';
-          if (n === 5) return 'grid-cols-2 sm:grid-cols-3 grid-rows-2';
-          return 'grid-cols-2 sm:grid-cols-3 grid-rows-2';
+          if (n === 2) return 'grid-cols-2 rows-1';
+          if (n === 3) return 'grid-cols-2 rows-2';
+          if (n === 4) return 'grid-cols-2 rows-2';
+          if (n === 5) return 'grid-cols-3 rows-2';
+          return 'grid-cols-3 rows-2';
+        },
+
+        getVisibleCounters(idx) {
+          const p = this.players[idx];
+          const counters = [];
+          if (p.poison) counters.push({key: 'poison', icon: '☠', value: p.poison});
+          if (p.energy) counters.push({key: 'energy', icon: '⚡', value: p.energy});
+          if (p.experience) counters.push({key: 'experience', icon: '✪', value: p.experience});
+          if (p.commander_tax) counters.push({key: 'ctax', icon: '⚔', value: p.commander_tax});
+          if (p.treasure) counters.push({key: 'treasure', icon: '💰', value: p.treasure});
+          if (p.rad) counters.push({key: 'rad', icon: '☢', value: p.rad});
+          if (p.storm_count) counters.push({key: 'storm', icon: '🌪', value: p.storm_count});
+          return counters;
         },
 
         changeLife(idx, delta) {
-          const player = this.players[idx];
-          player.life += delta;
-          player.lastDelta = delta;
-          player.deltaShow = true;
-          setTimeout(() => { player.deltaShow = false; }, 600);
-
-          // Persist to server
-          fetch(`/stats/session/${player.pk}/life/`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'X-CSRFToken': '{{ csrf_token }}',
-            },
-            body: `delta=${delta}`
-          });
+          const p = this.players[idx];
+          p.life += delta;
+          p.lastDelta = delta;
+          p.deltaShow = true;
+          setTimeout(() => { p.deltaShow = false; }, 700);
+          fetch(`/stats/session/${p.pk}/life/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `delta=${delta}`});
         },
 
-        changeCounter(idx, counter, delta) {
-          const player = this.players[idx];
-          player[counter] = Math.max(0, player[counter] + delta);
-
-          fetch(`/stats/session/${player.pk}/counter/`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'X-CSRFToken': '{{ csrf_token }}',
-            },
-            body: `counter=${counter}&delta=${delta}`
-          });
+        changeCmdrDamage(targetIdx, sourcePk, delta) {
+          const p = this.players[targetIdx];
+          if (!p.commander_damage) p.commander_damage = {};
+          const current = p.commander_damage[sourcePk] || 0;
+          p.commander_damage[sourcePk] = Math.max(0, current + delta);
+          p.life -= delta; // Commander damage also reduces life
+          fetch(`/stats/session/${p.pk}/cmdr-damage/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `source_pk=${sourcePk}&delta=${delta}&lose_life=true`});
         },
 
-        toggleStatus(idx, flag) {
+        openCounterModal(idx) {
+          this.counterModal.playerIdx = idx;
+          this.counterModal.player = this.players[idx];
+          this.counterModal.open = true;
+        },
+
+        modifyCounter(key, delta) {
+          const p = this.counterModal.player;
+          p[key] = Math.max(0, (p[key] || 0) + delta);
+          fetch(`/stats/session/${p.pk}/counter/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `counter=${key}&delta=${delta}`});
+        },
+
+        togglePlayerStatus(flag) {
+          const p = this.counterModal.player;
           if (flag === 'monarch') {
-            this.players.forEach(p => p.is_monarch = false);
-            this.players[idx].is_monarch = true;
+            this.players.forEach(pl => pl.is_monarch = false);
+            p.is_monarch = true;
           } else if (flag === 'initiative') {
-            this.players.forEach(p => p.has_initiative = false);
-            this.players[idx].has_initiative = true;
+            this.players.forEach(pl => pl.has_initiative = false);
+            p.has_initiative = true;
+          } else if (flag === 'citys_blessing') {
+            p.has_citys_blessing = !p.has_citys_blessing;
           }
+          fetch(`/stats/session/${p.pk}/toggle/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `flag=${flag}`});
+        },
 
-          fetch(`/stats/session/${this.players[idx].pk}/toggle/`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'X-CSRFToken': '{{ csrf_token }}',
-            },
-            body: `flag=${flag}`
-          });
+        toggleDayNight() {
+          const newState = !this.counterModal.player.is_day;
+          this.players.forEach(p => p.is_day = newState);
+          fetch(`/stats/session/${this.counterModal.player.pk}/toggle/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `flag=day_night`});
         },
 
         nextTurn() {
           this.turn++;
-          fetch(`/stats/session/{{ session.pk }}/next-turn/`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'X-CSRFToken': '{{ csrf_token }}',
-            },
-          });
+          fetch(`/stats/session/${SESSION_PK}/next-turn/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}});
         },
 
         resetGame() {
-          if (!confirm('Reset all life totals?')) return;
           this.players.forEach(p => {
-            p.life = {{ session.starting_life }};
-            p.poison = 0;
-            p.energy = 0;
-            p.experience = 0;
+            p.life = STARTING_LIFE; p.poison = 0; p.energy = 0; p.experience = 0;
+            p.commander_tax = 0; p.treasure = 0; p.rad = 0; p.storm_count = 0;
+            p.commander_damage = {}; p.is_monarch = false; p.has_initiative = false;
+            p.has_citys_blessing = false;
           });
           this.turn = 1;
-
-          fetch(`/stats/session/{{ session.pk }}/reset/`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'X-CSRFToken': '{{ csrf_token }}',
-            },
-          });
+          fetch(`/stats/session/${SESSION_PK}/reset/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}});
         },
 
-        rollDice(sides) {
-          this.lastDie = sides;
-          this.lastRoll = Math.floor(Math.random() * sides) + 1;
+        closeAllModals() {
+          this.counterModal.open = false; this.showMenu = false; this.showLog = false;
         },
 
-        flipCoin() {
-          this.coinResult = Math.random() < 0.5 ? 'Heads' : 'Tails';
-        },
-
+        rollDice(sides) { this.lastDie = sides; this.lastRoll = Math.floor(Math.random() * sides) + 1; },
+        flipCoin() { this.coinResult = Math.random() < 0.5 ? 'Heads' : 'Tails'; },
         randomPlayer() {
           const alive = this.players.filter(p => p.life > 0 && p.poison < 10);
-          if (alive.length) {
-            this.randomPick = alive[Math.floor(Math.random() * alive.length)].name;
-          }
+          if (alive.length) this.randomPick = alive[Math.floor(Math.random() * alive.length)].name;
         }
       };
     }

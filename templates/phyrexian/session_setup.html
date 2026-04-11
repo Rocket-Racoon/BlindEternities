@@ -3,70 +3,162 @@
 {% block title %}New Game — {{ site_name }}{% endblock %}
 
 {% block content %}
-<div class="max-w-2xl mx-auto" x-data="sessionSetup()">
+<div class="max-w-3xl mx-auto" x-data="sessionSetup()">
 
   <div class="mb-6">
     <a href="{% url 'phyrexian:dashboard' %}" class="text-sm text-void-600 dark:text-void-400 hover:underline">&larr; Dashboard</a>
     <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">Start a Game</h1>
-    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Set up your live life counter.</p>
   </div>
 
   <form method="post" class="space-y-6">
     {% csrf_token %}
 
-    <!-- Format & Starting Life -->
+    <!-- Game Setup Section -->
     <div class="card p-6">
-      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Game Settings</h2>
-      <div class="grid md:grid-cols-3 gap-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Format</label>
-          <select name="format" class="input" x-model="format" @change="updateLife()">
-            {% for val, label in form.format.field.choices %}
-            <option value="{{ val }}">{{ label }}</option>
-            {% endfor %}
-          </select>
+      <h2 class="text-sm uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-4">Game Setup</h2>
+
+      <!-- Players (pill buttons) -->
+      <div class="flex items-center gap-4 mb-5">
+        <span class="text-sm text-gray-700 dark:text-gray-300 w-28">Players</span>
+        <div class="flex gap-2">
+          <template x-for="n in [2,3,4,5,6]" :key="n">
+            <button type="button" @click="playerCount = n; updatePlayers()"
+                    class="w-10 h-10 rounded-full text-sm font-bold transition-all"
+                    :class="playerCount === n
+                      ? 'bg-void-600 text-white ring-2 ring-void-400 ring-offset-2 dark:ring-offset-gray-900'
+                      : 'bg-gray-200 dark:bg-void-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-void-600'"
+                    x-text="n"></button>
+          </template>
         </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Players</label>
-          <select name="player_count" class="input" x-model="playerCount" @change="updatePlayers()">
-            <option value="2">2 Players</option>
-            <option value="3">3 Players</option>
-            <option value="4" selected>4 Players</option>
-            <option value="5">5 Players</option>
-            <option value="6">6 Players</option>
-          </select>
+        <input type="hidden" name="player_count" :value="playerCount">
+      </div>
+
+      <!-- Starting Life (pill buttons) -->
+      <div class="flex items-center gap-4 mb-5">
+        <span class="text-sm text-gray-700 dark:text-gray-300 w-28">Starting Life</span>
+        <div class="flex gap-2 flex-wrap">
+          <template x-for="l in [20,25,30,40,60]" :key="l">
+            <button type="button" @click="startingLife = l; customLife = false"
+                    class="w-10 h-10 rounded-full text-sm font-bold transition-all"
+                    :class="startingLife === l && !customLife
+                      ? 'bg-void-600 text-white ring-2 ring-void-400 ring-offset-2 dark:ring-offset-gray-900'
+                      : 'bg-gray-200 dark:bg-void-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-void-600'"
+                    x-text="l"></button>
+          </template>
+          <div class="flex items-center gap-1">
+            <button type="button" @click="customLife = true"
+                    class="px-3 h-10 rounded-full text-xs font-bold transition-all"
+                    :class="customLife
+                      ? 'bg-void-600 text-white ring-2 ring-void-400 ring-offset-2 dark:ring-offset-gray-900'
+                      : 'bg-gray-200 dark:bg-void-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-void-600'">
+              Custom
+            </button>
+            <input x-show="customLife" x-transition type="number" x-model.number="startingLife"
+                   class="w-16 input text-sm text-center" min="1" max="999">
+          </div>
         </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Starting Life</label>
-          <input type="number" name="starting_life" class="input" x-model="startingLife" min="1" max="999">
-        </div>
+      </div>
+      <input type="hidden" name="starting_life" :value="startingLife">
+
+      <!-- Format -->
+      <div class="flex items-center gap-4">
+        <span class="text-sm text-gray-700 dark:text-gray-300 w-28">Format</span>
+        <select name="format" class="input flex-1" x-model="format" @change="updateLife()">
+          {% for val, label in form.format.field.choices %}
+          <option value="{{ val }}">{{ label }}</option>
+          {% endfor %}
+        </select>
       </div>
     </div>
 
-    <!-- Player Names -->
+    <!-- Players Section -->
     <div class="card p-6">
-      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Players</h2>
-      <div class="space-y-3">
+      <h2 class="text-sm uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-4">Players</h2>
+      <div class="space-y-4">
         <template x-for="(player, i) in players" :key="i">
-          <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-white text-xs font-bold"
-                 :style="`background-color: ${player.color}`"
-                 x-text="i + 1"></div>
-            <input type="text"
-                   :name="`player_${i}_name`"
-                   :placeholder="`Player ${i + 1}`"
-                   x-model="player.name"
-                   class="input flex-1">
-            <input type="hidden" :name="`player_${i}_color`" :value="player.color">
-            <!-- Color picker -->
-            <div class="flex gap-1">
-              <template x-for="c in colors" :key="c">
-                <button type="button"
-                        @click="player.color = c"
-                        class="w-5 h-5 rounded-full border-2 transition-all"
-                        :class="player.color === c ? 'border-gray-900 dark:border-white scale-110' : 'border-transparent opacity-60 hover:opacity-100'"
-                        :style="`background-color: ${c}`"></button>
-              </template>
+          <div class="rounded-xl border border-gray-200 dark:border-void-700">
+            <!-- Player header with bg preview -->
+            <div class="relative h-24 flex items-end p-3 rounded-t-xl overflow-hidden"
+                 :style="player.bg
+                   ? `background-image: url(${player.bg}); background-size: cover; background-position: center;`
+                   : `background: linear-gradient(135deg, ${player.color}44, ${player.color}88);`">
+              <div class="absolute inset-0 bg-black/30"></div>
+              <div class="relative flex items-center gap-2 w-full">
+                <div class="w-7 h-7 rounded-full border-2 border-white/80 flex items-center justify-center text-white text-xs font-bold"
+                     :style="`background-color: ${player.color}`"
+                     x-text="i + 1"></div>
+                <input type="text"
+                       :name="`player_${i}_name`"
+                       :placeholder="`Player ${i + 1}`"
+                       x-model="player.name"
+                       class="flex-1 bg-transparent border-none text-white placeholder-white/60 text-sm font-semibold focus:ring-0 p-0">
+              </div>
+            </div>
+
+            <!-- Player settings -->
+            <div class="p-3 bg-white dark:bg-void-900 space-y-3">
+              <!-- Color picker -->
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-500 w-16">Color</span>
+                <div class="flex gap-1.5">
+                  <template x-for="c in colors" :key="'c-'+i+'-'+c">
+                    <button type="button" @click="player.color = c"
+                            class="w-6 h-6 rounded-full border-2 transition-all"
+                            :class="player.color === c ? 'border-gray-900 dark:border-white scale-110' : 'border-transparent opacity-60 hover:opacity-100'"
+                            :style="`background-color: ${c}`"></button>
+                  </template>
+                </div>
+                <input type="hidden" :name="`player_${i}_color`" :value="player.color">
+              </div>
+
+              <!-- Card art background search -->
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-500 w-16">Card Art</span>
+                <div class="flex-1 relative">
+                  <input type="text"
+                         :id="`search-${i}`"
+                         @input.debounce.300ms="searchCard(i, $event.target.value)"
+                         @focus="if(searchResults[i]?.length) searchOpen = i"
+                         :placeholder="player.bgName || 'Search card for background...'"
+                         class="input text-xs w-full">
+                  <!-- Clear button -->
+                  <button x-show="player.bg" type="button"
+                          @click="player.bg = ''; player.bgName = ''"
+                          class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 text-xs">&times;</button>
+                  <!-- Search results dropdown -->
+                  <div x-show="searchOpen === i && searchResults[i]?.length"
+                       @click.away="searchOpen = -1"
+                       class="absolute top-full left-0 right-0 z-50 mt-1 rounded-lg shadow-xl max-h-56 overflow-y-auto
+                              bg-white dark:bg-void-800 border border-gray-200 dark:border-void-600
+                              ring-1 ring-black/5 dark:ring-white/10">
+                    <template x-for="card in searchResults[i]" :key="card.id">
+                      <button type="button"
+                              @click="selectBg(i, card)"
+                              class="w-full flex items-center gap-3 px-3 py-2.5
+                                     hover:bg-void-100 dark:hover:bg-void-700
+                                     border-b border-gray-100 dark:border-void-700 last:border-b-0
+                                     text-left text-sm transition-colors">
+                        <img :src="card.art_crop || card.image"
+                             class="w-14 h-10 rounded object-cover bg-gray-300 dark:bg-void-700 shrink-0"
+                             :alt="card.name">
+                        <span class="text-gray-900 dark:text-gray-100 font-medium truncate" x-text="card.name"></span>
+                      </button>
+                    </template>
+                  </div>
+                </div>
+                <input type="hidden" :name="`player_${i}_bg`" :value="player.bg">
+              </div>
+
+              <!-- Deck link -->
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-500 w-16">Deck</span>
+                <select :name="`player_${i}_deck`" class="input text-xs flex-1">
+                  <option value="">— None —</option>
+                  {% for deck in user_decks %}
+                  <option value="{{ deck.pk }}">{{ deck.name }} ({{ deck.get_format_display }})</option>
+                  {% endfor %}
+                </select>
+              </div>
             </div>
           </div>
         </template>
@@ -79,7 +171,10 @@
          class="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-void-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800 transition-colors">
         Cancel
       </a>
-      <button type="submit" class="btn-primary">Start Game</button>
+      <button type="submit"
+              class="px-6 py-2 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors font-medium">
+        Start Game
+      </button>
     </div>
   </form>
 
@@ -96,25 +191,59 @@
       format: 'commander',
       playerCount: 4,
       startingLife: 40,
+      customLife: false,
       colors: COLORS,
       players: Array.from({length: 4}, (_, i) => ({
-        name: '', color: COLORS[i % COLORS.length]
+        name: '', color: COLORS[i % COLORS.length], bg: '', bgName: '', deck: ''
       })),
+      searchResults: {},
+      searchOpen: -1,
 
       updateLife() {
         const life = FORMAT_LIFE[this.format];
-        if (life) this.startingLife = life;
+        if (life) { this.startingLife = life; this.customLife = false; }
       },
 
       updatePlayers() {
-        const count = parseInt(this.playerCount);
+        const count = this.playerCount;
         while (this.players.length < count) {
           const i = this.players.length;
-          this.players.push({name: '', color: COLORS[i % COLORS.length]});
+          this.players.push({name: '', color: COLORS[i % COLORS.length], bg: '', bgName: '', deck: ''});
         }
-        while (this.players.length > count) {
-          this.players.pop();
+        while (this.players.length > count) this.players.pop();
+      },
+
+      async searchCard(playerIdx, query) {
+        if (query.length < 2) {
+          this.searchResults[playerIdx] = [];
+          this.searchOpen = -1;
+          return;
         }
+        try {
+          const resp = await fetch(`/collection/api/card-search/?q=${encodeURIComponent(query)}`);
+          const data = await resp.json();
+          this.searchResults[playerIdx] = data.map(c => {
+            const print = c.prints && c.prints[0];
+            return {
+              id: c.id,
+              name: c.name,
+              image: print ? print.image : '',
+              art_crop: print ? (print.art_crop || print.image) : '',
+            };
+          });
+          this.searchOpen = playerIdx;
+        } catch(e) {
+          console.error('Card search failed:', e);
+        }
+      },
+
+      selectBg(idx, card) {
+        this.players[idx].bg = card.art_crop || card.image;
+        this.players[idx].bgName = card.name;
+        this.searchOpen = -1;
+        // Clear the search input text
+        const input = document.getElementById(`search-${idx}`);
+        if (input) input.value = '';
       }
     };
   }

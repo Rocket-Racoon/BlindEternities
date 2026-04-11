@@ -540,6 +540,9 @@ class SessionSetupView(LoginRequiredMixin, TemplateView):
         ctx["form"] = SessionSetupForm()
         ctx["player_colors"] = PLAYER_COLORS
         ctx["format_life_map"] = json.dumps(FORMAT_STARTING_LIFE)
+        ctx["user_decks"] = Deck.objects.filter(
+            user=self.request.user, is_active=True
+        ).order_by("name")
         return ctx
 
     def post(self, request, *args, **kwargs):
@@ -562,15 +565,21 @@ class SessionSetupView(LoginRequiredMixin, TemplateView):
         for i in range(player_count):
             name = request.POST.get(f"player_{i}_name", f"Player {i + 1}").strip()
             color = request.POST.get(f"player_{i}_color", PLAYER_COLORS[i % len(PLAYER_COLORS)])
+            bg_image = request.POST.get(f"player_{i}_bg", "")
+            deck_id = request.POST.get(f"player_{i}_deck", "")
             if not name:
                 name = f"Player {i + 1}"
-            PlayerSlot.objects.create(
+            slot = PlayerSlot(
                 session=session,
                 name=name,
                 position=i,
                 life=starting_life,
                 color=color,
+                background_image=bg_image,
             )
+            if deck_id:
+                slot.deck_id = deck_id
+            slot.save()
 
         from django.shortcuts import redirect
         return redirect("phyrexian:session-live", pk=session.pk)
@@ -595,10 +604,17 @@ class SessionLiveView(LoginRequiredMixin, TemplateView):
                 "poison": p.poison,
                 "energy": p.energy,
                 "experience": p.experience,
+                "commander_tax": p.commander_tax,
+                "treasure": p.treasure,
+                "rad": p.rad,
+                "storm_count": p.storm_count,
                 "is_monarch": p.is_monarch,
                 "has_initiative": p.has_initiative,
+                "has_citys_blessing": p.has_citys_blessing,
+                "is_day": p.is_day,
                 "commander_damage": p.commander_damage,
                 "color": p.color,
+                "background_image": p.background_image,
                 "is_dead": p.is_dead,
             }
             for p in players
@@ -648,21 +664,17 @@ class SessionCounterChangeView(LoginRequiredMixin, TemplateView):
         counter = request.POST.get("counter", "")
         delta = int(request.POST.get("delta", 0))
 
-        if counter == "poison":
-            player.poison = max(0, player.poison + delta)
-            player.save(update_fields=["poison", "updated_at"])
-        elif counter == "energy":
-            player.energy = max(0, player.energy + delta)
-            player.save(update_fields=["energy", "updated_at"])
-        elif counter == "experience":
-            player.experience = max(0, player.experience + delta)
-            player.save(update_fields=["experience", "updated_at"])
+        valid_counters = ["poison", "energy", "experience", "commander_tax", "treasure", "rad", "storm_count"]
+        if counter in valid_counters:
+            current = getattr(player, counter)
+            setattr(player, counter, max(0, current + delta))
+            player.save(update_fields=[counter, "updated_at"])
 
         return self.render_to_response({"player": player, "session": player.session})
 
 
 class SessionToggleStatusView(LoginRequiredMixin, TemplateView):
-    """HTMX endpoint: toggle monarch, initiative, city's blessing."""
+    """HTMX endpoint: toggle monarch, initiative, city's blessing, day/night."""
     template_name = "phyrexian/partials/player_panel.html"
 
     def post(self, request, *args, **kwargs):
@@ -670,7 +682,6 @@ class SessionToggleStatusView(LoginRequiredMixin, TemplateView):
         flag = request.POST.get("flag", "")
 
         if flag == "monarch":
-            # Only one player can be monarch at a time
             player.session.players.update(is_monarch=False)
             player.is_monarch = True
             player.save(update_fields=["is_monarch", "updated_at"])
@@ -681,12 +692,53 @@ class SessionToggleStatusView(LoginRequiredMixin, TemplateView):
         elif flag == "citys_blessing":
             player.has_citys_blessing = not player.has_citys_blessing
             player.save(update_fields=["has_citys_blessing", "updated_at"])
+        elif flag == "day_night":
+            # Day/Night is global — toggle for all players
+            new_state = not player.is_day
+            player.session.players.update(is_day=new_state)
 
-        # Return all players since monarch/initiative affects everyone
         from django.shortcuts import render
         players = list(player.session.players.all())
         return render(request, "phyrexian/partials/all_players.html", {
             "players": players, "session": player.session,
+        })
+
+
+class SessionCommanderDamageView(LoginRequiredMixin, TemplateView):
+    """HTMX endpoint: apply commander damage from one player to another."""
+    template_name = "phyrexian/partials/player_panel.html"
+
+    def post(self, request, *args, **kwargs):
+        target = get_object_or_404(PlayerSlot, pk=kwargs["player_pk"])
+        source_pk = request.POST.get("source_pk", "")
+        delta = int(request.POST.get("delta", 0))
+        also_lose_life = request.POST.get("lose_life", "true") == "true"
+
+        dmg = target.commander_damage or {}
+        current = dmg.get(source_pk, 0)
+        dmg[source_pk] = max(0, current + delta)
+        target.commander_damage = dmg
+
+        if also_lose_life and delta != 0:
+            target.life -= delta
+
+        target.save(update_fields=["commander_damage", "life", "updated_at"])
+
+        if delta != 0:
+            LifeChange.objects.create(
+                session=target.session,
+                player=target,
+                delta=-delta if also_lose_life else 0,
+                life_after=target.life,
+                turn=target.session.current_turn,
+                source="commander damage",
+            )
+
+        from django.http import JsonResponse
+        return JsonResponse({
+            "life": target.life,
+            "commander_damage": target.commander_damage,
+            "is_dead": target.is_dead,
         })
 
 
