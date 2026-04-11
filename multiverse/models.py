@@ -1,5 +1,6 @@
 # multiverse/models.py
 from django.db import models
+from django.db.models.functions import Length
 from core.models import BaseModel, CreatureType
 from core.constants import *
 
@@ -257,7 +258,7 @@ class CardPrint(BaseModel):
     preview             = models.JSONField(default=dict)
 
     class Meta:
-        ordering        = ["-cardset__released_at", "collector_number"]
+        ordering        = ["-cardset__released_at", Length("collector_number"), "collector_number"]
         verbose_name    = "card print"
         verbose_name_plural = "card prints"
 

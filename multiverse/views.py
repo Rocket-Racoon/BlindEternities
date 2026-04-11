@@ -1,6 +1,7 @@
 # multiverse/views.py
 import json
 from django.db.models import Max, Prefetch
+from django.db.models.functions import Length
 from django.utils.safestring import mark_safe
 from django.views.generic import TemplateView
 from django.shortcuts import get_object_or_404
@@ -267,7 +268,7 @@ class SetDetailView(TemplateView):
             cardset.prints
             .select_related("card")
             .prefetch_related("card__faces")
-            .order_by("collector_number")
+            .order_by(Length("collector_number"), "collector_number")
         )
 
         ctx.update({
