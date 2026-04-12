@@ -131,6 +131,28 @@ class FriendSearchJSON(LoginRequiredMixin, View):
         return JsonResponse(results, safe=False)
 
 
+class UserDecksJSON(LoginRequiredMixin, View):
+    """Return active decks for a user. Own decks always; friend's public decks only."""
+
+    def get(self, request, user_id):
+        from tolarian.models import Deck
+
+        target = get_object_or_404(User, pk=user_id)
+        qs = Deck.objects.filter(user=target, is_active=True).order_by("name")
+        if target != request.user:
+            qs = qs.filter(is_public=True)
+
+        results = [
+            {
+                "id": str(d.pk),
+                "name": d.name,
+                "format": d.get_format_display(),
+            }
+            for d in qs
+        ]
+        return JsonResponse(results, safe=False)
+
+
 # --- Parciales HTMX ---
 class UserOverviewPartialView(TemplateView):
     template_name = "nexus/partials/overview.html"

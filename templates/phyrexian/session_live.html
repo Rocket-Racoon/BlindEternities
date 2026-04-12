@@ -6,6 +6,7 @@
   <title>Game — Blind Eternities</title>
   {% load static %}
   <link rel="stylesheet" href="{% static 'css/main.css' %}">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mana-font@latest/css/mana.css">
   <style>
     [x-cloak]{display:none!important}
     * { -webkit-tap-highlight-color: transparent; }
@@ -18,98 +19,122 @@
     .game-grid.rows-1 { grid-template-rows: 1fr; }
     .game-grid.rows-2 { grid-template-rows: 1fr 1fr; }
     .game-grid.rows-3 { grid-template-rows: 1fr 1fr 1fr; }
-
-    /* Life number — big, bold, readable on any background */
     .life-number {
       font-size: clamp(3.5rem, 12vw, 6rem);
-      font-weight: 900;
-      line-height: 1;
-      color: white;
+      font-weight: 900; line-height: 1; color: white;
       font-variant-numeric: tabular-nums;
       text-shadow: 0 2px 12px rgba(0,0,0,0.6), 0 0 2px rgba(0,0,0,0.4);
     }
-
-    /* +/- pill buttons */
     .life-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 2.5rem;
-      height: 3.5rem;
-      border-radius: 0.75rem;
-      background: rgba(0,0,0,0.35);
-      backdrop-filter: blur(4px);
-      color: rgba(255,255,255,0.5);
-      font-size: 1.5rem;
-      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      width: 2.5rem; height: 3.5rem; border-radius: 0.75rem;
+      background: rgba(0,0,0,0.35); backdrop-filter: blur(4px);
+      color: rgba(255,255,255,0.5); font-size: 1.5rem; font-weight: 700;
       transition: background 0.15s;
     }
     .life-zone:active .life-btn { background: rgba(0,0,0,0.55); color: rgba(255,255,255,0.8); }
-
-    /* Bottom bar buttons */
     .bottom-btn {
-      display: flex;
-      align-items: center;
-      gap: 0.25rem;
-      padding: 0.3rem 0.5rem;
-      border-radius: 0.5rem;
-      background: rgba(0,0,0,0.4);
-      backdrop-filter: blur(4px);
-      color: rgba(255,255,255,0.7);
-      font-size: 0.65rem;
-      transition: background 0.15s;
+      display: flex; align-items: center; gap: 0.25rem;
+      padding: 0.3rem 0.5rem; border-radius: 0.5rem;
+      background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);
+      color: rgba(255,255,255,0.7); font-size: 0.65rem; transition: background 0.15s;
     }
     .bottom-btn:hover { background: rgba(0,0,0,0.55); }
-
-    .delta-flash {
-      animation: deltaFlash 0.7s ease-out forwards;
-      pointer-events: none;
-    }
+    .delta-flash { animation: deltaFlash 0.7s ease-out forwards; pointer-events: none; }
     @keyframes deltaFlash {
       0% { opacity: 1; transform: translateY(0) scale(1.3); }
       100% { opacity: 0; transform: translateY(-24px) scale(0.9); }
     }
+    .ko-skull {
+      font-size: 3rem;
+      filter: drop-shadow(0 0 12px rgba(239,68,68,0.6));
+      animation: skullPulse 2s ease-in-out infinite;
+    }
+    @keyframes skullPulse {
+      0%, 100% { opacity: 0.8; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.08); }
+    }
+    /* Active turn — thick glowing border + animated pulse */
+    .player-panel.active-turn {
+      box-shadow: inset 0 0 0 3px #facc15, 0 0 20px rgba(250,204,21,0.4), 0 0 40px rgba(250,204,21,0.15);
+      animation: turnBorder 2s ease-in-out infinite;
+    }
+    @keyframes turnBorder {
+      0%, 100% { box-shadow: inset 0 0 0 3px #facc15, 0 0 20px rgba(250,204,21,0.4); }
+      50% { box-shadow: inset 0 0 0 3px #fde047, 0 0 30px rgba(250,204,21,0.6), 0 0 60px rgba(250,204,21,0.2); }
+    }
+    /* Dim non-active players when a turn is active */
+    .player-panel.not-turn { opacity: 0.65; }
+    /* Turn banner on active panel */
+    .turn-banner {
+      background: linear-gradient(90deg, #facc15, #f59e0b);
+      color: #000;
+      font-size: 0.55rem;
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      padding: 2px 10px;
+      border-radius: 0 0 6px 6px;
+    }
     .counter-grid button { touch-action: manipulation; }
     .modal-backdrop { background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
+    /* Monarch glow on player name bar */
+    .monarch-glow {
+      background: linear-gradient(90deg, rgba(250,204,21,0.25), transparent);
+      border-left: 2px solid #facc15;
+      padding-left: 6px;
+      border-radius: 4px;
+    }
+    /* Monarch crown icon — large and glowing */
+    .monarch-icon {
+      color: #facc15;
+      font-size: 1.1rem;
+      filter: drop-shadow(0 0 4px rgba(250,204,21,0.7)) drop-shadow(0 0 8px rgba(250,204,21,0.4));
+    }
   </style>
 </head>
 <body class="h-full bg-black text-white overflow-hidden" x-data="liveGame()" @keydown.escape="closeAllModals()">
 
   <!-- ═══ Player Grid ═══ -->
   <div class="game-grid grid gap-[2px]" :class="gridClass">
-    <template x-for="(player, idx) in players" :key="player.pk">
+    <template x-for="player in displayPlayers" :key="player.pk">
       <div class="player-panel relative rounded-lg overflow-hidden"
-           :class="(player.life <= 0 || player.poison >= 10) ? 'dead' : ''"
+           :class="[isKnockedOut(playerIdx(player)) && !player.koOverride ? 'dead' : '', activePlayerIdx === playerIdx(player) ? 'active-turn' : (activePlayerIdx >= 0 ? 'not-turn' : '')]"
            :id="'panel-' + player.pk">
 
-        {# Background: card art or color fallback #}
+        {# Background #}
         <div class="absolute inset-0"
              :style="player.background_image
                ? `background: url(${player.background_image}) center/cover no-repeat;`
                : `background: linear-gradient(135deg, ${player.color}55, ${player.color}99);`"></div>
-        {# Dark vignette — keeps art vivid up top, readable at bottom #}
         <div class="absolute inset-0" style="background: linear-gradient(to bottom, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.15) 50%, rgba(0,0,0,0.55) 100%);"></div>
 
         {# Content #}
         <div class="relative h-full flex flex-col">
 
-          {# Top: player name + badges #}
-          <div class="flex items-center gap-1.5 px-3 pt-2 z-10 pointer-events-none">
+          {# Turn banner #}
+          <div x-show="activePlayerIdx === playerIdx(player)" x-cloak class="absolute top-0 left-1/2 -translate-x-1/2 z-20 turn-banner">In Turn</div>
+
+          {# Top: name + badges #}
+          <div class="flex items-center gap-1.5 px-3 pt-2 z-10 pointer-events-none"
+               :class="player.is_monarch ? 'monarch-glow' : ''">
             <span class="text-xs font-bold text-white drop-shadow-lg truncate" x-text="player.name" style="text-shadow: 0 1px 4px rgba(0,0,0,0.7);"></span>
-            <span x-show="player.is_monarch" x-cloak class="text-yellow-400 text-[10px] shrink-0 drop-shadow" title="Monarch">&#9813;</span>
-            <span x-show="player.has_initiative" x-cloak class="text-cyan-400 text-[10px] shrink-0 drop-shadow" title="Initiative">&#9733;</span>
-            <span x-show="player.has_citys_blessing" x-cloak class="text-purple-400 text-[10px] shrink-0 drop-shadow" title="Ascend">&#10026;</span>
+            <span x-show="player.is_monarch" x-cloak class="monarch-icon shrink-0" title="Monarch">&#9813;</span>
+            <span x-show="player.has_initiative" x-cloak class="text-cyan-400 text-sm shrink-0 drop-shadow" title="Initiative" style="text-shadow: 0 0 6px rgba(34,211,238,0.6);">&#9733;</span>
+            <span x-show="player.has_citys_blessing" x-cloak class="text-purple-400 text-sm shrink-0 drop-shadow" title="Ascend" style="text-shadow: 0 0 6px rgba(168,85,247,0.6);">&#10026;</span>
+            {# Placement badge #}
+            <span x-show="player.placement > 0" x-cloak
+                  class="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+                  :class="player.placement === 1 ? 'bg-yellow-500 text-black' : 'bg-white/20 text-white/60'"
+                  x-text="'#' + player.placement"></span>
           </div>
 
-          {# Center: life area with +/- buttons #}
+          {# Center: life #}
           <div class="flex-1 flex relative min-h-0">
-            {# Minus zone (left half) #}
             <div class="life-zone flex-1 flex items-center justify-start pl-2 sm:pl-3"
-                 @click="changeLife(idx, -1)">
+                 @click="changeLife(playerIdx(player), -1)">
               <span class="life-btn">&minus;</span>
             </div>
-
-            {# Life number #}
             <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div class="relative">
                 <span class="life-number" x-text="player.life"></span>
@@ -119,22 +144,19 @@
                      x-text="(player.lastDelta > 0 ? '+' : '') + player.lastDelta"></div>
               </div>
             </div>
-
-            {# Plus zone (right half) #}
             <div class="life-zone flex-1 flex items-center justify-end pr-2 sm:pr-3"
-                 @click="changeLife(idx, 1)">
+                 @click="changeLife(playerIdx(player), 1)">
               <span class="life-btn">+</span>
             </div>
           </div>
 
-          {# Bottom bar: commander damage + counters #}
+          {# Bottom bar #}
           <div class="px-2 pb-1.5 z-10 pointer-events-auto flex items-end gap-1.5" @click.stop>
-            {# Commander damage button #}
             <div class="relative">
-              <button @click="cmdrPanel = cmdrPanel === idx ? -1 : idx"
+              <button @click="cmdrPanel = cmdrPanel === player.pk ? null : player.pk"
                       class="bottom-btn flex items-center gap-1.5">
                 <svg class="w-3 h-3 text-white/50 shrink-0" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1.5l1.5 3.5H14l-3.5 2.5 1.5 4L8 9l-4 2.5 1.5-4L2 5h4.5z"/></svg>
-                <template x-for="other in players.filter((_, j) => j !== idx)" :key="'dot-'+other.pk">
+                <template x-for="other in players.filter(p => p.pk !== player.pk)" :key="'dot-'+other.pk">
                   <div class="flex items-center gap-px">
                     <div class="w-2 h-2 rounded-full" :style="`background-color: ${other.color}`"></div>
                     <span class="text-[8px] font-bold tabular-nums text-white/70"
@@ -142,34 +164,30 @@
                   </div>
                 </template>
               </button>
-
-              {# Expanded picker #}
-              <div x-show="cmdrPanel === idx" x-cloak
+              <div x-show="cmdrPanel === player.pk" x-cloak
                    x-transition:enter="transition ease-out duration-150"
                    x-transition:enter-start="opacity-0 translate-y-1"
                    x-transition:enter-end="opacity-100 translate-y-0"
                    class="absolute bottom-full left-0 mb-1 min-w-[200px] p-2 rounded-xl bg-gray-900/95 backdrop-blur-md border border-white/10 shadow-2xl">
                 <p class="text-[9px] text-white/40 uppercase tracking-wider mb-1 px-0.5">Commander Damage</p>
-                <template x-for="other in players.filter((_, j) => j !== idx)" :key="'cmdr-'+other.pk">
+                <template x-for="other in players.filter(p => p.pk !== player.pk)" :key="'cmdr-'+other.pk">
                   <div class="flex items-center gap-2 py-1">
                     <div class="w-3 h-3 rounded-full shrink-0" :style="`background-color: ${other.color}`"></div>
                     <span class="text-[11px] text-white/80 flex-1 truncate" x-text="other.name"></span>
-                    <button @click="changeCmdrDamage(idx, other.pk, -1)"
+                    <button @click="changeCmdrDamage(playerIdx(player), other.pk, -1)"
                             class="w-6 h-6 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold flex items-center justify-center">&minus;</button>
                     <span class="w-5 text-center text-sm font-bold tabular-nums"
                           x-text="player.commander_damage[other.pk] || 0"></span>
-                    <button @click="changeCmdrDamage(idx, other.pk, 1)"
+                    <button @click="changeCmdrDamage(playerIdx(player), other.pk, 1)"
                             class="w-6 h-6 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold flex items-center justify-center">+</button>
                   </div>
                 </template>
               </div>
             </div>
-
-            {# Counters button #}
-            <button @click="openCounterModal(idx)" class="bottom-btn">
-              <template x-if="getVisibleCounters(idx).length > 0">
+            <button @click="openCounterModal(playerIdx(player))" class="bottom-btn">
+              <template x-if="getVisibleCounters(playerIdx(player)).length > 0">
                 <div class="flex items-center gap-1">
-                  <template x-for="ct in getVisibleCounters(idx)" :key="ct.key">
+                  <template x-for="ct in getVisibleCounters(playerIdx(player))" :key="ct.key">
                     <div class="flex items-center gap-px text-[8px]">
                       <span x-text="ct.icon"></span>
                       <span class="font-bold tabular-nums" x-text="ct.value"></span>
@@ -177,44 +195,122 @@
                   </template>
                 </div>
               </template>
-              <template x-if="getVisibleCounters(idx).length === 0">
+              <template x-if="getVisibleCounters(playerIdx(player)).length === 0">
                 <svg class="w-3 h-3 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
               </template>
             </button>
           </div>
-
         </div>
+
+        {# KO overlay #}
+        <div x-show="isKnockedOut(playerIdx(player)) && !player.koOverride" x-cloak
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+             class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/75 backdrop-blur-sm">
+          <i class="ms ms-counter-skull text-red-500 ko-skull"></i>
+          <span class="text-xl sm:text-2xl font-black text-red-500 tracking-widest mt-2 mb-0.5" style="text-shadow: 0 0 20px rgba(239,68,68,0.5);">K.O.</span>
+          <span class="text-xs text-white/50 mb-0.5" x-text="player.name"></span>
+          <span class="text-[10px] text-red-400/70 mb-4" x-text="koReason(playerIdx(player))"></span>
+          <button @click="player.koOverride = true"
+                  class="px-4 py-2 rounded-lg bg-white/10 text-white/80 text-xs font-semibold hover:bg-white/20 active:bg-white/30 transition-colors border border-white/20">
+            Stay in Game
+          </button>
+        </div>
+
       </div>
     </template>
   </div>
 
+  <!-- ═══ Starting Player Picker ═══ -->
+  <div x-show="pickingStarter" x-cloak
+       class="fixed inset-0 z-[60] modal-backdrop flex items-center justify-center p-4">
+    <div class="bg-gray-900 rounded-2xl w-full max-w-xs p-5 shadow-2xl border border-white/10"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="scale-95 opacity-0" x-transition:enter-end="scale-100 opacity-100">
+      {# Normal state: pick a player #}
+      <template x-if="!starterRevealed">
+        <div>
+          <h2 class="text-sm font-bold text-white text-center mb-1">Who goes first?</h2>
+          <p class="text-xs text-white/40 text-center mb-4">Select the starting player</p>
+          <div class="space-y-1.5 mb-4">
+            <template x-for="(p, pi) in players" :key="'start-'+p.pk">
+              <button @click="setStartingPlayer(pi)"
+                      class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors text-left">
+                <div class="w-5 h-5 rounded-full border border-white/30 shrink-0"
+                     :style="`background-color: ${p.color}`"></div>
+                <span class="text-sm text-white font-medium truncate" x-text="p.name"></span>
+              </button>
+            </template>
+          </div>
+          <button @click="setRandomStarter()"
+                  class="w-full px-3 py-2 rounded-xl bg-void-600/80 hover:bg-void-600 text-sm text-white font-medium transition-colors text-center">
+            Random
+          </button>
+        </div>
+      </template>
+      {# Reveal state: show who was picked #}
+      <template x-if="starterRevealed">
+        <div class="text-center py-2">
+          <p class="text-xs text-white/40 uppercase tracking-wider mb-3">Goes first</p>
+          <div class="w-14 h-14 rounded-full mx-auto mb-3 border-3 border-yellow-400"
+               :style="`background-color: ${players[activePlayerIdx]?.color}; box-shadow: 0 0 20px ${players[activePlayerIdx]?.color}88;`"></div>
+          <p class="text-lg font-bold text-white mb-1" x-text="players[activePlayerIdx]?.name"></p>
+          <div class="flex items-center justify-center gap-1 text-yellow-400 text-sm mb-4">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.617 1.738 5.42a1 1 0 01-.285 1.05 3.975 3.975 0 01-2.683 1.018 3.975 3.975 0 01-2.684-1.018 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.39 7.583l1.715 5.35a1 1 0 01-.285 1.049A3.975 3.975 0 015.136 15a3.975 3.975 0 01-2.684-1.018 1 1 0 01-.285-1.05l1.738-5.42-1.233-.616a1 1 0 01.894-1.79l1.599.799L9 4.323V3a1 1 0 011-1z"/></svg>
+            <span>Starting Player</span>
+          </div>
+          <button @click="pickingStarter = false"
+                  class="px-5 py-2 rounded-xl bg-yellow-500/20 text-yellow-400 text-sm font-semibold hover:bg-yellow-500/30 transition-colors border border-yellow-500/30">
+            Start Game
+          </button>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- ═══ Game Over overlay ═══ -->
+  <div x-show="gameFinished" x-cloak
+       class="fixed inset-0 z-[60] modal-backdrop flex items-center justify-center p-4">
+    <div class="bg-gray-900 rounded-2xl w-full max-w-xs p-6 text-center shadow-2xl border border-white/10"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="scale-90 opacity-0" x-transition:enter-end="scale-100 opacity-100">
+      <div class="text-4xl mb-2">&#127942;</div>
+      <h2 class="text-lg font-bold text-white mb-1">Game Over</h2>
+      <p class="text-sm text-yellow-400 font-semibold mb-4" x-text="winnerName + ' wins!'"></p>
+      <div class="space-y-1 mb-5">
+        <template x-for="p in placementList" :key="p.pk">
+          <div class="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg"
+               :class="p.placement === 1 ? 'bg-yellow-500/20 text-yellow-300' : 'bg-white/5 text-white/60'">
+            <span class="font-bold w-6" x-text="'#' + p.placement"></span>
+            <div class="w-3 h-3 rounded-full" :style="`background-color: ${p.color}`"></div>
+            <span class="flex-1 text-left truncate" x-text="p.name"></span>
+          </div>
+        </template>
+      </div>
+      <a href="{% url 'phyrexian:dashboard' %}"
+         class="inline-block px-5 py-2 rounded-lg bg-void-600 text-white text-sm font-medium hover:bg-void-500 transition-colors">
+        Back to Dashboard
+      </a>
+    </div>
+  </div>
+
   <!-- ═══ Bottom Toolbar ═══ -->
   <div class="fixed bottom-0 left-0 right-0 h-12 bg-gray-900/95 backdrop-blur-sm border-t border-gray-800 flex items-center justify-around px-4 z-40">
-    {# Reset #}
     <button @click="if(confirm('Reset all life totals?')) resetGame()" class="p-2 text-gray-400 hover:text-white transition-colors" title="Reset">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
     </button>
-
-    {# Turn counter #}
-    <button @click="nextTurn()" class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-void-600/80 hover:bg-void-600 transition-colors" title="Next turn">
+    <button @click="passTurn()" class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-void-600/80 hover:bg-void-600 transition-colors" title="Pass turn">
       <span class="text-[10px] text-white/60">Turn</span>
       <span class="text-sm font-bold" x-text="turn"></span>
+      <svg class="w-3.5 h-3.5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
     </button>
-
-    {# Menu #}
     <button @click="showMenu = !showMenu" class="p-2 text-gray-400 hover:text-white transition-colors" title="Menu">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
     </button>
-
-    {# Dice #}
-    <button @click="rollResult = 'Roll: ' + (Math.floor(Math.random()*20)+1); setTimeout(()=>rollResult='', 2000)"
-            class="p-2 text-gray-400 hover:text-white transition-colors relative" title="Roll d20">
+    {# Tools button (replaces dice) #}
+    <button @click="showTools = !showTools" class="p-2 text-gray-400 hover:text-white transition-colors" title="Tools">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-      <span x-show="rollResult" x-cloak x-text="rollResult"
-            class="absolute -top-8 left-1/2 -translate-x-1/2 bg-white text-gray-900 text-xs font-bold px-2 py-1 rounded shadow whitespace-nowrap"></span>
     </button>
-
-    {# Log #}
     <button @click="showLog = !showLog" class="p-2 text-gray-400 hover:text-white transition-colors" title="Game Log">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
     </button>
@@ -226,8 +322,6 @@
     <div class="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
          x-transition:enter="transition ease-out duration-200" x-transition:enter-start="translate-y-full sm:translate-y-0 sm:scale-95 opacity-0"
          x-transition:enter-end="translate-y-0 sm:scale-100 opacity-100">
-
-      {# Modal header #}
       <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
         <div class="flex items-center gap-2">
           <div class="w-3 h-3 rounded-full" :style="`background-color: ${counterModal.player?.color}`"></div>
@@ -235,8 +329,6 @@
         </div>
         <button @click="counterModal.open = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-white text-lg">&times;</button>
       </div>
-
-      {# Counters tab #}
       <div class="p-4">
         <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Counters</p>
         <div class="grid grid-cols-4 sm:grid-cols-5 gap-2">
@@ -253,33 +345,25 @@
             </div>
           </template>
         </div>
-
-        {# Status toggles #}
         <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-4 mb-2">Status</p>
         <div class="flex flex-wrap gap-2">
           <button @click="togglePlayerStatus('monarch')"
                   class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                   :class="counterModal.player?.is_monarch ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 ring-1 ring-yellow-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
-            &#9813; Monarch
-          </button>
+            &#9813; Monarch</button>
           <button @click="togglePlayerStatus('initiative')"
                   class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                   :class="counterModal.player?.has_initiative ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 ring-1 ring-cyan-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
-            &#9733; Initiative
-          </button>
+            &#9733; Initiative</button>
           <button @click="togglePlayerStatus('citys_blessing')"
                   class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                   :class="counterModal.player?.has_citys_blessing ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400 ring-1 ring-purple-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
-            &#10026; Ascend
-          </button>
+            &#10026; Ascend</button>
           <button @click="toggleDayNight()"
                   class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                   :class="counterModal.player?.is_day ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' : 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400'">
-            <span x-text="counterModal.player?.is_day ? '&#9788; Day' : '&#9789; Night'"></span>
-          </button>
+            <span x-text="counterModal.player?.is_day ? '&#9788; Day' : '&#9789; Night'"></span></button>
         </div>
-
-        {# Commander damage section #}
         <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-4 mb-2">Commander Damage</p>
         <div class="space-y-2">
           <template x-for="other in players.filter(p => p.pk !== counterModal.player?.pk)" :key="'cd-'+other.pk">
@@ -297,6 +381,133 @@
     </div>
   </div>
 
+  <!-- ═══ Tools Modal ═══ -->
+  <div x-show="showTools" x-cloak @click.self="showTools = false"
+       class="fixed inset-0 z-50 modal-backdrop flex items-end sm:items-center justify-center p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="translate-y-full sm:translate-y-0 sm:scale-95 opacity-0"
+         x-transition:enter-end="translate-y-0 sm:scale-100 opacity-100">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+        <span class="text-sm font-semibold text-gray-900 dark:text-white">Tools</span>
+        <button @click="showTools = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-white text-lg">&times;</button>
+      </div>
+      <div class="p-4 space-y-4">
+
+        {# Dice & Coin #}
+        <div>
+          <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Dice & Coin</p>
+          <div class="flex gap-2">
+            <button @click="toolResult = 'd6: ' + (Math.floor(Math.random()*6)+1)"
+                    class="flex-1 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+              Roll d6</button>
+            <button @click="toolResult = 'd20: ' + (Math.floor(Math.random()*20)+1)"
+                    class="flex-1 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+              Roll d20</button>
+            <button @click="toolResult = Math.random() < 0.5 ? 'Heads' : 'Tails'"
+                    class="flex-1 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+              Flip Coin</button>
+          </div>
+          <div x-show="toolResult" x-cloak class="mt-2 text-center text-sm font-bold text-void-400" x-text="toolResult"></div>
+        </div>
+
+        {# Random Selection #}
+        <div>
+          <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Random Selection</p>
+          <div class="flex gap-2 mb-2">
+            <button @click="pickRandom('all')"
+                    class="flex-1 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+              Random Player</button>
+            <button @click="pickRandom('opponent')"
+                    class="flex-1 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+              Random Opponent</button>
+          </div>
+          <div x-show="randomMode === 'opponent' && !randomResult" x-cloak class="space-y-1">
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Who are you?</p>
+            <template x-for="(p, pi) in alivePlayers" :key="p.pk">
+              <button @click="pickRandomOpponentOf(pi)"
+                      class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 text-left">
+                <div class="w-3 h-3 rounded-full" :style="`background-color: ${p.color}`"></div>
+                <span x-text="p.name"></span>
+              </button>
+            </template>
+          </div>
+          <div x-show="randomResult" x-cloak class="mt-2 flex items-center justify-center gap-2 text-sm font-bold text-void-400">
+            <div class="w-4 h-4 rounded-full" :style="`background-color: ${randomResultColor}`"></div>
+            <span x-text="randomResult"></span>
+          </div>
+        </div>
+
+        {# Monarch select #}
+        <div>
+          <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Monarch</p>
+          <div class="flex flex-wrap gap-1.5">
+            <button @click="setMonarch(-1)"
+                    class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                    :class="!players.some(p => p.is_monarch) ? 'bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white ring-1 ring-gray-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
+              None</button>
+            <template x-for="(p, pi) in players" :key="'mon-'+p.pk">
+              <button @click="setMonarch(pi)"
+                      class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+                      :class="p.is_monarch ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 ring-1 ring-yellow-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
+                <div class="w-2.5 h-2.5 rounded-full" :style="`background-color: ${p.color}`"></div>
+                <span x-text="p.name" class="truncate max-w-[80px]"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        {# Turn direction #}
+        <div>
+          <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Turn Order</p>
+          <div class="flex gap-2">
+            <button @click="turnDirection = 1"
+                    class="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                    :class="turnDirection === 1 ? 'bg-void-600/30 text-void-400 ring-1 ring-void-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9"/></svg>
+              Clockwise
+            </button>
+            <button @click="turnDirection = -1"
+                    class="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                    :class="turnDirection === -1 ? 'bg-void-600/30 text-void-400 ring-1 ring-void-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 4v5h-.581m0 0a8.003 8.003 0 00-15.357-2m15.357 2H15"/></svg>
+              Counter
+            </button>
+          </div>
+        </div>
+
+        {# Deal damage to all #}
+        <div>
+          <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Deal Damage</p>
+          <div class="flex items-center gap-2 mb-2">
+            <input type="number" x-model.number="massDamage" min="1" max="999"
+                   class="w-16 px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm text-center text-gray-900 dark:text-white border-0 focus:ring-1 focus:ring-void-400"
+                   placeholder="X">
+            <span class="text-xs text-gray-500">damage to</span>
+          </div>
+          <div class="flex gap-2">
+            <button @click="dealMassDamage('all')"
+                    class="flex-1 px-3 py-2 rounded-lg bg-red-500/10 text-red-500 text-sm font-medium hover:bg-red-500/20 transition-colors">
+              All Players</button>
+            <button @click="dealMassDamage('others')"
+                    class="flex-1 px-3 py-2 rounded-lg bg-red-500/10 text-red-500 text-sm font-medium hover:bg-red-500/20 transition-colors">
+              All Except...</button>
+          </div>
+          <div x-show="massExcludeMode" x-cloak class="mt-2 space-y-1">
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Exclude who?</p>
+            <template x-for="(p, pi) in alivePlayers" :key="'exc-'+p.pk">
+              <button @click="dealMassDamageExcept(p.pk)"
+                      class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-sm text-gray-700 dark:text-gray-300 hover:bg-red-500/10 hover:text-red-400 text-left">
+                <div class="w-3 h-3 rounded-full" :style="`background-color: ${p.color}`"></div>
+                <span x-text="p.name"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
   <!-- ═══ Side Menu ═══ -->
   <div x-show="showMenu" x-cloak @click.self="showMenu = false"
        class="fixed inset-0 z-50 modal-backdrop">
@@ -304,24 +515,7 @@
          x-transition:enter="transition ease-out duration-200" x-transition:enter-start="-translate-x-full" x-transition:enter-end="translate-x-0"
          x-transition:leave="transition ease-in duration-150" x-transition:leave-start="translate-x-0" x-transition:leave-end="-translate-x-full">
       <h2 class="text-lg font-bold mb-4">Menu</h2>
-
       <div class="space-y-2 flex-1">
-        <p class="text-xs text-gray-500 uppercase tracking-wider mt-1 mb-1">Tools</p>
-        <button @click="rollDice(6); showMenu=false" class="w-full text-left px-3 py-2 rounded text-sm text-gray-300 hover:bg-gray-700">
-          Roll d6 <span x-show="lastDie===6" class="font-bold text-white" x-text="'→ ' + lastRoll"></span>
-        </button>
-        <button @click="rollDice(20); showMenu=false" class="w-full text-left px-3 py-2 rounded text-sm text-gray-300 hover:bg-gray-700">
-          Roll d20 <span x-show="lastDie===20" class="font-bold text-white" x-text="'→ ' + lastRoll"></span>
-        </button>
-        <button @click="flipCoin(); showMenu=false" class="w-full text-left px-3 py-2 rounded text-sm text-gray-300 hover:bg-gray-700">
-          Flip Coin <span x-show="coinResult" class="font-bold text-white" x-text="'→ ' + coinResult"></span>
-        </button>
-        <button @click="randomPlayer(); showMenu=false" class="w-full text-left px-3 py-2 rounded text-sm text-gray-300 hover:bg-gray-700">
-          Random Player <span x-show="randomPick" class="font-bold text-white" x-text="'→ ' + randomPick"></span>
-        </button>
-      </div>
-
-      <div class="pt-4 border-t border-gray-700 space-y-2">
         <a href="{% url 'phyrexian:session-end' session.pk %}"
            class="block w-full px-3 py-2 rounded text-sm text-center bg-red-600/80 text-white hover:bg-red-600 transition-colors">
           End Game
@@ -363,17 +557,37 @@
 
     function liveGame() {
       const players = {{ players_json|safe }};
-      players.forEach(p => { p.deltaShow = false; p.lastDelta = 0; });
+      players.forEach(p => {
+        p.deltaShow = false; p.lastDelta = 0;
+        p.koOverride = false; p.placement = p.placement || 0;
+      });
+
+      // Track next placement to assign (last place = total players, then decrements)
+      let nextPlacement = players.length;
 
       return {
         players,
         turn: {{ session.current_turn }},
         showMenu: false,
         showLog: false,
-        rollResult: '',
-        lastRoll: null, lastDie: null, coinResult: '', randomPick: '',
+        showTools: false,
+        gameFinished: false,
+        winnerName: '',
         counterModal: { open: false, playerIdx: 0, player: null },
-        cmdrPanel: -1,
+        cmdrPanel: null,
+
+        // Turn tracking
+        pickingStarter: true,
+        starterRevealed: false,
+        startingPlayerIdx: -1,
+        activePlayerIdx: -1,
+        turnDirection: 1, // 1 = clockwise, -1 = counter-clockwise
+
+        // Tools state
+        toolResult: '',
+        randomMode: null, randomResult: '', randomResultColor: '',
+        massDamage: 5,
+        massExcludeMode: false,
 
         allCounters: [
           {key: 'poison', icon: '☠', label: 'Poison'},
@@ -388,33 +602,128 @@
         get gridClass() {
           const n = this.players.length;
           if (n === 2) return 'grid-cols-2 rows-1';
-          if (n === 3) return 'grid-cols-2 rows-2';
-          if (n === 4) return 'grid-cols-2 rows-2';
-          if (n === 5) return 'grid-cols-3 rows-2';
+          if (n <= 4) return 'grid-cols-2 rows-2';
           return 'grid-cols-3 rows-2';
+        },
+
+        // Counter-clockwise layout: second row is reversed
+        // 2 players: [0, 1]
+        // 3 players: [0, 1] / [2] — 2 stays left
+        // 4 players: [0, 1] / [3, 2]
+        // 5 players: [0, 1, 2] / [4, 3] — pad empty left
+        // 6 players: [0, 1, 2] / [5, 4, 3]
+        get displayPlayers() {
+          const n = this.players.length;
+          const cols = n <= 4 ? 2 : 3;
+          const topRow = this.players.slice(0, cols);
+          const bottomRow = this.players.slice(cols).reverse();
+          return topRow.concat(bottomRow);
+        },
+
+        playerIdx(player) {
+          return this.players.indexOf(player);
+        },
+
+        get alivePlayers() {
+          return this.players.filter((_, i) => !this.isEffectivelyDead(i));
+        },
+
+        get placementList() {
+          return [...this.players].sort((a, b) => a.placement - b.placement);
         },
 
         getVisibleCounters(idx) {
           const p = this.players[idx];
-          const counters = [];
-          if (p.poison) counters.push({key: 'poison', icon: '☠', value: p.poison});
-          if (p.energy) counters.push({key: 'energy', icon: '⚡', value: p.energy});
-          if (p.experience) counters.push({key: 'experience', icon: '✪', value: p.experience});
-          if (p.commander_tax) counters.push({key: 'ctax', icon: '⚔', value: p.commander_tax});
-          if (p.treasure) counters.push({key: 'treasure', icon: '💰', value: p.treasure});
-          if (p.rad) counters.push({key: 'rad', icon: '☢', value: p.rad});
-          if (p.storm_count) counters.push({key: 'storm', icon: '🌪', value: p.storm_count});
-          return counters;
+          const c = [];
+          if (p.poison) c.push({key: 'poison', icon: '☠', value: p.poison});
+          if (p.energy) c.push({key: 'energy', icon: '⚡', value: p.energy});
+          if (p.experience) c.push({key: 'experience', icon: '✪', value: p.experience});
+          if (p.commander_tax) c.push({key: 'ctax', icon: '⚔', value: p.commander_tax});
+          if (p.treasure) c.push({key: 'treasure', icon: '💰', value: p.treasure});
+          if (p.rad) c.push({key: 'rad', icon: '☢', value: p.rad});
+          if (p.storm_count) c.push({key: 'storm', icon: '🌪', value: p.storm_count});
+          return c;
         },
 
+        // --- KO logic ---
+        isKnockedOut(idx) {
+          const p = this.players[idx];
+          return p.life <= 0 || p.poison >= 10 || this.maxCmdrDamage(p) >= 21;
+        },
+
+        isEffectivelyDead(idx) {
+          return this.isKnockedOut(idx) && !this.players[idx].koOverride;
+        },
+
+        maxCmdrDamage(p) {
+          if (!p.commander_damage) return 0;
+          const vals = Object.values(p.commander_damage);
+          return vals.length ? Math.max(...vals) : 0;
+        },
+
+        koReason(idx) {
+          const p = this.players[idx];
+          if (p.life <= 0) return `Life reached ${p.life}`;
+          if (p.poison >= 10) return `${p.poison} poison counters`;
+          if (this.maxCmdrDamage(p) >= 21) {
+            const sourcePk = Object.entries(p.commander_damage).find(([, v]) => v >= 21)?.[0];
+            const src = this.players.find(x => x.pk === sourcePk);
+            return `21+ commander damage from ${src?.name || 'unknown'}`;
+          }
+          return '';
+        },
+
+        isAlive(idx) {
+          return !this.isKnockedOut(idx) || this.players[idx].koOverride;
+        },
+
+        // --- Check eliminations after any state change ---
+        checkEliminations() {
+          if (this.gameFinished) return;
+
+          // Assign placements to newly eliminated players
+          const newlyDead = this.players.filter((p, i) => this.isEffectivelyDead(i) && p.placement === 0);
+          if (newlyDead.length > 0) {
+            newlyDead.forEach(p => { p.placement = nextPlacement; });
+            nextPlacement -= newlyDead.length;
+          }
+
+          // Check if game is over (0 or 1 alive)
+          const alive = this.players.filter((_, i) => this.isAlive(i));
+          if (alive.length <= 1 && this.players.length > 1) {
+            // Assign remaining alive players as winner(s)
+            alive.forEach(p => { if (p.placement === 0) p.placement = 1; });
+            // If everyone died simultaneously, all unplaced get same placement
+            this.players.forEach(p => { if (p.placement === 0) p.placement = 1; });
+
+            this.winnerName = alive.length === 1 ? alive[0].name : 'Draw';
+            this.gameFinished = true;
+
+            // Save to server
+            const placements = {};
+            this.players.forEach(p => { placements[p.pk] = p.placement; });
+            fetch(`/stats/session/${SESSION_PK}/auto-finish/`, {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+              body: JSON.stringify({
+                placements,
+                winner: alive.length === 1 ? alive[0].pk : null,
+              }),
+            });
+          }
+        },
+
+        // --- Life ---
         changeLife(idx, delta) {
-          this.cmdrPanel = -1;
+          this.cmdrPanel = null;
           const p = this.players[idx];
           p.life += delta;
+          if (p.life > 0 && p.poison < 10 && this.maxCmdrDamage(p) < 21) p.koOverride = false;
           p.lastDelta = delta;
           p.deltaShow = true;
           setTimeout(() => { p.deltaShow = false; }, 700);
           fetch(`/stats/session/${p.pk}/life/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `delta=${delta}`});
+          this.checkEliminations();
         },
 
         changeCmdrDamage(targetIdx, sourcePk, delta) {
@@ -422,12 +731,13 @@
           if (!p.commander_damage) p.commander_damage = {};
           const current = p.commander_damage[sourcePk] || 0;
           p.commander_damage[sourcePk] = Math.max(0, current + delta);
-          p.life -= delta; // Commander damage also reduces life
+          p.life -= delta;
           fetch(`/stats/session/${p.pk}/cmdr-damage/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `source_pk=${sourcePk}&delta=${delta}&lose_life=true`});
+          this.checkEliminations();
         },
 
         openCounterModal(idx) {
-          this.cmdrPanel = -1;
+          this.cmdrPanel = null;
           this.counterModal.playerIdx = idx;
           this.counterModal.player = this.players[idx];
           this.counterModal.open = true;
@@ -437,6 +747,7 @@
           const p = this.counterModal.player;
           p[key] = Math.max(0, (p[key] || 0) + delta);
           fetch(`/stats/session/${p.pk}/counter/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `counter=${key}&delta=${delta}`});
+          this.checkEliminations();
         },
 
         togglePlayerStatus(flag) {
@@ -459,9 +770,93 @@
           fetch(`/stats/session/${this.counterModal.player.pk}/toggle/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `flag=day_night`});
         },
 
-        nextTurn() {
-          this.turn++;
-          fetch(`/stats/session/${SESSION_PK}/next-turn/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}});
+        // --- Monarch from Tools ---
+        setMonarch(idx) {
+          this.players.forEach(pl => pl.is_monarch = false);
+          if (idx >= 0) {
+            this.players[idx].is_monarch = true;
+            fetch(`/stats/session/${this.players[idx].pk}/toggle/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `flag=monarch`});
+          }
+        },
+
+        // --- Random ---
+        pickRandom(mode) {
+          this.randomResult = '';
+          this.randomResultColor = '';
+          if (mode === 'all') {
+            const alive = this.alivePlayers;
+            if (alive.length) {
+              const pick = alive[Math.floor(Math.random() * alive.length)];
+              this.randomResult = pick.name;
+              this.randomResultColor = pick.color;
+            }
+            this.randomMode = null;
+          } else {
+            this.randomMode = 'opponent';
+          }
+        },
+
+        pickRandomOpponentOf(aliveIdx) {
+          const me = this.alivePlayers[aliveIdx];
+          const opponents = this.alivePlayers.filter(p => p.pk !== me.pk);
+          if (opponents.length) {
+            const pick = opponents[Math.floor(Math.random() * opponents.length)];
+            this.randomResult = pick.name;
+            this.randomResultColor = pick.color;
+          }
+          this.randomMode = null;
+        },
+
+        // --- Mass damage ---
+        dealMassDamage(mode) {
+          const dmg = this.massDamage || 0;
+          if (dmg <= 0) return;
+          if (mode === 'all') {
+            this.players.forEach((_, i) => this.changeLife(i, -dmg));
+            this.massExcludeMode = false;
+          } else {
+            this.massExcludeMode = true;
+          }
+        },
+
+        dealMassDamageExcept(excludePk) {
+          const dmg = this.massDamage || 0;
+          if (dmg <= 0) return;
+          this.players.forEach((p, i) => {
+            if (p.pk !== excludePk) this.changeLife(i, -dmg);
+          });
+          this.massExcludeMode = false;
+        },
+
+        // --- Starting player ---
+        setStartingPlayer(idx) {
+          this.startingPlayerIdx = idx;
+          this.activePlayerIdx = idx;
+          // Show reveal screen so the user sees who was picked
+          this.starterRevealed = true;
+        },
+
+        setRandomStarter() {
+          const idx = Math.floor(Math.random() * this.players.length);
+          this.setStartingPlayer(idx);
+        },
+
+        // --- Pass turn ---
+        passTurn() {
+          if (this.activePlayerIdx < 0) return;
+          const n = this.players.length;
+          let next = this.activePlayerIdx;
+          // Find next alive player in turn direction
+          for (let i = 0; i < n; i++) {
+            next = (next + this.turnDirection + n) % n;
+            if (this.isAlive(next)) break;
+          }
+          // If we're about to pass to the starting player, increment the turn counter
+          if (next === this.startingPlayerIdx) {
+            this.turn++;
+            fetch(`/stats/session/${SESSION_PK}/next-turn/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}});
+          }
+          this.activePlayerIdx = next;
         },
 
         resetGame() {
@@ -469,22 +864,23 @@
             p.life = STARTING_LIFE; p.poison = 0; p.energy = 0; p.experience = 0;
             p.commander_tax = 0; p.treasure = 0; p.rad = 0; p.storm_count = 0;
             p.commander_damage = {}; p.is_monarch = false; p.has_initiative = false;
-            p.has_citys_blessing = false;
+            p.has_citys_blessing = false; p.koOverride = false; p.placement = 0;
           });
           this.turn = 1;
+          this.gameFinished = false;
+          this.winnerName = '';
+          this.pickingStarter = true;
+          this.starterRevealed = false;
+          this.startingPlayerIdx = -1;
+          this.activePlayerIdx = -1;
+          nextPlacement = this.players.length;
           fetch(`/stats/session/${SESSION_PK}/reset/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}});
         },
 
         closeAllModals() {
-          this.counterModal.open = false; this.showMenu = false; this.showLog = false; this.cmdrPanel = -1;
+          this.counterModal.open = false; this.showMenu = false;
+          this.showLog = false; this.showTools = false; this.cmdrPanel = null;
         },
-
-        rollDice(sides) { this.lastDie = sides; this.lastRoll = Math.floor(Math.random() * sides) + 1; },
-        flipCoin() { this.coinResult = Math.random() < 0.5 ? 'Heads' : 'Tails'; },
-        randomPlayer() {
-          const alive = this.players.filter(p => p.life > 0 && p.poison < 10);
-          if (alive.length) this.randomPick = alive[Math.floor(Math.random() * alive.length)].name;
-        }
       };
     }
   </script>

@@ -81,22 +81,63 @@
             <div class="relative h-24 flex items-end p-3 rounded-t-xl overflow-hidden"
                  :style="player.bg
                    ? `background-image: url(${player.bg}); background-size: cover; background-position: center;`
-                   : `background: linear-gradient(135deg, ${player.color}44, ${player.color}88);`">
-              <div class="absolute inset-0 bg-black/30"></div>
+                   : `background-color: ${player.color}22;`">
+              <div class="absolute inset-0" :class="player.bg ? 'bg-black/30' : ''"></div>
               <div class="relative flex items-center gap-2 w-full">
                 <div class="w-7 h-7 rounded-full border-2 border-white/80 flex items-center justify-center text-white text-xs font-bold"
                      :style="`background-color: ${player.color}`"
                      x-text="i + 1"></div>
-                <input type="text"
-                       :name="`player_${i}_name`"
-                       :placeholder="`Player ${i + 1}`"
-                       x-model="player.name"
-                       class="flex-1 bg-transparent border-none text-white placeholder-white/60 text-sm font-semibold focus:ring-0 p-0">
+                <!-- Player 0: current user (read-only) -->
+                <template x-if="i === 0">
+                  <span class="flex-1 text-sm font-semibold drop-shadow"
+                        :class="player.bg ? 'text-white' : 'text-gray-900 dark:text-gray-100'"
+                        x-text="player.name"></span>
+                </template>
+                <!-- Players 1+: friend autocomplete -->
+                <template x-if="i > 0">
+                  <div class="flex-1 relative">
+                    <input type="text"
+                           :id="`friend-search-${i}`"
+                           x-model="player.friendQuery"
+                           @input.debounce.300ms="searchFriend(i, player.friendQuery)"
+                           @focus="if(player.friendResults?.length) player.friendOpen = true"
+                           :placeholder="`Search friend or type name...`"
+                           class="w-full bg-white/20 backdrop-blur-sm border border-white/20 rounded-lg text-sm font-semibold px-2 py-1 focus:ring-1 focus:ring-void-400 focus:border-void-400"
+                           :class="player.bg ? 'text-white placeholder-white/50' : 'text-gray-900 dark:text-gray-100 placeholder-gray-400'">
+                    <!-- Friend search results dropdown -->
+                    <div x-show="player.friendOpen && player.friendResults?.length"
+                         @click.away="player.friendOpen = false"
+                         class="absolute top-full left-0 right-0 z-50 mt-1 rounded-lg shadow-xl max-h-48 overflow-y-auto
+                                bg-white dark:bg-void-800 border border-gray-200 dark:border-void-600
+                                ring-1 ring-black/5 dark:ring-white/10">
+                      <template x-for="friend in player.friendResults" :key="friend.id">
+                        <button type="button"
+                                @click="selectFriend(i, friend)"
+                                class="w-full flex items-center gap-3 px-3 py-2
+                                       hover:bg-void-100 dark:hover:bg-void-700
+                                       border-b border-gray-100 dark:border-void-700 last:border-b-0
+                                       text-left text-sm transition-colors">
+                          <div class="w-6 h-6 rounded-full bg-gray-300 dark:bg-void-600 overflow-hidden shrink-0">
+                            <img x-show="friend.avatar" :src="friend.avatar" class="w-full h-full object-cover">
+                          </div>
+                          <span class="text-gray-900 dark:text-gray-100 font-medium truncate" x-text="friend.display_name"></span>
+                          <span class="text-xs text-gray-400 truncate" x-text="'@' + friend.username"></span>
+                        </button>
+                      </template>
+                    </div>
+                  </div>
+                </template>
               </div>
             </div>
 
             <!-- Player settings -->
-            <div class="p-3 bg-white dark:bg-void-900 space-y-3">
+            <div class="p-3 bg-white dark:bg-void-900 space-y-3 rounded-b-xl">
+              <!-- Hidden fields for form submission -->
+              <input type="hidden" :name="`player_${i}_name`" :value="player.name">
+              <input type="hidden" :name="`player_${i}_user`" :value="player.userId || ''">
+              <input type="hidden" :name="`player_${i}_color`" :value="player.color">
+              <input type="hidden" :name="`player_${i}_bg`" :value="player.bg">
+
               <!-- Color picker -->
               <div class="flex items-center gap-2">
                 <span class="text-xs text-gray-500 w-16">Color</span>
@@ -108,7 +149,6 @@
                             :style="`background-color: ${c}`"></button>
                   </template>
                 </div>
-                <input type="hidden" :name="`player_${i}_color`" :value="player.color">
               </div>
 
               <!-- Card art background search -->
@@ -123,7 +163,7 @@
                          class="input text-xs w-full">
                   <!-- Clear button -->
                   <button x-show="player.bg" type="button"
-                          @click="player.bg = ''; player.bgName = ''"
+                          @click="player.bg = ''; player.bgName = ''; saveBg(i, '', '')"
                           class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 text-xs">&times;</button>
                   <!-- Search results dropdown (card list) -->
                   <div x-show="searchOpen === i && searchResults[i]?.length && !versionPicker[i]"
@@ -186,18 +226,19 @@
                     </template>
                   </div>
                 </div>
-                <input type="hidden" :name="`player_${i}_bg`" :value="player.bg">
               </div>
 
-              <!-- Deck link -->
+              <!-- Deck link (dynamic per user) -->
               <div class="flex items-center gap-2">
                 <span class="text-xs text-gray-500 w-16">Deck</span>
-                <select :name="`player_${i}_deck`" class="input text-xs flex-1">
+                <select :name="`player_${i}_deck`" class="input text-xs flex-1"
+                        x-model="player.deck">
                   <option value="">— None —</option>
-                  {% for deck in user_decks %}
-                  <option value="{{ deck.pk }}">{{ deck.name }} ({{ deck.get_format_display }})</option>
-                  {% endfor %}
+                  <template x-for="d in player.decks" :key="d.id">
+                    <option :value="d.id" x-text="`${d.name} (${d.format})`"></option>
+                  </template>
                 </select>
+                <span x-show="player.decksLoading" class="text-xs text-gray-400 shrink-0">Loading...</span>
               </div>
             </div>
           </div>
@@ -225,6 +266,52 @@
 <script>
   const FORMAT_LIFE = {{ format_life_map|safe }};
   const COLORS = {{ player_colors|safe }};
+  const CURRENT_USER = {{ current_user_json|safe }};
+  const CURRENT_USER_DECKS = {{ current_user_decks_json|safe }};
+  const BG_STORAGE_KEY = 'session_setup_bg';
+
+  function loadSavedBgs() {
+    try { return JSON.parse(localStorage.getItem(BG_STORAGE_KEY)) || {}; }
+    catch { return {}; }
+  }
+
+  function saveBg(idx, bg, bgName) {
+    const saved = loadSavedBgs();
+    if (bg) {
+      saved[idx] = { bg, bgName };
+    } else {
+      delete saved[idx];
+    }
+    localStorage.setItem(BG_STORAGE_KEY, JSON.stringify(saved));
+  }
+
+  function makePlayer(i) {
+    const saved = loadSavedBgs()[i] || {};
+    const base = {
+      bg: saved.bg || '',
+      bgName: saved.bgName || '',
+      deck: '',
+      decksLoading: false,
+      friendQuery: '',
+      friendResults: [],
+      friendOpen: false,
+    };
+    if (i === 0) {
+      return {
+        ...base,
+        name: CURRENT_USER.name,
+        userId: CURRENT_USER.id,
+        color: COLORS[0],
+        decks: CURRENT_USER_DECKS,
+      };
+    }
+    return {
+      ...base,
+      name: '', userId: null,
+      color: COLORS[i % COLORS.length],
+      decks: [],
+    };
+  }
 
   function sessionSetup() {
     return {
@@ -233,9 +320,7 @@
       startingLife: 40,
       customLife: false,
       colors: COLORS,
-      players: Array.from({length: 4}, (_, i) => ({
-        name: '', color: COLORS[i % COLORS.length], bg: '', bgName: '', deck: ''
-      })),
+      players: Array.from({length: 4}, (_, i) => makePlayer(i)),
       searchResults: {},
       searchOpen: -1,
       versionPicker: {},
@@ -248,12 +333,62 @@
       updatePlayers() {
         const count = this.playerCount;
         while (this.players.length < count) {
-          const i = this.players.length;
-          this.players.push({name: '', color: COLORS[i % COLORS.length], bg: '', bgName: '', deck: ''});
+          this.players.push(makePlayer(this.players.length));
         }
         while (this.players.length > count) this.players.pop();
       },
 
+      // --- Friend search ---
+      async searchFriend(idx, query) {
+        const p = this.players[idx];
+        if (!query || query.length < 1) {
+          p.friendResults = [];
+          p.friendOpen = false;
+          // If they cleared the field, reset to text-only mode
+          if (!query) {
+            p.userId = null;
+            p.name = '';
+            p.decks = [];
+            p.deck = '';
+          }
+          return;
+        }
+        // Update name to the raw text (for non-friend players)
+        p.name = query;
+        p.userId = null;
+        p.decks = [];
+        p.deck = '';
+        try {
+          const resp = await fetch(`/api/friend-search/?q=${encodeURIComponent(query)}`);
+          const data = await resp.json();
+          p.friendResults = data;
+          p.friendOpen = data.length > 0;
+        } catch(e) {
+          console.error('Friend search failed:', e);
+        }
+      },
+
+      async selectFriend(idx, friend) {
+        const p = this.players[idx];
+        p.name = friend.display_name;
+        p.userId = friend.id;
+        p.friendQuery = friend.display_name;
+        p.friendResults = [];
+        p.friendOpen = false;
+        // Load friend's decks
+        p.decksLoading = true;
+        p.deck = '';
+        try {
+          const resp = await fetch(`/api/user-decks/${friend.id}/`);
+          p.decks = await resp.json();
+        } catch(e) {
+          console.error('Failed to load decks:', e);
+          p.decks = [];
+        }
+        p.decksLoading = false;
+      },
+
+      // --- Card search ---
       async searchCard(playerIdx, query) {
         if (query.length < 2) {
           this.searchResults[playerIdx] = [];
@@ -281,8 +416,10 @@
       },
 
       selectBg(idx, cardName, print) {
-        this.players[idx].bg = print.art_crop || print.image;
+        const bg = print.art_crop || print.image;
+        this.players[idx].bg = bg;
         this.players[idx].bgName = cardName;
+        saveBg(idx, bg, cardName);
         this.searchOpen = -1;
         this.versionPicker[idx] = null;
         const input = document.getElementById(`search-${idx}`);

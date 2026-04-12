@@ -13,6 +13,7 @@ urlpatterns = [
     path("settings/avatar/",                views.AvatarUploadView.as_view(),       name="avatar-upload"),
     # API JSON
     path("api/friend-search/",                     views.FriendSearchJSON.as_view(),        name="friend-search"),
+    path("api/user-decks/<int:user_id>/",          views.UserDecksJSON.as_view(),           name="user-decks-json"),
     # Partials HTMX
     path("u/<str:username>/partials/decks/",        views.UserDecksPartialView.as_view(),       name="partial-decks"),
     path("u/<str:username>/partials/collection/",   views.UserCollectionPartialView.as_view(),  name="partial-collection"),

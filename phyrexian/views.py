@@ -6,6 +6,7 @@ from django.db.models import Sum, Count, Q, F, Avg
 from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy
 from django.utils import timezone
+from django.views import View
 from django.views.generic import (
     TemplateView, ListView, CreateView, UpdateView, DeleteView,
 )
@@ -540,9 +541,17 @@ class SessionSetupView(LoginRequiredMixin, TemplateView):
         ctx["form"] = SessionSetupForm()
         ctx["player_colors"] = PLAYER_COLORS
         ctx["format_life_map"] = json.dumps(FORMAT_STARTING_LIFE)
-        ctx["user_decks"] = Deck.objects.filter(
-            user=self.request.user, is_active=True
-        ).order_by("name")
+        user = self.request.user
+        profile = user.profile if hasattr(user, "profile") else None
+        ctx["current_user_json"] = json.dumps({
+            "id": user.pk,
+            "name": profile.name if profile else user.username,
+            "avatar": profile.avatar.url if profile and profile.avatar else "",
+        })
+        ctx["current_user_decks_json"] = json.dumps([
+            {"id": str(d.pk), "name": d.name, "format": d.get_format_display()}
+            for d in Deck.objects.filter(user=user, is_active=True).order_by("name")
+        ])
         return ctx
 
     def post(self, request, *args, **kwargs):
@@ -562,11 +571,14 @@ class SessionSetupView(LoginRequiredMixin, TemplateView):
         )
 
         # Create player slots from POST data
+        from django.contrib.auth.models import User as AuthUser
+
         for i in range(player_count):
             name = request.POST.get(f"player_{i}_name", f"Player {i + 1}").strip()
             color = request.POST.get(f"player_{i}_color", PLAYER_COLORS[i % len(PLAYER_COLORS)])
             bg_image = request.POST.get(f"player_{i}_bg", "")
             deck_id = request.POST.get(f"player_{i}_deck", "")
+            user_id = request.POST.get(f"player_{i}_user", "")
             if not name:
                 name = f"Player {i + 1}"
             slot = PlayerSlot(
@@ -577,6 +589,11 @@ class SessionSetupView(LoginRequiredMixin, TemplateView):
                 color=color,
                 background_image=bg_image,
             )
+            if user_id:
+                try:
+                    slot.user = AuthUser.objects.get(pk=int(user_id))
+                except (AuthUser.DoesNotExist, ValueError):
+                    pass
             if deck_id:
                 slot.deck_id = deck_id
             slot.save()
@@ -616,6 +633,7 @@ class SessionLiveView(LoginRequiredMixin, TemplateView):
                 "color": p.color,
                 "background_image": p.background_image,
                 "is_dead": p.is_dead,
+                "placement": p.placement,
             }
             for p in players
         ])
@@ -826,6 +844,65 @@ class SessionResetView(LoginRequiredMixin, TemplateView):
         session.reset_life()
         players = list(session.players.all())
         return self.render_to_response({"players": players, "session": session})
+
+
+class SessionAutoFinishView(LoginRequiredMixin, View):
+    """Auto-finish game: assign placements and save winner."""
+
+    def post(self, request, *args, **kwargs):
+        from django.http import JsonResponse
+
+        session = get_object_or_404(GameSession, pk=kwargs["pk"])
+        if session.status == SessionStatus.FINISHED:
+            return JsonResponse({"ok": False, "error": "already finished"})
+
+        # Parse placements from JSON body or form data
+        import json as _json
+        try:
+            data = _json.loads(request.body)
+        except (ValueError, TypeError):
+            data = {}
+
+        placements = data.get("placements", {})  # {player_pk: placement_number}
+        winner_pk = data.get("winner")
+
+        for slot in session.players.all():
+            pk_str = str(slot.pk)
+            if pk_str in placements:
+                slot.placement = placements[pk_str]
+                slot.save(update_fields=["placement", "updated_at"])
+
+        if winner_pk:
+            winner = get_object_or_404(PlayerSlot, pk=winner_pk, session=session)
+            session.winner = winner
+        session.status = SessionStatus.FINISHED
+        session.save(update_fields=["status", "winner", "updated_at"])
+
+        # Auto-create GameRecords for all linked users
+        for slot in session.players.filter(user__isnull=False):
+            if winner_pk and str(slot.pk) == str(winner_pk):
+                result = GameResult.WIN
+            elif winner_pk:
+                result = GameResult.LOSS
+            else:
+                result = GameResult.DRAW
+
+            opponents = session.players.exclude(pk=slot.pk)
+            opponent_names = ", ".join(p.name for p in opponents)
+
+            GameRecord.objects.create(
+                user=slot.user,
+                deck=slot.deck,
+                format=session.format,
+                result=result,
+                opponent_name=opponent_names,
+                turns=session.current_turn,
+                date_played=timezone.now().date(),
+                session=session,
+                notes=f"Live session — {session.player_count} players — #{slot.placement} place",
+            )
+
+        return JsonResponse({"ok": True})
 
 
 class SessionLogPartialView(LoginRequiredMixin, TemplateView):

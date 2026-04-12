@@ -198,6 +198,9 @@ class PlayerSlot(BaseModel):
         help_text="Card art URL for player panel background.",
     )
 
+    # Placement (1 = winner, 2 = second, etc. 0 = not yet placed)
+    placement = models.PositiveSmallIntegerField(default=0)
+
     # Deck link (optional)
     deck = models.ForeignKey(
         "tolarian.Deck",
@@ -222,11 +225,15 @@ class PlayerSlot(BaseModel):
 
     @property
     def is_dead(self):
-        return self.life <= 0 or self.poison >= 10 or self.total_commander_damage >= 21
+        return self.life <= 0 or self.poison >= 10 or self.max_commander_damage >= 21
 
     @property
     def total_commander_damage(self):
         return sum(self.commander_damage.values()) if self.commander_damage else 0
+
+    @property
+    def max_commander_damage(self):
+        return max(self.commander_damage.values()) if self.commander_damage else 0
 
 
 class LifeChange(BaseModel):
