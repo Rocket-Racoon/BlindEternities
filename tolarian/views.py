@@ -1329,6 +1329,8 @@ class CardSearchJSON(LoginRequiredMixin, View):
         qs = Card.objects.filter(is_active=True, name__icontains=q)
         if request.GET.get("commander") == "1":
             qs = qs.filter(can_be_commander=True)
+        if request.GET.get("emblem") == "1":
+            qs = qs.filter(type_line__icontains="emblem")
         cards = qs.prefetch_related("prints__cardset").order_by("name")[:10]
 
         results = []
@@ -1350,6 +1352,7 @@ class CardSearchJSON(LoginRequiredMixin, View):
                 "oracle_id": str(card.oracle_id),
                 "name": card.name,
                 "type_line": card.type_line,
+                "oracle_text": card.oracle_text,
                 "can_be_commander": card.can_be_commander,
                 "prints": prints,
             })

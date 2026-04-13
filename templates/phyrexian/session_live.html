@@ -212,6 +212,56 @@
     .badge-ring .ms { font-size: 0.75rem; }
     .badge-commander { color: #e2e8f0; }
     .badge-commander .ms { color: #f8fafc; font-size: 0.7rem; }
+    .badge-emblem { color: #f5d0fe; }
+    .badge-emblem .ms { color: #f0abfc; }
+    /* Emblem oracle-text box anchored just above the bottom bar. */
+    .emblem-box {
+      position: absolute;
+      left: 0.5rem;
+      right: 0.5rem;
+      bottom: 2.1rem;
+      z-index: 10;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.35rem;
+      padding: 0.35rem 0.5rem;
+      border-radius: 0.4rem;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(236,72,153,0.35);
+      color: #fbcfe8;
+      font-size: 0.62rem;
+      line-height: 1.25;
+      text-align: left;
+      max-height: 4.2rem;
+      overflow-y: auto;
+      box-shadow: 0 0 10px rgba(236,72,153,0.15);
+    }
+    .emblem-box.emblem-box-multi { cursor: pointer; }
+    .emblem-box.emblem-box-multi:hover { background: rgba(0,0,0,0.8); border-color: rgba(236,72,153,0.55); }
+    .emblem-box-icon { color: #f0abfc; font-size: 0.85rem; flex-shrink: 0; margin-top: 1px; }
+    .emblem-box-text { flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; }
+    .emblem-box-count { color: #f9a8d4; font-weight: 800; flex-shrink: 0; }
+    .emblem-box-pips {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      flex-shrink: 0;
+      margin-top: 2px;
+      padding: 1px 4px;
+      border-radius: 999px;
+      background: rgba(236,72,153,0.18);
+    }
+    .emblem-pip {
+      width: 4px; height: 4px;
+      border-radius: 999px;
+      background: rgba(251,207,232,0.35);
+    }
+    .emblem-pip-active {
+      background: #f9a8d4;
+      box-shadow: 0 0 4px rgba(249,168,212,0.7);
+    }
+    .emblem-box-cycle { color: #f9a8d4; font-size: 0.7rem; line-height: 1; margin-left: 2px; }
     .announce-monarch {
       background: rgba(250,204,21,0.2);
       color: #facc15;
@@ -371,8 +421,8 @@
                 </button>
               </template>
             </div>
-            <div x-show="player.is_monarch || player.has_initiative || player.has_citys_blessing || player.speed > 0 || player.the_ring > 0" x-cloak
-                 class="flex flex-wrap gap-1">
+            <div x-show="player.is_monarch || player.has_initiative || player.has_citys_blessing || player.speed > 0 || player.the_ring > 0 || (player.emblems?.length > 0)" x-cloak
+                 class="flex flex-wrap gap-1 pointer-events-auto">
               <div x-show="player.is_monarch" class="status-badge badge-monarch">
                 <i class="ms ms-dfc-enchantment"></i>
                 <span>Monarch</span>
@@ -416,6 +466,27 @@
               <span class="life-btn">+</span>
             </div>
           </div>
+
+          {# Emblem oracle-text box — click to cycle when there are distinct emblems #}
+          <button x-show="(player.emblems?.length || 0) > 0" x-cloak
+                  @click.stop="cycleEmblem(player)"
+                  class="emblem-box"
+                  :class="emblemGroups(player).length > 1 ? 'emblem-box-multi' : ''">
+            <i class="ms ms-planeswalker emblem-box-icon"></i>
+            <span class="emblem-box-text"
+                  x-text="currentEmblem(player)?.oracle_text || currentEmblem(player)?.name"></span>
+            <span x-show="currentEmblem(player)?.count > 1"
+                  class="emblem-box-count"
+                  x-text="'×' + currentEmblem(player).count"></span>
+            {# Multi-emblem indicator — pip per distinct emblem + cycle arrow #}
+            <span x-show="emblemGroups(player).length > 1" class="emblem-box-pips">
+              <template x-for="(g, gi) in emblemGroups(player)" :key="'pip-'+player.pk+'-'+gi">
+                <span class="emblem-pip"
+                      :class="gi === ((player.emblemIdx || 0) % emblemGroups(player).length) ? 'emblem-pip-active' : ''"></span>
+              </template>
+              <span class="emblem-box-cycle">&#8635;</span>
+            </span>
+          </button>
 
           {# Bottom bar #}
           <div class="px-2 pb-1.5 z-10 pointer-events-auto flex items-end gap-1.5" @click.stop>
@@ -639,27 +710,72 @@
           </template>
         </div>
         <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-4 mb-2">Status</p>
-        <div class="flex gap-2 overflow-x-auto">
+        <div class="grid grid-cols-3 gap-2">
           <button @click="togglePlayerStatus('monarch')"
-                  class="shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap"
+                  class="px-2 py-1.5 rounded-lg text-xs font-medium transition-colors truncate"
                   :class="counterModal.player?.is_monarch ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 ring-1 ring-yellow-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
             &#9813; Monarch</button>
           <button @click="togglePlayerStatus('initiative')"
-                  class="shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap"
+                  class="px-2 py-1.5 rounded-lg text-xs font-medium transition-colors truncate"
                   :class="counterModal.player?.has_initiative ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 ring-1 ring-cyan-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
             &#9733; Initiative</button>
           <button @click="togglePlayerStatus('citys_blessing')"
-                  class="shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap"
+                  class="px-2 py-1.5 rounded-lg text-xs font-medium transition-colors truncate"
                   :class="counterModal.player?.has_citys_blessing ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400 ring-1 ring-purple-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
             &#10026; Ascend</button>
           <button @click="cycleDayNight()"
-                  class="shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap"
+                  class="px-2 py-1.5 rounded-lg text-xs font-medium transition-colors truncate"
                   :class="dayNight === 'day' ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 ring-1 ring-yellow-500/50' : dayNight === 'night' ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 ring-1 ring-indigo-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
             <span x-text="dayNight === 'day' ? '☀ Day' : dayNight === 'night' ? '☽ Night' : '◑ Day/Night'"></span></button>
           <button @click="modifyCounter('storm_count', 1); stormActive = true; globalStormCount = counterModal.player?.storm_count || 0"
-                  class="shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap"
+                  class="px-2 py-1.5 rounded-lg text-xs font-medium transition-colors truncate"
                   :class="(counterModal.player?.storm_count || 0) > 0 ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
             &#127744; Storm <span x-text="counterModal.player?.storm_count || 0" class="font-bold"></span></button>
+          <button @click="emblemPickerOpen = !emblemPickerOpen; emblemInput = ''"
+                  class="px-2 py-1.5 rounded-lg text-xs font-medium transition-colors truncate flex items-center justify-center gap-1"
+                  :class="(counterModal.player?.emblems?.length || 0) > 0 ? 'bg-pink-500/20 text-pink-600 dark:text-pink-400 ring-1 ring-pink-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
+            <i class="ms ms-planeswalker" style="font-size:0.85rem"></i>
+            <span>Emblem</span>
+            <span x-show="(counterModal.player?.emblems?.length || 0) > 0"
+                  class="font-bold" x-text="'×' + counterModal.player.emblems.length"></span>
+          </button>
+        </div>
+        {# Emblem picker — shown when user clicks the Emblem button #}
+        <div x-show="emblemPickerOpen" x-cloak class="mt-2 p-2 rounded-lg bg-gray-700/50 space-y-2">
+          <div class="flex items-center gap-2 relative">
+            <input type="text" x-model="emblemInput"
+                   @input.debounce.300ms="searchEmblem(emblemInput)"
+                   @keydown.enter.prevent="addEmblem()"
+                   @focus="if(emblemResults.length) emblemResultsOpen = true"
+                   placeholder="Search emblem..."
+                   class="flex-1 px-2 py-1.5 rounded bg-gray-900 text-white text-xs border border-gray-600 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-pink-400 focus:border-pink-400">
+            <button type="button" @click="addEmblem()"
+                    class="px-3 py-1.5 rounded text-xs font-medium bg-pink-500/20 text-pink-300 hover:bg-pink-500/30">Add</button>
+            <div x-show="emblemResultsOpen && emblemResults.length" x-cloak
+                 @click.away="emblemResultsOpen = false"
+                 class="absolute top-full left-0 right-16 z-[60] mt-1 rounded-lg shadow-xl max-h-48 overflow-y-auto
+                        bg-gray-900 border border-gray-700 ring-1 ring-white/10">
+              <template x-for="card in emblemResults" :key="'em-'+card.id">
+                <button type="button"
+                        @click="pickEmblem(card)"
+                        class="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-pink-500/20 border-b border-gray-800 last:border-b-0 text-left text-xs">
+                  <img :src="card.prints[0]?.art_crop || card.prints[0]?.image || ''"
+                       class="w-10 h-7 rounded object-cover bg-gray-800 shrink-0" :alt="card.name">
+                  <span class="text-white truncate" x-text="card.name"></span>
+                </button>
+              </template>
+            </div>
+          </div>
+          <div x-show="(counterModal.player?.emblems?.length || 0) > 0" class="flex flex-wrap gap-1">
+            <template x-for="(g, gi) in emblemGroups(counterModal.player)" :key="'eg-'+gi">
+              <div class="flex items-center gap-1 px-2 py-1 rounded bg-pink-500/10 text-pink-300 text-xs">
+                <span x-text="g.name" class="truncate max-w-[140px]"></span>
+                <span x-show="g.count > 1" class="font-bold" x-text="'×'+g.count"></span>
+                <button type="button" @click="removeEmblem(counterModal.player, g.name)"
+                        class="text-pink-400 hover:text-red-400 font-bold leading-none">&times;</button>
+              </div>
+            </template>
+          </div>
         </div>
         {# Level-based mechanics #}
         <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-4 mb-2">Levels</p>
@@ -744,27 +860,47 @@
           </div>
         </div>
 
-        {# Random Selection #}
-        <div>
-          <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Random Selection</p>
-          <div class="flex gap-2 mb-2">
-            <button @click="pickRandom('all')"
-                    class="flex-1 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
-              Random Player</button>
-            <button @click="pickRandom('opponent')"
-                    class="flex-1 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
-              Random Opponent</button>
+        {# Random Selection + Turn Order, side-by-side #}
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Random</p>
+            <div class="flex flex-col gap-1.5">
+              <button @click="pickRandom('all')"
+                      class="px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+                Random Player</button>
+              <button @click="pickRandom('opponent')"
+                      class="px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+                Random Opponent</button>
+            </div>
           </div>
-          <div x-show="randomMode === 'opponent' && !rouletteRunning" x-cloak class="space-y-1">
-            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Who are you?</p>
-            <template x-for="(p, pi) in alivePlayers" :key="p.pk">
-              <button @click="pickRandomOpponentOf(pi)"
-                      class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 text-left">
-                <div class="w-3 h-3 rounded-full" :style="`background-color: ${p.color}`"></div>
-                <span x-text="p.name"></span>
+          <div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Turn Order</p>
+            <div class="flex flex-col gap-1.5">
+              <button @click="turnDirection = 1"
+                      class="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                      :class="turnDirection === 1 ? 'bg-void-600/30 text-void-400 ring-1 ring-void-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9"/></svg>
+                Clockwise
               </button>
-            </template>
+              <button @click="turnDirection = -1"
+                      class="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                      :class="turnDirection === -1 ? 'bg-void-600/30 text-void-400 ring-1 ring-void-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 4v5h-.581m0 0a8.003 8.003 0 00-15.357-2m15.357 2H15"/></svg>
+                Counter
+              </button>
+            </div>
           </div>
+        </div>
+
+        <div x-show="randomMode === 'opponent' && !rouletteRunning" x-cloak class="space-y-1">
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Who are you?</p>
+          <template x-for="(p, pi) in alivePlayers" :key="p.pk">
+            <button @click="pickRandomOpponentOf(pi)"
+                    class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 text-left">
+              <div class="w-3 h-3 rounded-full" :style="`background-color: ${p.color}`"></div>
+              <span x-text="p.name"></span>
+            </button>
+          </template>
         </div>
 
         {# Monarch select #}
@@ -786,41 +922,19 @@
           </div>
         </div>
 
-        {# Turn direction #}
-        <div>
-          <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Turn Order</p>
-          <div class="flex gap-2">
-            <button @click="turnDirection = 1"
-                    class="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-                    :class="turnDirection === 1 ? 'bg-void-600/30 text-void-400 ring-1 ring-void-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9"/></svg>
-              Clockwise
-            </button>
-            <button @click="turnDirection = -1"
-                    class="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-                    :class="turnDirection === -1 ? 'bg-void-600/30 text-void-400 ring-1 ring-void-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 4v5h-.581m0 0a8.003 8.003 0 00-15.357-2m15.357 2H15"/></svg>
-              Counter
-            </button>
-          </div>
-        </div>
-
         {# Deal damage to all #}
         <div>
           <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Deal Damage</p>
-          <div class="flex items-center gap-2 mb-2">
+          <div class="flex items-center gap-2">
             <input type="number" x-model.number="massDamage" min="1" max="999"
-                   class="w-16 px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm text-center text-gray-900 dark:text-white border-0 focus:ring-1 focus:ring-void-400"
+                   class="w-14 px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm text-center text-gray-900 dark:text-white border-0 focus:ring-1 focus:ring-void-400"
                    placeholder="X">
-            <span class="text-xs text-gray-500">damage to</span>
-          </div>
-          <div class="flex gap-2">
             <button @click="dealMassDamage('all')"
-                    class="flex-1 px-3 py-2 rounded-lg bg-red-500/10 text-red-500 text-sm font-medium hover:bg-red-500/20 transition-colors">
-              All Players</button>
+                    class="flex-1 px-2 py-1.5 rounded-lg bg-red-500/10 text-red-500 text-xs font-medium hover:bg-red-500/20 transition-colors whitespace-nowrap">
+              All</button>
             <button @click="dealMassDamage('others')"
-                    class="flex-1 px-3 py-2 rounded-lg bg-red-500/10 text-red-500 text-sm font-medium hover:bg-red-500/20 transition-colors">
-              All Except...</button>
+                    class="flex-1 px-2 py-1.5 rounded-lg bg-red-500/10 text-red-500 text-xs font-medium hover:bg-red-500/20 transition-colors whitespace-nowrap">
+              Except…</button>
           </div>
           <div x-show="massExcludeMode" x-cloak class="mt-2 space-y-1">
             <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Exclude who?</p>
@@ -834,28 +948,25 @@
           </div>
         </div>
 
-        {# Mass counters (Poison / Rad) #}
+        {# Mass counters (Poison / Rad / Treasure) #}
         <div>
           <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Mass Counters</p>
-          <div class="flex items-center gap-2 mb-2">
+          <div class="flex items-center gap-2">
             <input type="number" x-model.number="massCounterAmount" min="1" max="99"
-                   class="w-16 px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm text-center text-gray-900 dark:text-white border-0 focus:ring-1 focus:ring-void-400"
+                   class="w-12 px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm text-center text-gray-900 dark:text-white border-0 focus:ring-1 focus:ring-void-400"
                    placeholder="X">
             <select x-model="massCounterType"
-                    class="px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm text-gray-900 dark:text-white border-0 focus:ring-1 focus:ring-void-400">
+                    class="px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-xs text-gray-900 dark:text-white border-0 focus:ring-1 focus:ring-void-400">
               <option value="poison">☠ Poison</option>
               <option value="rad">☢ Rad</option>
               <option value="treasure">💰 Treasure</option>
             </select>
-            <span class="text-xs text-gray-500">to</span>
-          </div>
-          <div class="flex gap-2">
             <button @click="dealMassCounters('all')"
-                    class="flex-1 px-3 py-2 rounded-lg bg-green-500/10 text-green-500 text-sm font-medium hover:bg-green-500/20 transition-colors">
-              All Players</button>
+                    class="flex-1 px-2 py-1.5 rounded-lg bg-green-500/10 text-green-500 text-xs font-medium hover:bg-green-500/20 transition-colors whitespace-nowrap">
+              All</button>
             <button @click="dealMassCounters('others')"
-                    class="flex-1 px-3 py-2 rounded-lg bg-green-500/10 text-green-500 text-sm font-medium hover:bg-green-500/20 transition-colors">
-              All Except...</button>
+                    class="flex-1 px-2 py-1.5 rounded-lg bg-green-500/10 text-green-500 text-xs font-medium hover:bg-green-500/20 transition-colors whitespace-nowrap">
+              Except…</button>
           </div>
           <div x-show="massCounterExcludeMode" x-cloak class="mt-2 space-y-1">
             <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Exclude who?</p>
@@ -866,6 +977,69 @@
                 <span x-text="p.name"></span>
               </button>
             </template>
+          </div>
+        </div>
+
+        {# Mass emblem — pick an emblem and toggle recipients #}
+        <div>
+          <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Mass Emblem</p>
+          <input type="text" x-model="massEmblemQuery"
+                 @input.debounce.300ms="searchMassEmblem(massEmblemQuery)"
+                 placeholder="Search emblem..."
+                 style="color-scheme: dark;"
+                 class="w-full px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm text-gray-900 dark:text-white border-0 focus:outline-none focus:ring-1 focus:ring-pink-400 placeholder-gray-400 dark:placeholder-gray-500 mb-2">
+
+          {# Inline search results — no absolute positioning so the modal's overflow-hidden can't clip them #}
+          <div x-show="massEmblemResults.length > 0 && !massEmblemSelected" x-cloak
+               class="mb-2 max-h-40 overflow-y-auto rounded-lg border border-gray-700 bg-gray-900">
+            <template x-for="card in massEmblemResults" :key="'me-'+card.id">
+              <button type="button"
+                      @click="pickMassEmblem(card)"
+                      class="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-pink-500/20 border-b border-gray-800 last:border-b-0 text-left text-xs">
+                <img :src="card.prints[0]?.art_crop || card.prints[0]?.image || ''"
+                     class="w-10 h-7 rounded object-cover bg-gray-800 shrink-0" :alt="card.name">
+                <span class="text-white font-medium truncate" x-text="card.name"></span>
+              </button>
+            </template>
+          </div>
+          <p x-show="massEmblemQuery.length >= 2 && massEmblemResults.length === 0 && !massEmblemSelected" x-cloak
+             class="text-[10px] italic text-gray-500 mb-2">No emblem cards found.</p>
+
+          {# Selected emblem pill #}
+          <div x-show="massEmblemSelected" x-cloak
+               class="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-lg bg-pink-500/10 text-pink-700 dark:text-pink-300 text-xs">
+            <i class="ms ms-planeswalker"></i>
+            <span class="font-semibold truncate" x-text="massEmblemSelected?.name"></span>
+            <button type="button" @click="massEmblemSelected = null; massEmblemQuery = ''; massEmblemResults = []"
+                    class="ml-auto text-pink-500 hover:text-red-500 font-bold leading-none">&times;</button>
+          </div>
+
+          {# Player chips — always visible, click to toggle #}
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Recipients</p>
+          <div class="flex flex-wrap gap-1.5 mb-2">
+            <template x-for="p in players" :key="'mep-'+p.pk">
+              <button type="button" @click="toggleMassEmblemTarget(p.pk)"
+                      class="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium transition-colors"
+                      :class="massEmblemTargets.includes(p.pk)
+                        ? 'bg-pink-500/20 text-pink-700 dark:text-pink-300 ring-1 ring-pink-500/50'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'">
+                <div class="w-2.5 h-2.5 rounded-full" :style="`background-color: ${p.color}`"></div>
+                <span class="truncate max-w-[80px]" x-text="p.name"></span>
+              </button>
+            </template>
+          </div>
+
+          <div class="flex gap-2">
+            <button @click="massEmblemTargets = players.map(p => p.pk)"
+                    class="flex-1 px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+              All</button>
+            <button @click="massEmblemTargets = []"
+                    class="flex-1 px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+              None</button>
+            <button @click="applyMassEmblem()"
+                    :disabled="!massEmblemSelected || massEmblemTargets.length === 0"
+                    class="flex-1 px-3 py-1.5 rounded-lg bg-pink-500/20 text-pink-700 dark:text-pink-300 text-xs font-semibold hover:bg-pink-500/30 disabled:opacity-40 disabled:cursor-not-allowed">
+              Give</button>
           </div>
         </div>
 
@@ -935,6 +1109,8 @@
         p.deltaShow = false; p.lastDelta = 0;
         p.koOverride = false; p.placement = p.placement || 0;
         p.eliminatedBy = null;
+        p.emblems = p.emblems || [];
+        p.emblemIdx = 0;
         p.turnStartLife = p.life;
         p.turnStartCmdrDmg = JSON.parse(JSON.stringify(p.commander_damage || {}));
         p.turnStartCounters = {};
@@ -957,6 +1133,10 @@
         winnerName: '',
         counterModal: { open: false, playerIdx: 0, player: null },
         cmdrPanel: null,
+        emblemPickerOpen: false,
+        emblemInput: '',
+        emblemResults: [],
+        emblemResultsOpen: false,
 
         // Day/Night (null = none, 'day', 'night')
         dayNight: null,
@@ -984,6 +1164,10 @@
         massCounterAmount: 1,
         massCounterType: 'poison',
         massCounterExcludeMode: false,
+        massEmblemQuery: '',
+        massEmblemResults: [],
+        massEmblemSelected: null,
+        massEmblemTargets: [],
 
         allCounters: [
           {key: 'poison', icon: '☠', label: 'Poison'},
@@ -1215,6 +1399,149 @@
           this.counterModal.playerIdx = idx;
           this.counterModal.player = this.players[idx];
           this.counterModal.open = true;
+          this.emblemPickerOpen = false;
+          this.emblemInput = '';
+        },
+
+        // --- Emblems (stored as [{name, oracle_text}, ...]) ---
+        emblemGroups(p) {
+          if (!p || !p.emblems?.length) return [];
+          const order = [];
+          const seen = {};
+          for (const e of p.emblems) {
+            const name = typeof e === 'string' ? e : e.name;
+            const oracle = typeof e === 'string' ? '' : (e.oracle_text || '');
+            if (seen[name] === undefined) {
+              seen[name] = order.length;
+              order.push({ name, oracle_text: oracle, count: 1 });
+            } else {
+              order[seen[name]].count++;
+              if (!order[seen[name]].oracle_text && oracle) {
+                order[seen[name]].oracle_text = oracle;
+              }
+            }
+          }
+          return order;
+        },
+
+        currentEmblem(p) {
+          const groups = this.emblemGroups(p);
+          if (!groups.length) return null;
+          const idx = ((p.emblemIdx || 0) % groups.length + groups.length) % groups.length;
+          return groups[idx];
+        },
+
+        cycleEmblem(p) {
+          const groups = this.emblemGroups(p);
+          if (groups.length <= 1) return;
+          p.emblemIdx = ((p.emblemIdx || 0) + 1) % groups.length;
+        },
+
+        addEmblem(oracleText) {
+          const name = (this.emblemInput || '').trim();
+          if (!name) return;
+          const p = this.counterModal.player;
+          if (!p) return;
+          if (!Array.isArray(p.emblems)) p.emblems = [];
+          // Prefer the oracle text passed in from a picked search result;
+          // otherwise try to look it up in the current search cache.
+          let oracle = oracleText || '';
+          if (!oracle) {
+            const hit = this.emblemResults.find(c => c.name === name);
+            oracle = hit?.oracle_text || '';
+          }
+          p.emblems.push({ name, oracle_text: oracle });
+          this.emblemInput = '';
+          this.emblemResults = [];
+          this.emblemResultsOpen = false;
+          this.announce(`${p.name} gets "${name}" emblem`, 'ms ms-planeswalker', 'announce-ascend');
+        },
+
+        async searchEmblem(query) {
+          const q = (query || '').trim();
+          if (q.length < 2) {
+            this.emblemResults = [];
+            this.emblemResultsOpen = false;
+            return;
+          }
+          try {
+            const resp = await fetch(`/collection/api/card-search/?q=${encodeURIComponent(q)}&emblem=1`);
+            const data = await resp.json();
+            this.emblemResults = data;
+            this.emblemResultsOpen = data.length > 0;
+          } catch (e) {
+            console.error('Emblem search failed:', e);
+          }
+        },
+
+        pickEmblem(card) {
+          this.emblemInput = card.name;
+          this.addEmblem(card.oracle_text || '');
+        },
+
+        // --- Mass emblem (from Tools) ---
+        async searchMassEmblem(query) {
+          const q = (query || '').trim();
+          this.massEmblemSelected = null;
+          if (q.length < 2) {
+            this.massEmblemResults = [];
+            return;
+          }
+          try {
+            const resp = await fetch(`/collection/api/card-search/?q=${encodeURIComponent(q)}&emblem=1`);
+            const data = await resp.json();
+            this.massEmblemResults = data;
+          } catch (e) {
+            console.error('Mass emblem search failed:', e);
+            this.massEmblemResults = [];
+          }
+        },
+
+        pickMassEmblem(card) {
+          this.massEmblemSelected = {
+            name: card.name,
+            oracle_text: card.oracle_text || '',
+          };
+          this.massEmblemQuery = card.name;
+          this.massEmblemResults = [];
+          // Default: everyone receives it, user toggles off as needed.
+          this.massEmblemTargets = this.players.map(p => p.pk);
+        },
+
+        toggleMassEmblemTarget(pk) {
+          const i = this.massEmblemTargets.indexOf(pk);
+          if (i >= 0) this.massEmblemTargets.splice(i, 1);
+          else this.massEmblemTargets.push(pk);
+        },
+
+        applyMassEmblem() {
+          const e = this.massEmblemSelected;
+          if (!e || this.massEmblemTargets.length === 0) return;
+          const targets = new Set(this.massEmblemTargets);
+          let applied = 0;
+          this.players.forEach(p => {
+            if (!targets.has(p.pk)) return;
+            if (!Array.isArray(p.emblems)) p.emblems = [];
+            p.emblems.push({ name: e.name, oracle_text: e.oracle_text });
+            applied++;
+          });
+          this.announce(`"${e.name}" emblem to ${applied} player${applied === 1 ? '' : 's'}`,
+                        'ms ms-planeswalker', 'announce-ascend');
+          this.massEmblemSelected = null;
+          this.massEmblemQuery = '';
+          this.massEmblemTargets = [];
+          this.showTools = false;
+        },
+
+        removeEmblem(p, name) {
+          if (!p || !Array.isArray(p.emblems)) return;
+          for (let i = p.emblems.length - 1; i >= 0; i--) {
+            const n = typeof p.emblems[i] === 'string' ? p.emblems[i] : p.emblems[i].name;
+            if (n === name) { p.emblems.splice(i, 1); break; }
+          }
+          const groups = this.emblemGroups(p);
+          if (groups.length === 0) p.emblemIdx = 0;
+          else if ((p.emblemIdx || 0) >= groups.length) p.emblemIdx = 0;
         },
 
         modifyCounter(key, delta) {
@@ -1529,6 +1856,7 @@
             p.is_day = true;
             p.koOverride = false; p.placement = 0;
             p.eliminatedBy = null;
+            p.emblems = []; p.emblemIdx = 0;
             p.lastDelta = 0; p.deltaShow = false;
             // Reset per-turn tracking snapshots so stale values aren't flushed.
             p.turnStartLife = STARTING_LIFE;
