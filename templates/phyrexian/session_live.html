@@ -35,10 +35,10 @@
     }
     .life-zone:active .life-btn { background: rgba(0,0,0,0.55); color: rgba(255,255,255,0.8); }
     .bottom-btn {
-      display: flex; align-items: center; gap: 0.25rem;
-      padding: 0.3rem 0.5rem; border-radius: 0.5rem;
+      display: flex; align-items: center; gap: 0.35rem;
+      padding: 0.45rem 0.75rem; border-radius: 0.55rem;
       background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);
-      color: rgba(255,255,255,0.7); font-size: 0.65rem; transition: background 0.15s;
+      color: rgba(255,255,255,0.9); font-size: 0.95rem; transition: background 0.15s;
     }
     .bottom-btn:hover { background: rgba(0,0,0,0.55); }
     .delta-flash { animation: deltaFlash 0.7s ease-out forwards; pointer-events: none; }
@@ -77,28 +77,22 @@
       padding: 2px 10px;
       border-radius: 0 0 6px 6px;
     }
-    /* Storm floating indicator */
+    /* Storm indicator — lives inline in the bottom toolbar */
     .storm-indicator {
-      position: fixed;
-      top: 2.5rem;
-      right: 0.5rem;
-      z-index: 30;
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 0.35rem;
-      padding: 0.35rem 0.7rem;
+      gap: 0.3rem;
+      padding: 0.3rem 0.6rem;
       border-radius: 2rem;
       font-size: 0.7rem;
       font-weight: 700;
-      background: rgba(0,0,0,0.5);
-      backdrop-filter: blur(8px);
+      background: rgba(96,165,250,0.15);
       color: #93c5fd;
-      box-shadow: 0 0 12px rgba(96,165,250,0.2);
-      border: 1px solid rgba(96,165,250,0.2);
+      border: 1px solid rgba(96,165,250,0.25);
       cursor: pointer;
       transition: background 0.15s;
     }
-    .storm-indicator:hover { background: rgba(0,0,0,0.65); }
+    .storm-indicator:hover { background: rgba(96,165,250,0.28); }
     .storm-indicator span:first-child { font-size: 0.9rem; }
     .storm-count {
       background: rgba(96,165,250,0.25);
@@ -109,21 +103,16 @@
       min-width: 1.2rem;
       text-align: center;
     }
-    /* Day/Night floating indicator */
+    /* Day/Night indicator — lives inline in the bottom toolbar */
     .day-night-indicator {
-      position: fixed;
-      top: 0.5rem;
-      right: 0.5rem;
-      z-index: 30;
-      display: flex;
+      display: inline-flex;
       align-items: center;
       gap: 0.35rem;
-      padding: 0.35rem 0.7rem;
+      padding: 0.3rem 0.65rem;
       border-radius: 2rem;
       font-size: 0.7rem;
       font-weight: 700;
       letter-spacing: 0.03em;
-      backdrop-filter: blur(8px);
       transition: background 0.4s, color 0.4s, box-shadow 0.4s;
       cursor: pointer;
       border: none;
@@ -193,67 +182,138 @@
     .status-badge {
       display: flex;
       align-items: center;
-      gap: 0.25rem;
-      padding: 0.2rem 0.5rem;
-      border-radius: 0.4rem;
-      font-size: 0.6rem;
+      gap: 0.35rem;
+      padding: 0.35rem 0.7rem;
+      border-radius: 0.45rem;
+      font-size: 0.95rem;
       font-weight: 700;
       background: rgba(0,0,0,0.55);
       backdrop-filter: blur(8px);
       border: 1px solid rgba(255,255,255,0.08);
     }
     .badge-monarch { color: #fde047; }
-    .badge-monarch .ms { font-size: 0.85rem; filter: drop-shadow(0 0 3px rgba(253,224,71,0.7)); }
+    .badge-monarch .ms { font-size: 1.25rem; filter: drop-shadow(0 0 3px rgba(253,224,71,0.7)); }
     .badge-initiative { color: #67e8f9; }
     .badge-ascend { color: #d8b4fe; }
     .badge-speed { color: #fdba74; }
-    .badge-speed .ms { font-size: 0.75rem; }
+    .badge-speed .ms { font-size: 1.15rem; }
     .badge-ring { color: #fde68a; }
-    .badge-ring .ms { font-size: 0.75rem; }
+    .badge-ring .ms { font-size: 1.15rem; }
     .badge-commander { color: #e2e8f0; }
-    .badge-commander .ms { color: #f8fafc; font-size: 0.7rem; }
+    .badge-commander .ms { color: #f8fafc; font-size: 1.15rem; }
     .badge-emblem { color: #f5d0fe; }
     .badge-emblem .ms { color: #f0abfc; }
     /* Emblem oracle-text box anchored just above the bottom bar. */
-    .emblem-box {
+    /* Stack of reminder boxes anchored above the bottom bar — rad, ring, emblem */
+    .reminder-stack {
       position: absolute;
       left: 0.5rem;
       right: 0.5rem;
-      bottom: 2.1rem;
+      bottom: 2.9rem;
       z-index: 10;
       display: flex;
-      align-items: flex-start;
+      flex-direction: column;
       gap: 0.35rem;
-      padding: 0.35rem 0.5rem;
-      border-radius: 0.4rem;
+      pointer-events: none;
+      max-height: 65%;
+    }
+    .reminder-stack > * { pointer-events: auto; }
+    .reminder-box {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.45rem;
+      padding: 0.5rem 0.7rem;
+      border-radius: 0.5rem;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(6px);
+      font-size: 0.8rem;
+      line-height: 1.3;
+      text-align: left;
+      max-height: 4.2rem;
+      overflow-y: auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.25);
+    }
+    .reminder-icon { font-size: 1.15rem; flex-shrink: 0; margin-top: 1px; line-height: 1; }
+    .reminder-text { flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; }
+    .reminder-controls { display: flex; align-items: center; gap: 0.3rem; flex-shrink: 0; margin-top: 1px; }
+    .reminder-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 1.5rem; height: 1.5rem;
+      border-radius: 0.35rem;
+      background: rgba(255,255,255,0.1);
+      color: white; font-weight: 800; font-size: 0.9rem;
+      border: 1px solid rgba(255,255,255,0.15);
+      line-height: 1;
+    }
+    .reminder-btn:hover { background: rgba(255,255,255,0.22); }
+    .reminder-btn:active { background: rgba(255,255,255,0.3); }
+    .reminder-count { font-weight: 800; min-width: 1rem; text-align: center; font-size: 0.95rem; }
+    .reminder-rad {
+      border: 1px solid rgba(74,222,128,0.4);
+      color: #bbf7d0;
+      box-shadow: 0 0 10px rgba(74,222,128,0.15);
+    }
+    .reminder-rad .reminder-icon { color: #4ade80; }
+    .reminder-ring {
+      border: 1px solid rgba(252,211,77,0.4);
+      color: #fde68a;
+      box-shadow: 0 0 10px rgba(252,211,77,0.15);
+    }
+    .reminder-ring .reminder-icon { color: #fcd34d; }
+    .reminder-level {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+      color: #fcd34d;
+      font-weight: 800;
+      font-size: 0.8rem;
+      flex-shrink: 0;
+      padding: 0.15rem 0.45rem;
+      border-radius: 999px;
+      background: rgba(252,211,77,0.15);
+      border: 1px solid rgba(252,211,77,0.3);
+      line-height: 1;
+      cursor: default;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .reminder-level-cyclable { cursor: pointer; }
+    .reminder-level-cyclable:hover { background: rgba(252,211,77,0.28); border-color: rgba(252,211,77,0.55); }
+    .reminder-level-cyclable:active { background: rgba(252,211,77,0.4); }
+    .reminder-level-cycle { font-size: 0.85rem; line-height: 1; }
+    .emblem-box {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.45rem;
+      padding: 0.5rem 0.7rem;
+      border-radius: 0.5rem;
       background: rgba(0,0,0,0.65);
       backdrop-filter: blur(6px);
       border: 1px solid rgba(236,72,153,0.35);
       color: #fbcfe8;
-      font-size: 0.62rem;
-      line-height: 1.25;
+      font-size: 0.85rem;
+      line-height: 1.3;
       text-align: left;
-      max-height: 4.2rem;
+      max-height: 5rem;
       overflow-y: auto;
       box-shadow: 0 0 10px rgba(236,72,153,0.15);
     }
     .emblem-box.emblem-box-multi { cursor: pointer; }
     .emblem-box.emblem-box-multi:hover { background: rgba(0,0,0,0.8); border-color: rgba(236,72,153,0.55); }
-    .emblem-box-icon { color: #f0abfc; font-size: 0.85rem; flex-shrink: 0; margin-top: 1px; }
+    .emblem-box-icon { color: #f0abfc; font-size: 1.15rem; flex-shrink: 0; margin-top: 1px; }
     .emblem-box-text { flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; }
-    .emblem-box-count { color: #f9a8d4; font-weight: 800; flex-shrink: 0; }
+    .emblem-box-count { color: #f9a8d4; font-weight: 800; flex-shrink: 0; font-size: 0.95rem; }
     .emblem-box-pips {
       display: inline-flex;
       align-items: center;
-      gap: 2px;
+      gap: 3px;
       flex-shrink: 0;
-      margin-top: 2px;
-      padding: 1px 4px;
+      margin-top: 3px;
+      padding: 2px 6px;
       border-radius: 999px;
       background: rgba(236,72,153,0.18);
     }
     .emblem-pip {
-      width: 4px; height: 4px;
+      width: 6px; height: 6px;
       border-radius: 999px;
       background: rgba(251,207,232,0.35);
     }
@@ -261,7 +321,7 @@
       background: #f9a8d4;
       box-shadow: 0 0 4px rgba(249,168,212,0.7);
     }
-    .emblem-box-cycle { color: #f9a8d4; font-size: 0.7rem; line-height: 1; margin-left: 2px; }
+    .emblem-box-cycle { color: #f9a8d4; font-size: 0.95rem; line-height: 1; margin-left: 3px; }
     .announce-monarch {
       background: rgba(250,204,21,0.2);
       color: #facc15;
@@ -342,30 +402,6 @@
 </head>
 <body class="h-full bg-black text-white overflow-hidden" x-data="liveGame()" @keydown.escape="closeAllModals()">
 
-  <!-- ═══ Storm counter indicator (floating top-left) ═══ -->
-  <button x-show="stormActive && globalStormCount > 0" x-cloak
-          @click="incrementStorm()"
-          class="storm-indicator"
-          x-transition:enter="transition ease-out duration-300"
-          x-transition:enter-start="opacity-0 translate-y-[-8px]"
-          x-transition:enter-end="opacity-100 translate-y-0">
-    <span>&#127744;</span>
-    <span>Storm</span>
-    <span class="storm-count" x-text="globalStormCount"></span>
-  </button>
-
-  <!-- ═══ Day/Night indicator (floating top-right) ═══ -->
-  <button x-show="dayNightActive" x-cloak
-          @click="cycleDayNight()"
-          class="day-night-indicator"
-          :class="dayNight === 'day' ? 'day-night-day' : 'day-night-night'"
-          x-transition:enter="transition ease-out duration-300"
-          x-transition:enter-start="opacity-0 translate-y-[-8px]"
-          x-transition:enter-end="opacity-100 translate-y-0">
-    <i class="ms" :class="dayNight === 'day' ? 'ms-dfc-day' : 'ms-dfc-night'"></i>
-    <span x-text="dayNight === 'day' ? 'Day' : 'Night'"></span>
-  </button>
-
   <!-- ═══ Status Announcement Banner ═══ -->
   <div x-show="announcement.show" x-cloak
        x-transition:enter="transition ease-out duration-300"
@@ -404,19 +440,19 @@
           <div class="absolute top-0 left-0 right-0 z-10 pointer-events-none px-3 pt-2 flex flex-col gap-0.5">
             <div class="flex items-center gap-1.5"
                  :class="player.is_monarch ? 'monarch-glow' : ''">
-              <span class="text-xs font-bold text-white drop-shadow-lg truncate" x-text="player.name" style="text-shadow: 0 1px 4px rgba(0,0,0,0.7);"></span>
+              <span class="text-lg sm:text-xl font-bold text-white drop-shadow-lg truncate" x-text="player.name" style="text-shadow: 0 1px 4px rgba(0,0,0,0.7);"></span>
               <span x-show="player.placement > 0" x-cloak
-                    class="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+                    class="ml-auto text-[13px] font-bold px-2 py-0.5 rounded-full shrink-0"
                     :class="player.placement === 1 ? 'bg-yellow-500 text-black' : 'bg-white/20 text-white/60'"
                     x-text="'#' + player.placement"></span>
             </div>
             <div x-show="player.commanders?.length > 0" x-cloak class="flex flex-wrap gap-1 pointer-events-auto">
               <template x-for="cmd in player.commanders" :key="cmd">
                 <button @click="castCommander(playerIdx(player), cmd)" class="status-badge badge-commander hover:!bg-black/70 cursor-pointer transition-colors">
-                  <i class="ms ms-commander" style="font-size:0.7rem"></i>
+                  <i class="ms ms-commander" style="font-size:1.15rem"></i>
                   <span x-text="cmd"></span>
                   <span x-show="(player.commander_taxes?.[cmd] || 0) > 0"
-                        class="text-yellow-400 font-bold text-[8px] ml-0.5"
+                        class="text-yellow-400 font-bold text-[13px] ml-0.5"
                         x-text="'⚔' + (player.commander_taxes?.[cmd] || 0)"></span>
                 </button>
               </template>
@@ -436,11 +472,11 @@
                 <span>Ascend</span>
               </div>
               <div x-show="player.speed > 0" class="status-badge badge-speed">
-                <i class="ms ms-ability-haste" style="font-size:0.7rem"></i>
+                <i class="ms ms-ability-haste" style="font-size:1.15rem"></i>
                 <span x-text="'Spd ' + player.speed"></span>
               </div>
               <div x-show="player.the_ring > 0" class="status-badge badge-ring">
-                <i class="ms ms-ability-the-ring-tempts-you" style="font-size:0.7rem"></i>
+                <i class="ms ms-ability-the-ring-tempts-you" style="font-size:1.15rem"></i>
                 <span x-text="'Ring ' + player.the_ring"></span>
               </div>
             </div>
@@ -467,37 +503,63 @@
             </div>
           </div>
 
-          {# Emblem oracle-text box — click to cycle when there are distinct emblems #}
-          <button x-show="(player.emblems?.length || 0) > 0" x-cloak
-                  @click.stop="cycleEmblem(player)"
-                  class="emblem-box"
-                  :class="emblemGroups(player).length > 1 ? 'emblem-box-multi' : ''">
-            <i class="ms ms-planeswalker emblem-box-icon"></i>
-            <span class="emblem-box-text"
-                  x-text="currentEmblem(player)?.oracle_text || currentEmblem(player)?.name"></span>
-            <span x-show="currentEmblem(player)?.count > 1"
-                  class="emblem-box-count"
-                  x-text="'×' + currentEmblem(player).count"></span>
-            {# Multi-emblem indicator — pip per distinct emblem + cycle arrow #}
-            <span x-show="emblemGroups(player).length > 1" class="emblem-box-pips">
-              <template x-for="(g, gi) in emblemGroups(player)" :key="'pip-'+player.pk+'-'+gi">
-                <span class="emblem-pip"
-                      :class="gi === ((player.emblemIdx || 0) % emblemGroups(player).length) ? 'emblem-pip-active' : ''"></span>
-              </template>
-              <span class="emblem-box-cycle">&#8635;</span>
-            </span>
-          </button>
+          {# Reminder stack — rad, ring, emblems stack above the bottom bar without overlapping #}
+          <div class="reminder-stack">
+            {# The Ring tempts you — shows level-appropriate ability text; click Lv to cycle through previous levels #}
+            <div x-show="(player.the_ring || 0) > 0" x-cloak class="reminder-box reminder-ring">
+              <i class="ms ms-ability-the-ring-tempts-you reminder-icon"></i>
+              <span class="reminder-text" x-text="ringText(ringDisplayLevel(player))"></span>
+              <button @click.stop="cycleRing(player)"
+                      class="reminder-level"
+                      :class="(player.the_ring || 0) > 1 ? 'reminder-level-cyclable' : ''"
+                      :disabled="(player.the_ring || 0) <= 1">
+                <span x-text="'Lv ' + ringDisplayLevel(player)"></span>
+                <span x-show="(player.the_ring || 0) > 1" class="reminder-level-cycle">&#8635;</span>
+              </button>
+            </div>
+            {# Rad counters — mill reminder with +/- controls; removing a rad also costs 1 life #}
+            <div x-show="(player.rad || 0) > 0" x-cloak class="reminder-box reminder-rad">
+              <span class="reminder-icon">&#9762;</span>
+              <span class="reminder-text"
+                    x-text="'At the beginning of your precombat main phase, mill ' + player.rad + ' card' + (player.rad > 1 ? 's' : '') + '. For each nonland card milled this way, you lose 1 life and a rad counter.'"></span>
+              <div class="reminder-controls">
+                <button @click.stop="adjustRad(playerIdx(player), -1)" class="reminder-btn">&minus;</button>
+                <span class="reminder-count" x-text="player.rad || 0"></span>
+                <button @click.stop="adjustRad(playerIdx(player), 1)" class="reminder-btn">+</button>
+              </div>
+            </div>
+            {# Emblem oracle-text box — click to cycle when there are distinct emblems #}
+            <button x-show="(player.emblems?.length || 0) > 0" x-cloak
+                    @click.stop="cycleEmblem(player)"
+                    class="emblem-box"
+                    :class="emblemGroups(player).length > 1 ? 'emblem-box-multi' : ''">
+              <i class="ms ms-planeswalker emblem-box-icon"></i>
+              <span class="emblem-box-text"
+                    x-text="currentEmblem(player)?.oracle_text || currentEmblem(player)?.name"></span>
+              <span x-show="currentEmblem(player)?.count > 1"
+                    class="emblem-box-count"
+                    x-text="'×' + currentEmblem(player).count"></span>
+              {# Multi-emblem indicator — pip per distinct emblem + cycle arrow #}
+              <span x-show="emblemGroups(player).length > 1" class="emblem-box-pips">
+                <template x-for="(g, gi) in emblemGroups(player)" :key="'pip-'+player.pk+'-'+gi">
+                  <span class="emblem-pip"
+                        :class="gi === ((player.emblemIdx || 0) % emblemGroups(player).length) ? 'emblem-pip-active' : ''"></span>
+                </template>
+                <span class="emblem-box-cycle">&#8635;</span>
+              </span>
+            </button>
+          </div>
 
           {# Bottom bar #}
           <div class="px-2 pb-1.5 z-10 pointer-events-auto flex items-end gap-1.5" @click.stop>
             <div class="relative">
               <button @click="cmdrPanel = cmdrPanel === player.pk ? null : player.pk"
-                      class="bottom-btn flex items-center gap-1.5">
-                <svg class="w-3 h-3 text-white/50 shrink-0" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1.5l1.5 3.5H14l-3.5 2.5 1.5 4L8 9l-4 2.5 1.5-4L2 5h4.5z"/></svg>
+                      class="bottom-btn flex items-center gap-2">
+                <svg class="w-5 h-5 text-white/70 shrink-0" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1.5l1.5 3.5H14l-3.5 2.5 1.5 4L8 9l-4 2.5 1.5-4L2 5h4.5z"/></svg>
                 <template x-for="other in players.filter(p => p.pk !== player.pk)" :key="'dot-'+other.pk">
-                  <div class="flex items-center gap-px">
-                    <div class="w-2 h-2 rounded-full" :style="`background-color: ${other.color}`"></div>
-                    <span class="text-[8px] font-bold tabular-nums text-white/70"
+                  <div class="flex items-center gap-1">
+                    <div class="w-3 h-3 rounded-full" :style="`background-color: ${other.color}`"></div>
+                    <span class="text-sm font-bold tabular-nums text-white"
                           x-text="getCmdrDmgByPlayer(player, other.pk)"></span>
                   </div>
                 </template>
@@ -527,9 +589,9 @@
             </div>
             <button @click="openCounterModal(playerIdx(player))" class="bottom-btn">
               <template x-if="getVisibleCounters(playerIdx(player)).length > 0">
-                <div class="flex items-center gap-1">
+                <div class="flex items-center gap-2">
                   <template x-for="ct in getVisibleCounters(playerIdx(player))" :key="ct.key">
-                    <div class="flex items-center gap-px text-[8px]">
+                    <div class="flex items-center gap-1 text-sm">
                       <span x-text="ct.icon"></span>
                       <span class="font-bold tabular-nums" x-text="ct.value"></span>
                     </div>
@@ -537,7 +599,7 @@
                 </div>
               </template>
               <template x-if="getVisibleCounters(playerIdx(player)).length === 0">
-                <svg class="w-3 h-3 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                <svg class="w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
               </template>
             </button>
           </div>
@@ -566,6 +628,30 @@
               </button>
             </template>
           </div>
+        </div>
+
+        {# Eliminated overlay — after the killer is chosen, keep the panel clearly out of play. #}
+        <div x-show="player.eliminatedBy && !player.koOverride" x-cloak
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+             class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/75 backdrop-blur-sm px-3 py-2 text-center">
+          <i class="ms ms-counter-skull text-red-500/85" style="font-size:2.75rem; filter: drop-shadow(0 0 12px rgba(239,68,68,0.5));"></i>
+          <span class="text-red-400 font-black tracking-widest text-base sm:text-lg mt-1 mb-0.5"
+                style="text-shadow: 0 0 12px rgba(239,68,68,0.4);">ELIMINATED</span>
+          <span class="text-white/85 text-sm font-bold mb-1 truncate max-w-full" x-text="player.name"></span>
+          <span x-show="player.placement > 0" x-cloak
+                class="text-[11px] font-bold px-2 py-0.5 rounded-full mb-2"
+                :class="player.placement === 1 ? 'bg-yellow-500 text-black' : 'bg-white/15 text-white/80'"
+                x-text="'#' + player.placement"></span>
+          <div x-show="eliminatorName(player)" x-cloak
+               class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/50 border border-white/10">
+            <div class="w-2.5 h-2.5 rounded-full shrink-0" :style="`background-color: ${eliminatorColor(player)}`"></div>
+            <span class="text-white/90 text-xs" x-text="'by ' + eliminatorName(player)"></span>
+          </div>
+          <button @click="player.eliminatedBy = null"
+                  class="mt-2 px-2.5 py-1 rounded text-[11px] text-white/50 hover:text-white hover:bg-white/10 transition-colors">
+            Change
+          </button>
         </div>
 
       </div>
@@ -674,6 +760,28 @@
     {# Tools button (replaces dice) #}
     <button @click="showTools = !showTools" class="p-2 text-gray-400 hover:text-white transition-colors" title="Tools">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+    </button>
+    {# Day/Night indicator — shown once activated from Tools #}
+    <button x-show="dayNightActive" x-cloak
+            @click="cycleDayNight()"
+            class="day-night-indicator"
+            :class="dayNight === 'day' ? 'day-night-day' : 'day-night-night'"
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0 scale-90"
+            x-transition:enter-end="opacity-100 scale-100">
+      <i class="ms" :class="dayNight === 'day' ? 'ms-dfc-day' : 'ms-dfc-night'"></i>
+      <span x-text="dayNight === 'day' ? 'Day' : 'Night'"></span>
+    </button>
+    {# Storm counter — shown when any player has storm_count > 0 #}
+    <button x-show="stormActive && globalStormCount > 0" x-cloak
+            @click="incrementStorm()"
+            class="storm-indicator"
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0 scale-90"
+            x-transition:enter-end="opacity-100 scale-100">
+      <span>&#127744;</span>
+      <span>Storm</span>
+      <span class="storm-count" x-text="globalStormCount"></span>
     </button>
     <button @click="showLog = !showLog" class="p-2 text-gray-400 hover:text-white transition-colors" title="Game Log">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
@@ -1255,6 +1363,15 @@
           return this.players.filter(p => p.pk !== pk);
         },
 
+        eliminatorName(p) {
+          const k = this.players.find(x => x.pk === p.eliminatedBy);
+          return k?.name || '';
+        },
+        eliminatorColor(p) {
+          const k = this.players.find(x => x.pk === p.eliminatedBy);
+          return k?.color || '#888';
+        },
+
         confirmElimination(idx, killerPk) {
           const p = this.players[idx];
           const killer = this.players.find(k => k.pk === killerPk);
@@ -1564,6 +1681,43 @@
           if (p[key] !== oldVal) {
             fetch(`/stats/session/${p.pk}/counter/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `counter=${key}&delta=${delta}`});
           }
+        },
+
+        // --- Inline reminder helpers (rad / ring) — work by player index, not modal ---
+        adjustRad(idx, delta) {
+          const p = this.players[idx];
+          const oldVal = p.rad || 0;
+          const newVal = Math.max(0, oldVal + delta);
+          const actual = newVal - oldVal;
+          if (actual === 0) return;
+          p.rad = newVal;
+          fetch(`/stats/session/${p.pk}/counter/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `counter=rad&delta=${actual}`});
+          // Removing a rad counter simulates the mill trigger: lose 1 life per rad removed.
+          if (actual < 0) this.changeLife(idx, actual);
+        },
+        ringText(level) {
+          switch (level) {
+            case 1: return "Your Ring-bearer is legendary and can't be blocked by creatures with greater power.";
+            case 2: return "Whenever your Ring-bearer attacks, draw a card, then discard a card.";
+            case 3: return "Whenever your Ring-bearer becomes blocked by a creature, that creature's controller sacrifices it at the end of combat.";
+            case 4: return "Whenever your Ring-bearer deals combat damage to a player, each opponent loses 3 life.";
+            default: return '';
+          }
+        },
+        ringDisplayLevel(p) {
+          const real = p.the_ring || 0;
+          if (real <= 0) return 0;
+          const d = p.ringDisplay || real;
+          // Clamp — if the real level dropped (reset, etc.) keep display within range.
+          if (d > real || d < 1) return real;
+          return d;
+        },
+        cycleRing(p) {
+          const real = p.the_ring || 0;
+          if (real <= 1) return;
+          const current = this.ringDisplayLevel(p);
+          // Cycle backwards through 1..real, wrapping from 1 back to real.
+          p.ringDisplay = current <= 1 ? real : current - 1;
         },
 
         // --- Announcement helper ---
