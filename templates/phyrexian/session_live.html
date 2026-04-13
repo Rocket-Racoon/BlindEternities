@@ -79,8 +79,8 @@
     /* Storm floating indicator */
     .storm-indicator {
       position: fixed;
-      top: 0.5rem;
-      left: 0.5rem;
+      top: 2.5rem;
+      right: 0.5rem;
       z-index: 30;
       display: flex;
       align-items: center;
@@ -242,7 +242,7 @@
 <body class="h-full bg-black text-white overflow-hidden" x-data="liveGame()" @keydown.escape="closeAllModals()">
 
   <!-- ═══ Storm counter indicator (floating top-left) ═══ -->
-  <button x-show="stormActive" x-cloak
+  <button x-show="stormActive && globalStormCount > 0" x-cloak
           @click="incrementStorm()"
           class="storm-indicator"
           x-transition:enter="transition ease-out duration-300"
