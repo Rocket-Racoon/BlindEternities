@@ -15,7 +15,7 @@
       {% if change.delta > 0 %}text-green-400{% else %}text-red-400{% endif %}">
       {% if change.delta > 0 %}+{% endif %}{{ change.delta }}
     </span>
-    <span class="text-gray-500">&rarr; {{ change.life_after }}</span>
+    <span class="text-gray-500">&rarr; {{ change.life_after }}{% if change.source == "Poison" %}/10{% endif %}</span>
     {% else %}
     <span class="text-gray-400 text-[10px] italic">{{ change.source }}</span>
     {% endif %}

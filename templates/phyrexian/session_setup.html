@@ -240,6 +240,78 @@
                 </select>
                 <span x-show="player.decksLoading" class="text-xs text-gray-400 shrink-0">Loading...</span>
               </div>
+
+              <!-- Commander selection (only for commander format with no deck) -->
+              <div x-show="format === 'commander' && !player.deck" x-cloak class="space-y-2 pt-1 border-t border-gray-100 dark:border-void-800">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-gray-500 w-16">Commander</span>
+                  <div class="flex-1 relative">
+                    <input type="text"
+                           x-model="player.commander1"
+                           @input.debounce.300ms="searchCommander(i, 1, $event.target.value)"
+                           @focus="if(player.cmdr1Results?.length) player.cmdr1Open = true"
+                           placeholder="Commander name..."
+                           class="input text-xs w-full">
+                    <div x-show="player.cmdr1Open && player.cmdr1Results?.length"
+                         @click.away="player.cmdr1Open = false"
+                         class="absolute top-full left-0 right-0 z-50 mt-1 rounded-lg shadow-xl max-h-48 overflow-y-auto
+                                bg-white dark:bg-void-800 border border-gray-200 dark:border-void-600
+                                ring-1 ring-black/5 dark:ring-white/10">
+                      <template x-for="card in player.cmdr1Results" :key="'c1-'+card.id">
+                        <button type="button"
+                                @click="selectCommander(i, 1, card.name)"
+                                class="w-full flex items-center gap-2 px-3 py-1.5
+                                       hover:bg-void-100 dark:hover:bg-void-700
+                                       border-b border-gray-100 dark:border-void-700 last:border-b-0
+                                       text-left text-xs transition-colors">
+                          <img :src="card.prints[0]?.art_crop || card.prints[0]?.image || ''"
+                               class="w-10 h-7 rounded object-cover bg-gray-300 dark:bg-void-700 shrink-0"
+                               :alt="card.name">
+                          <span class="text-gray-900 dark:text-gray-100 truncate" x-text="card.name"></span>
+                        </button>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 pl-[4.5rem]">
+                  <label class="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+                    <input type="checkbox" x-model="player.hasPartner" class="rounded text-void-600 focus:ring-void-500">
+                    <span>Has two commanders (partner)</span>
+                  </label>
+                </div>
+                <div x-show="player.hasPartner" x-cloak class="flex items-center gap-2">
+                  <span class="text-xs text-gray-500 w-16">Partner</span>
+                  <div class="flex-1 relative">
+                    <input type="text"
+                           x-model="player.commander2"
+                           @input.debounce.300ms="searchCommander(i, 2, $event.target.value)"
+                           @focus="if(player.cmdr2Results?.length) player.cmdr2Open = true"
+                           placeholder="Partner commander..."
+                           class="input text-xs w-full">
+                    <div x-show="player.cmdr2Open && player.cmdr2Results?.length"
+                         @click.away="player.cmdr2Open = false"
+                         class="absolute top-full left-0 right-0 z-50 mt-1 rounded-lg shadow-xl max-h-48 overflow-y-auto
+                                bg-white dark:bg-void-800 border border-gray-200 dark:border-void-600
+                                ring-1 ring-black/5 dark:ring-white/10">
+                      <template x-for="card in player.cmdr2Results" :key="'c2-'+card.id">
+                        <button type="button"
+                                @click="selectCommander(i, 2, card.name)"
+                                class="w-full flex items-center gap-2 px-3 py-1.5
+                                       hover:bg-void-100 dark:hover:bg-void-700
+                                       border-b border-gray-100 dark:border-void-700 last:border-b-0
+                                       text-left text-xs transition-colors">
+                          <img :src="card.prints[0]?.art_crop || card.prints[0]?.image || ''"
+                               class="w-10 h-7 rounded object-cover bg-gray-300 dark:bg-void-700 shrink-0"
+                               :alt="card.name">
+                          <span class="text-gray-900 dark:text-gray-100 truncate" x-text="card.name"></span>
+                        </button>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+                <input type="hidden" :name="`player_${i}_commander_1`" :value="player.commander1 || ''">
+                <input type="hidden" :name="`player_${i}_commander_2`" :value="player.hasPartner ? (player.commander2 || '') : ''">
+              </div>
             </div>
           </div>
         </template>
@@ -295,6 +367,13 @@
       friendQuery: '',
       friendResults: [],
       friendOpen: false,
+      commander1: '',
+      commander2: '',
+      hasPartner: false,
+      cmdr1Results: [],
+      cmdr1Open: false,
+      cmdr2Results: [],
+      cmdr2Open: false,
     };
     if (i === 0) {
       return {
@@ -424,6 +503,39 @@
         this.versionPicker[idx] = null;
         const input = document.getElementById(`search-${idx}`);
         if (input) input.value = '';
+      },
+
+      // --- Commander search ---
+      async searchCommander(idx, slot, query) {
+        const p = this.players[idx];
+        const resultsKey = slot === 1 ? 'cmdr1Results' : 'cmdr2Results';
+        const openKey = slot === 1 ? 'cmdr1Open' : 'cmdr2Open';
+        if (!query || query.length < 2) {
+          p[resultsKey] = [];
+          p[openKey] = false;
+          return;
+        }
+        try {
+          const resp = await fetch(`/collection/api/card-search/?q=${encodeURIComponent(query)}`);
+          const data = await resp.json();
+          p[resultsKey] = data;
+          p[openKey] = data.length > 0;
+        } catch(e) {
+          console.error('Commander search failed:', e);
+        }
+      },
+
+      selectCommander(idx, slot, name) {
+        const p = this.players[idx];
+        if (slot === 1) {
+          p.commander1 = name;
+          p.cmdr1Open = false;
+          p.cmdr1Results = [];
+        } else {
+          p.commander2 = name;
+          p.cmdr2Open = false;
+          p.cmdr2Results = [];
+        }
       }
     };
   }

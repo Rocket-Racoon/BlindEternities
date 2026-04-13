@@ -596,6 +596,11 @@ class SessionSetupView(LoginRequiredMixin, TemplateView):
                     pass
             if deck_id:
                 slot.deck_id = deck_id
+            # Custom commanders (used when no deck is linked)
+            if not deck_id:
+                c1 = request.POST.get(f"player_{i}_commander_1", "").strip()
+                c2 = request.POST.get(f"player_{i}_commander_2", "").strip()
+                slot.commanders = [c for c in (c1, c2) if c]
             slot.save()
 
         from django.shortcuts import redirect
@@ -619,6 +624,8 @@ class SessionLiveView(LoginRequiredMixin, TemplateView):
             if p.deck_id:
                 cmdr_cards = p.deck.commander_cards.select_related("card")
                 player_commanders[p.pk] = [dc.card.name for dc in cmdr_cards]
+            elif p.commanders:
+                player_commanders[p.pk] = list(p.commanders)
             else:
                 player_commanders[p.pk] = []
 

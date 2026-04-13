@@ -145,7 +145,7 @@ class GameSession(BaseModel):
             life=self.starting_life, poison=0, energy=0, experience=0,
             commander_tax=0, treasure=0, rad=0, storm_count=0,
             commander_damage={}, commander_taxes={}, is_monarch=False, has_initiative=False,
-            has_citys_blessing=False, speed=0, the_ring=0,
+            has_citys_blessing=False, speed=0, the_ring=0, is_day=True, placement=0,
         )
         self.current_turn = 1
         self.status = SessionStatus.ACTIVE
@@ -184,6 +184,9 @@ class PlayerSlot(BaseModel):
 
     # Per-commander tax (JSON: {"Commander Name": tax_count})
     commander_taxes = models.JSONField(default=dict, blank=True)
+
+    # Custom commander names (used when no deck is linked). JSON list of names.
+    commanders = models.JSONField(default=list, blank=True)
 
     # Level-based mechanics (0-4)
     speed = models.PositiveSmallIntegerField(default=0)

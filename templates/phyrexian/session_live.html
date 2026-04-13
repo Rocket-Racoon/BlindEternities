@@ -15,6 +15,7 @@
     .life-zone { user-select: none; cursor: pointer; }
     .player-panel { transition: opacity 0.3s ease; min-height: 0; }
     .player-panel.dead { opacity: 0.4; filter: grayscale(0.5); }
+    .player-panel.flip-top { transform: rotate(180deg); }
     .game-grid { height: calc(100vh - 3rem); }
     .game-grid.rows-1 { grid-template-rows: 1fr; }
     .game-grid.rows-2 { grid-template-rows: 1fr 1fr; }
@@ -301,9 +302,9 @@
 
   <!-- ═══ Player Grid ═══ -->
   <div class="game-grid grid gap-[2px]" :class="gridClass">
-    <template x-for="player in displayPlayers" :key="player.pk">
+    <template x-for="(player, di) in displayPlayers" :key="player.pk">
       <div class="player-panel relative rounded-lg overflow-hidden"
-           :class="[isKnockedOut(playerIdx(player)) && !player.koOverride ? 'dead' : '', activePlayerIdx === playerIdx(player) ? 'active-turn' : (activePlayerIdx >= 0 ? 'not-turn' : '')]"
+           :class="[isKnockedOut(playerIdx(player)) && !player.koOverride ? 'dead' : '', activePlayerIdx === playerIdx(player) ? 'active-turn' : (activePlayerIdx >= 0 ? 'not-turn' : ''), flipTop && di < topRowSize ? 'flip-top' : '']"
            :id="'panel-' + player.pk">
 
         {# Background #}
@@ -804,6 +805,7 @@
                     class="px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm text-gray-900 dark:text-white border-0 focus:ring-1 focus:ring-void-400">
               <option value="poison">☠ Poison</option>
               <option value="rad">☢ Rad</option>
+              <option value="treasure">💰 Treasure</option>
             </select>
             <span class="text-xs text-gray-500">to</span>
           </div>
@@ -839,6 +841,15 @@
          x-transition:leave="transition ease-in duration-150" x-transition:leave-start="translate-x-0" x-transition:leave-end="-translate-x-full">
       <h2 class="text-lg font-bold mb-4">Menu</h2>
       <div class="space-y-2 flex-1">
+        <button type="button" @click="toggleFlipTop()"
+                class="w-full flex items-center justify-between px-3 py-2 rounded text-sm text-left transition-colors"
+                :class="flipTop ? 'bg-void-600/40 text-void-200 ring-1 ring-void-500/50' : 'bg-gray-700/50 text-gray-300 hover:bg-gray-700'">
+          <span class="flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
+            <span>Flip top row</span>
+          </span>
+          <span class="text-[10px] uppercase tracking-wider font-bold" x-text="flipTop ? 'On' : 'Off'"></span>
+        </button>
         <a href="{% url 'phyrexian:session-end' session.pk %}"
            class="block w-full px-3 py-2 rounded text-sm text-center bg-red-600/80 text-white hover:bg-red-600 transition-colors">
           End Game
@@ -863,7 +874,7 @@
       </div>
       <div id="life-log" class="flex-1 overflow-y-auto p-3 space-y-1"
            hx-get="{% url 'phyrexian:session-log' session.pk %}"
-           hx-trigger="every 3s"
+           hx-trigger="every 3s, refresh"
            hx-swap="innerHTML">
         {% include "phyrexian/partials/life_log.html" %}
       </div>
@@ -886,6 +897,8 @@
         p.turnStartLife = p.life;
         p.turnStartCmdrDmg = JSON.parse(JSON.stringify(p.commander_damage || {}));
         p.turnStartCounters = {};
+        p.turnLifeGained = 0;
+        p.turnLifeLost = 0;
         ['poison','energy','experience','commander_tax','treasure','rad','storm_count','speed','the_ring'].forEach(k => { p.turnStartCounters[k] = p[k] || 0; });
       });
 
@@ -898,6 +911,7 @@
         showMenu: false,
         showLog: false,
         showTools: false,
+        flipTop: localStorage.getItem('session_flip_top') === '1',
         gameFinished: false,
         winnerName: '',
         counterModal: { open: false, playerIdx: 0, player: null },
@@ -944,6 +958,15 @@
           if (n === 2) return 'grid-cols-2 rows-1';
           if (n <= 4) return 'grid-cols-2 rows-2';
           return 'grid-cols-3 rows-2';
+        },
+
+        get topRowSize() {
+          return this.players.length <= 4 ? 2 : 3;
+        },
+
+        toggleFlipTop() {
+          this.flipTop = !this.flipTop;
+          localStorage.setItem('session_flip_top', this.flipTop ? '1' : '0');
         },
 
         // Counter-clockwise layout: second row is reversed
@@ -1063,6 +1086,8 @@
           this.cmdrPanel = null;
           const p = this.players[idx];
           p.life += delta;
+          if (delta > 0) p.turnLifeGained = (p.turnLifeGained || 0) + delta;
+          else if (delta < 0) p.turnLifeLost = (p.turnLifeLost || 0) + (-delta);
           if (p.life > 0 && p.poison < 10 && this.maxCmdrDamage(p) < 21) p.koOverride = false;
           p.lastDelta = delta;
           p.deltaShow = true;
@@ -1334,6 +1359,8 @@
             p.turnStartLife = p.life;
             p.turnStartCmdrDmg = JSON.parse(JSON.stringify(p.commander_damage || {}));
             p.turnStartCounters = {};
+            p.turnLifeGained = 0;
+            p.turnLifeLost = 0;
             this._counterKeys.forEach(k => { p.turnStartCounters[k] = p[k] || 0; });
           });
         },
@@ -1341,14 +1368,13 @@
         flushTurnLog() {
           const entries = [];
           this.players.forEach(p => {
-            // Net life change (excluding commander damage)
-            const cmdrLifeLost = Object.keys(p.commander_damage || {}).reduce((sum, k) => {
-              return sum + ((p.commander_damage[k] || 0) - (p.turnStartCmdrDmg?.[k] || 0));
-            }, 0);
-            const totalLifeDelta = p.life - (p.turnStartLife ?? p.life);
-            const pureDelta = totalLifeDelta + cmdrLifeLost;
-            if (pureDelta !== 0) {
-              entries.push({ pk: p.pk, delta: pureDelta, life_after: p.life, source: pureDelta > 0 ? 'Life gain' : 'Life loss' });
+            // Log life gained and life lost separately (excludes commander damage —
+            // that's tracked in changeCmdrDamage, not changeLife).
+            if ((p.turnLifeGained || 0) > 0) {
+              entries.push({ pk: p.pk, delta: p.turnLifeGained, life_after: p.life, source: 'Life gain' });
+            }
+            if ((p.turnLifeLost || 0) > 0) {
+              entries.push({ pk: p.pk, delta: -p.turnLifeLost, life_after: p.life, source: 'Life loss' });
             }
             // Commander damage per source (key is "pk::CmdrName" or "pk")
             Object.keys(p.commander_damage || {}).forEach(key => {
@@ -1361,11 +1387,11 @@
                 entries.push({ pk: p.pk, delta: -dmg, life_after: p.life, source: `Cmdr dmg (${label})` });
               }
             });
-            // Counter changes
+            // Counter changes — log the counter's new value, not life.
             this._counterKeys.forEach(k => {
               const delta = (p[k] || 0) - (p.turnStartCounters?.[k] || 0);
               if (delta !== 0) {
-                entries.push({ pk: p.pk, delta, life_after: p.life, source: this._counterLabels[k] || k });
+                entries.push({ pk: p.pk, delta, life_after: p[k] || 0, source: this._counterLabels[k] || k });
               }
             });
           });
@@ -1423,7 +1449,16 @@
             p.commander_tax = 0; p.treasure = 0; p.rad = 0; p.storm_count = 0;
             p.commander_damage = {}; p.commander_taxes = {}; p.is_monarch = false; p.has_initiative = false;
             p.has_citys_blessing = false; p.speed = 0; p.the_ring = 0;
+            p.is_day = true;
             p.koOverride = false; p.placement = 0;
+            p.lastDelta = 0; p.deltaShow = false;
+            // Reset per-turn tracking snapshots so stale values aren't flushed.
+            p.turnStartLife = STARTING_LIFE;
+            p.turnStartCmdrDmg = {};
+            p.turnStartCounters = {};
+            p.turnLifeGained = 0;
+            p.turnLifeLost = 0;
+            this._counterKeys.forEach(k => { p.turnStartCounters[k] = 0; });
           });
           this.turn = 1;
           this.gameFinished = false;
@@ -1432,12 +1467,27 @@
           this.dayNightActive = false;
           this.stormActive = false;
           this.globalStormCount = 0;
+          this.cmdrPanel = null;
+          this.announcement = { show: false, text: '', icon: '', css: '' };
+          this.counterModal = { open: false, playerIdx: 0, player: null };
+          this.randomMode = null;
+          this.rouletteRunning = false;
+          this.rouletteCurrent = null;
+          this.massExcludeMode = false;
+          this.massCounterExcludeMode = false;
           this.pickingStarter = true;
           this.starterRevealed = false;
           this.startingPlayerIdx = -1;
           this.activePlayerIdx = -1;
           nextPlacement = this.players.length;
-          fetch(`/stats/session/${SESSION_PK}/reset/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}});
+          fetch(`/stats/session/${SESSION_PK}/reset/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}})
+            .then(() => {
+              // Refresh the HTMX log so the cleared history is reflected immediately.
+              if (window.htmx) {
+                const el = document.getElementById('life-log');
+                if (el) window.htmx.trigger(el, 'refresh');
+              }
+            });
         },
 
         rollDie(label, sides) {
