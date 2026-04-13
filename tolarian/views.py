@@ -1326,12 +1326,10 @@ class CardSearchJSON(LoginRequiredMixin, View):
         if len(q) < 2:
             return JsonResponse([], safe=False)
 
-        cards = (
-            Card.objects
-            .filter(is_active=True, name__icontains=q)
-            .prefetch_related("prints__cardset")
-            .order_by("name")[:10]
-        )
+        qs = Card.objects.filter(is_active=True, name__icontains=q)
+        if request.GET.get("commander") == "1":
+            qs = qs.filter(can_be_commander=True)
+        cards = qs.prefetch_related("prints__cardset").order_by("name")[:10]
 
         results = []
         for card in cards:

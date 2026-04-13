@@ -629,6 +629,18 @@ class SessionLiveView(LoginRequiredMixin, TemplateView):
             else:
                 player_commanders[p.pk] = []
 
+        # Map commander name → art_crop URL (first available print).
+        all_cmdr_names = {n for names in player_commanders.values() for n in names}
+        commander_art = {}
+        if all_cmdr_names:
+            cards = Card.objects.filter(name__in=all_cmdr_names).prefetch_related("prints")
+            for c in cards:
+                for pr in c.prints.all():
+                    art = (pr.image_uris or {}).get("art_crop")
+                    if art:
+                        commander_art[c.name] = art
+                        break
+
         ctx["players_json"] = json.dumps([
             {
                 "pk": str(p.pk),
@@ -653,6 +665,7 @@ class SessionLiveView(LoginRequiredMixin, TemplateView):
                 "is_dead": p.is_dead,
                 "placement": p.placement,
                 "commanders": player_commanders.get(p.pk, []),
+                "commander_art": {n: commander_art.get(n, "") for n in player_commanders.get(p.pk, [])},
                 "commander_taxes": p.commander_taxes or {},
             }
             for p in players
@@ -775,11 +788,13 @@ class SessionCommanderDamageView(LoginRequiredMixin, TemplateView):
 
         dmg = target.commander_damage or {}
         current = dmg.get(source_pk, 0)
-        dmg[source_pk] = max(0, current + delta)
+        new_val = max(0, current + delta)
+        applied = new_val - current
+        dmg[source_pk] = new_val
         target.commander_damage = dmg
 
-        if also_lose_life and delta != 0:
-            target.life -= delta
+        if also_lose_life and applied != 0:
+            target.life -= applied
 
         target.save(update_fields=["commander_damage", "life", "updated_at"])
 

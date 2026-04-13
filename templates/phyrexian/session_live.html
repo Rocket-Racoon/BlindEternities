@@ -160,6 +160,35 @@
       pointer-events: none;
     }
     .announce-icon { font-size: 1.75rem; }
+    /* When the banner shows commander art as background, shrink to an art_crop
+       aspect ratio (~626×457) so most of the art is visible instead of cropped.
+       Scryfall's art_crop is already trimmed — we use `contain` with the
+       gradient acting as letterbox so nothing gets cut off. */
+    .announce-banner.announce-has-art {
+      left: 50%;
+      right: auto;
+      transform: translate(-50%, -50%);
+      width: min(90vw, 560px);
+      aspect-ratio: 626 / 457;
+      padding: 0;
+      background-size: cover !important;
+      background-position: center 30% !important;
+      background-repeat: no-repeat !important;
+      border-radius: 0.75rem;
+      border: 1px solid rgba(255,255,255,0.2);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+      align-items: flex-end;
+      justify-content: center;
+      font-size: 1.4rem;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.95), 0 0 4px rgba(0,0,0,0.8);
+    }
+    .announce-banner.announce-has-art > span {
+      width: 100%;
+      padding: 0.9rem 1.25rem;
+      background: linear-gradient(to top, rgba(0,0,0,0.85) 30%, transparent);
+      text-align: center;
+      border-radius: 0 0 0.75rem 0.75rem;
+    }
     /* Player status badges — dark glass with bright text */
     .status-badge {
       display: flex;
@@ -295,9 +324,10 @@
        x-transition:leave="transition ease-in duration-500"
        x-transition:leave-start="opacity-100 scale-100"
        x-transition:leave-end="opacity-0 scale-110"
-       class="announce-banner" :class="announcement.css">
-    <i x-show="announcement.icon" :class="announcement.icon" class="announce-icon"></i>
-    <span x-text="announcement.text"></span>
+       class="announce-banner" :class="[announcement.css, announcement.image ? 'announce-has-art' : '']"
+       :style="announcement.image ? `background-image: url(${announcement.image});` : ''">
+    <i x-show="announcement.icon && !announcement.image" :class="announcement.icon" class="announce-icon"></i>
+    <span x-text="announcement.text" class="relative z-10"></span>
   </div>
 
   <!-- ═══ Player Grid ═══ -->
@@ -442,19 +472,29 @@
           </div>
         </div>
 
-        {# KO overlay #}
-        <div x-show="isKnockedOut(playerIdx(player)) && !player.koOverride" x-cloak
+        {# KO overlay — shown until player picks Stay or chooses a killer #}
+        <div x-show="isKnockedOut(playerIdx(player)) && !player.koOverride && !player.eliminatedBy" x-cloak
              x-transition:enter="transition ease-out duration-300"
              x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-             class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/75 backdrop-blur-sm">
+             class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm px-3 py-2 overflow-y-auto">
           <i class="ms ms-counter-skull text-red-500 ko-skull"></i>
           <span class="text-xl sm:text-2xl font-black text-red-500 tracking-widest mt-2 mb-0.5" style="text-shadow: 0 0 20px rgba(239,68,68,0.5);">K.O.</span>
           <span class="text-xs text-white/50 mb-0.5" x-text="player.name"></span>
-          <span class="text-[10px] text-red-400/70 mb-4" x-text="koReason(playerIdx(player))"></span>
+          <span class="text-[10px] text-red-400/70 mb-3 text-center" x-text="koReason(playerIdx(player))"></span>
           <button @click="player.koOverride = true"
-                  class="px-4 py-2 rounded-lg bg-white/10 text-white/80 text-xs font-semibold hover:bg-white/20 active:bg-white/30 transition-colors border border-white/20">
+                  class="px-4 py-2 rounded-lg bg-white/10 text-white/80 text-xs font-semibold hover:bg-white/20 active:bg-white/30 transition-colors border border-white/20 mb-3">
             Stay in Game
           </button>
+          <p class="text-[10px] text-white/40 uppercase tracking-wider mb-2 text-center">Eliminated by</p>
+          <div class="flex flex-wrap gap-1.5 justify-center max-w-full">
+            <template x-for="killer in playersExcept(player.pk)" :key="'k-'+player.pk+'-'+killer.pk">
+              <button @click="confirmElimination(playerIdx(player), killer.pk)"
+                      class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-black/50 hover:bg-red-600/40 active:bg-red-600/60 transition-colors border border-white/10">
+                <div class="w-2.5 h-2.5 rounded-full shrink-0" :style="`background-color: ${killer.color}`"></div>
+                <span class="text-white/90 text-xs font-medium truncate max-w-[80px]" x-text="killer.name"></span>
+              </button>
+            </template>
+          </div>
         </div>
 
       </div>
@@ -894,6 +934,7 @@
       players.forEach(p => {
         p.deltaShow = false; p.lastDelta = 0;
         p.koOverride = false; p.placement = p.placement || 0;
+        p.eliminatedBy = null;
         p.turnStartLife = p.life;
         p.turnStartCmdrDmg = JSON.parse(JSON.stringify(p.commander_damage || {}));
         p.turnStartCounters = {};
@@ -926,7 +967,7 @@
         globalStormCount: 0,
 
         // Status announcement banner
-        announcement: { show: false, text: '', icon: '', css: '' },
+        announcement: { show: false, text: '', icon: '', css: '', image: '' },
 
         // Turn tracking
         pickingStarter: true,
@@ -1014,7 +1055,36 @@
         },
 
         isEffectivelyDead(idx) {
-          return this.isKnockedOut(idx) && !this.players[idx].koOverride;
+          const p = this.players[idx];
+          return this.isKnockedOut(idx) && !p.koOverride && !!p.eliminatedBy;
+        },
+
+        // A KO'd player who hasn't picked Stay or a killer yet — pauses
+        // auto-placement and auto game-end until the user decides.
+        hasUndecidedKO() {
+          return this.players.some((p, i) =>
+            this.isKnockedOut(i) && !p.koOverride && !p.eliminatedBy
+          );
+        },
+
+        playersExcept(pk) {
+          return this.players.filter(p => p.pk !== pk);
+        },
+
+        confirmElimination(idx, killerPk) {
+          const p = this.players[idx];
+          const killer = this.players.find(k => k.pk === killerPk);
+          p.eliminatedBy = killerPk;
+          this.announce(`${killer?.name || '?'} eliminates ${p.name}`, 'ms ms-counter-skull', 'announce-random');
+          fetch(`/stats/session/${SESSION_PK}/log-turn/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify({ turn: this.turn, entries: [{
+              pk: p.pk, delta: 0, life_after: p.life,
+              source: `Eliminated by ${killer?.name || '?'}`,
+            }] }),
+          });
+          this.checkEliminations();
         },
 
         maxCmdrDamage(p) {
@@ -1048,6 +1118,9 @@
         // --- Check eliminations after any state change ---
         checkEliminations() {
           if (this.gameFinished) return;
+          // Wait for the user to decide whether each KO'd player stays or
+          // picks a killer before assigning placements or ending the game.
+          if (this.hasUndecidedKO()) return;
 
           // Assign placements to newly eliminated players
           const newlyDead = this.players.filter((p, i) => this.isEffectivelyDead(i) && p.placement === 0);
@@ -1128,9 +1201,12 @@
           const p = this.players[targetIdx];
           if (!p.commander_damage) p.commander_damage = {};
           const current = p.commander_damage[cmdrKey] || 0;
-          p.commander_damage[cmdrKey] = Math.max(0, current + delta);
-          p.life -= delta;
-          fetch(`/stats/session/${p.pk}/cmdr-damage/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `source_pk=${encodeURIComponent(cmdrKey)}&delta=${delta}&lose_life=true`});
+          const next = Math.max(0, current + delta);
+          const applied = next - current;
+          if (applied === 0) return;
+          p.commander_damage[cmdrKey] = next;
+          p.life -= applied;
+          fetch(`/stats/session/${p.pk}/cmdr-damage/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `source_pk=${encodeURIComponent(cmdrKey)}&delta=${applied}&lose_life=true`});
           this.checkEliminations();
         },
 
@@ -1164,8 +1240,8 @@
         },
 
         // --- Announcement helper ---
-        announce(text, icon, css) {
-          this.announcement = { show: true, text, icon, css };
+        announce(text, icon, css, image) {
+          this.announcement = { show: true, text, icon, css, image: image || '' };
           setTimeout(() => { this.announcement.show = false; }, 2500);
         },
 
@@ -1213,7 +1289,8 @@
           if (!p.commander_taxes) p.commander_taxes = {};
           p.commander_taxes[cmdName] = (p.commander_taxes[cmdName] || 0) + 1;
           const tax = p.commander_taxes[cmdName];
-          this.announce(`${p.name} casts ${cmdName}`, 'ms ms-commander', 'announce-cast');
+          const art = p.commander_art?.[cmdName] || '';
+          this.announce(`${p.name} casts ${cmdName}`, 'ms ms-commander', 'announce-cast', art);
           fetch(`/stats/session/${p.pk}/cmdr-tax/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `commander=${encodeURIComponent(cmdName)}`});
           // Log the cast event
           fetch(`/stats/session/${SESSION_PK}/log-turn/`, {
@@ -1451,6 +1528,7 @@
             p.has_citys_blessing = false; p.speed = 0; p.the_ring = 0;
             p.is_day = true;
             p.koOverride = false; p.placement = 0;
+            p.eliminatedBy = null;
             p.lastDelta = 0; p.deltaShow = false;
             // Reset per-turn tracking snapshots so stale values aren't flushed.
             p.turnStartLife = STARTING_LIFE;
@@ -1468,7 +1546,7 @@
           this.stormActive = false;
           this.globalStormCount = 0;
           this.cmdrPanel = null;
-          this.announcement = { show: false, text: '', icon: '', css: '' };
+          this.announcement = { show: false, text: '', icon: '', css: '', image: '' };
           this.counterModal = { open: false, playerIdx: 0, player: null };
           this.randomMode = null;
           this.rouletteRunning = false;
