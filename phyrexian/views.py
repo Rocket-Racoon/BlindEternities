@@ -613,6 +613,15 @@ class SessionLiveView(LoginRequiredMixin, TemplateView):
 
         ctx["session"] = session
         ctx["players"] = players
+        # Pre-fetch commander names for each player's deck
+        player_commanders = {}
+        for p in players:
+            if p.deck_id:
+                cmdr_cards = p.deck.commander_cards.select_related("card")
+                player_commanders[p.pk] = [dc.card.name for dc in cmdr_cards]
+            else:
+                player_commanders[p.pk] = []
+
         ctx["players_json"] = json.dumps([
             {
                 "pk": str(p.pk),
@@ -636,6 +645,7 @@ class SessionLiveView(LoginRequiredMixin, TemplateView):
                 "background_image": p.background_image,
                 "is_dead": p.is_dead,
                 "placement": p.placement,
+                "commanders": player_commanders.get(p.pk, []),
             }
             for p in players
         ])
