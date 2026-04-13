@@ -35,6 +35,7 @@ urlpatterns = [
     path("session/<uuid:player_pk>/counter/", views.SessionCounterChangeView.as_view(), name="session-counter"),
     path("session/<uuid:player_pk>/toggle/", views.SessionToggleStatusView.as_view(), name="session-toggle"),
     path("session/<uuid:player_pk>/cmdr-damage/", views.SessionCommanderDamageView.as_view(), name="session-cmdr-damage"),
+    path("session/<uuid:player_pk>/cmdr-tax/", views.SessionCommanderTaxView.as_view(), name="session-cmdr-tax"),
 
     # HTMX partials
     path("partials/stats/", views.DashboardStatsPartialView.as_view(), name="partial-stats"),

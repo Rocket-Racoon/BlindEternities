@@ -144,7 +144,7 @@ class GameSession(BaseModel):
         self.players.update(
             life=self.starting_life, poison=0, energy=0, experience=0,
             commander_tax=0, treasure=0, rad=0, storm_count=0,
-            commander_damage={}, is_monarch=False, has_initiative=False,
+            commander_damage={}, commander_taxes={}, is_monarch=False, has_initiative=False,
             has_citys_blessing=False, speed=0, the_ring=0,
         )
         self.current_turn = 1
@@ -181,6 +181,9 @@ class PlayerSlot(BaseModel):
 
     # Commander damage received (JSON: {"<player_slot_pk>": amount})
     commander_damage = models.JSONField(default=dict, blank=True)
+
+    # Per-commander tax (JSON: {"Commander Name": tax_count})
+    commander_taxes = models.JSONField(default=dict, blank=True)
 
     # Level-based mechanics (0-4)
     speed = models.PositiveSmallIntegerField(default=0)

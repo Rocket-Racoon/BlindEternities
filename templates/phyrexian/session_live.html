@@ -231,6 +231,12 @@
       border: 1px solid rgba(255,255,255,0.15);
     }
     .announce-dice .announce-icon { font-size: 2rem; }
+    .announce-cast {
+      background: rgba(226,232,240,0.1);
+      color: #f1f5f9;
+      box-shadow: 0 0 40px rgba(226,232,240,0.15);
+      border: 1px solid rgba(226,232,240,0.15);
+    }
     .announce-random {
       background: rgba(99,102,241,0.15);
       color: #a5b4fc;
@@ -323,12 +329,15 @@
                     :class="player.placement === 1 ? 'bg-yellow-500 text-black' : 'bg-white/20 text-white/60'"
                     x-text="'#' + player.placement"></span>
             </div>
-            <div x-show="player.commanders?.length > 0" x-cloak class="flex flex-wrap gap-1">
+            <div x-show="player.commanders?.length > 0" x-cloak class="flex flex-wrap gap-1 pointer-events-auto">
               <template x-for="cmd in player.commanders" :key="cmd">
-                <div class="status-badge badge-commander">
+                <button @click="castCommander(playerIdx(player), cmd)" class="status-badge badge-commander hover:!bg-black/70 cursor-pointer transition-colors">
                   <i class="ms ms-commander" style="font-size:0.7rem"></i>
                   <span x-text="cmd"></span>
-                </div>
+                  <span x-show="(player.commander_taxes?.[cmd] || 0) > 0"
+                        class="text-yellow-400 font-bold text-[8px] ml-0.5"
+                        x-text="'⚔' + (player.commander_taxes?.[cmd] || 0)"></span>
+                </button>
               </template>
             </div>
             <div x-show="player.is_monarch || player.has_initiative || player.has_citys_blessing || player.speed > 0 || player.the_ring > 0" x-cloak
@@ -387,7 +396,7 @@
                   <div class="flex items-center gap-px">
                     <div class="w-2 h-2 rounded-full" :style="`background-color: ${other.color}`"></div>
                     <span class="text-[8px] font-bold tabular-nums text-white/70"
-                          x-text="player.commander_damage[other.pk] || 0"></span>
+                          x-text="getCmdrDmgByPlayer(player, other.pk)"></span>
                   </div>
                 </template>
               </button>
@@ -397,19 +406,18 @@
                    x-transition:enter-end="opacity-100 translate-y-0"
                    class="absolute bottom-full left-0 mb-1 min-w-[200px] p-2 rounded-xl bg-gray-900/95 backdrop-blur-md border border-white/10 shadow-2xl">
                 <p class="text-[9px] text-white/40 uppercase tracking-wider mb-1 px-0.5">Commander Damage</p>
-                <template x-for="other in players.filter(p => p.pk !== player.pk)" :key="'cmdr-'+other.pk">
+                <template x-for="src in getCmdrSources(player)" :key="'cmdr-'+src.key">
                   <div class="flex items-center gap-2 py-1">
-                    <div class="w-3 h-3 rounded-full shrink-0" :style="`background-color: ${other.color}`"></div>
+                    <div class="w-3 h-3 rounded-full shrink-0" :style="`background-color: ${src.player.color}`"></div>
                     <div class="flex-1 min-w-0">
-                      <span class="text-[11px] text-white/80 block truncate" x-text="other.name"></span>
-                      <span x-show="other.commanders?.length" class="text-[8px] text-white/40 block truncate"
-                            x-text="other.commanders?.join(' / ')"></span>
+                      <span class="text-[11px] text-white/90 font-medium block truncate" x-text="src.name"></span>
+                      <span class="text-[8px] text-white/40 block truncate" x-text="src.player.name"></span>
                     </div>
-                    <button @click="changeCmdrDamage(playerIdx(player), other.pk, -1)"
+                    <button @click="changeCmdrDamage(playerIdx(player), src.key, -1)"
                             class="w-6 h-6 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold flex items-center justify-center">&minus;</button>
                     <span class="w-5 text-center text-sm font-bold tabular-nums"
-                          x-text="player.commander_damage[other.pk] || 0"></span>
-                    <button @click="changeCmdrDamage(playerIdx(player), other.pk, 1)"
+                          x-text="player.commander_damage[src.key] || 0"></span>
+                    <button @click="changeCmdrDamage(playerIdx(player), src.key, 1)"
                             class="w-6 h-6 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold flex items-center justify-center">+</button>
                   </div>
                 </template>
@@ -653,18 +661,17 @@
 
         <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-4 mb-2">Commander Damage</p>
         <div class="space-y-2">
-          <template x-for="other in players.filter(p => p.pk !== counterModal.player?.pk)" :key="'cd-'+other.pk">
+          <template x-for="src in getCmdrSources(counterModal.player || {})" :key="'cd-'+src.key">
             <div class="flex items-center gap-2 p-2 rounded-lg bg-gray-50 dark:bg-gray-700/50">
-              <div class="w-4 h-4 rounded-full shrink-0" :style="`background-color: ${other.color}`"></div>
+              <div class="w-4 h-4 rounded-full shrink-0" :style="`background-color: ${src.player.color}`"></div>
               <div class="flex-1 min-w-0">
-                <span class="text-xs text-gray-700 dark:text-gray-300 block truncate" x-text="other.name"></span>
-                <span x-show="other.commanders?.length" class="text-[9px] text-gray-500 dark:text-gray-400 block truncate"
-                      x-text="other.commanders?.join(' / ')"></span>
+                <span class="text-xs text-gray-700 dark:text-gray-200 font-medium block truncate" x-text="src.name"></span>
+                <span class="text-[9px] text-gray-500 dark:text-gray-400 block truncate" x-text="src.player.name"></span>
               </div>
-              <button @click="changeCmdrDamage(counterModal.playerIdx, other.pk, -1)" class="w-6 h-6 rounded bg-gray-200 dark:bg-gray-600 text-xs font-bold shrink-0">-</button>
+              <button @click="changeCmdrDamage(counterModal.playerIdx, src.key, -1)" class="w-6 h-6 rounded bg-gray-200 dark:bg-gray-600 text-xs font-bold shrink-0">-</button>
               <span class="w-6 text-center text-sm font-bold tabular-nums text-gray-900 dark:text-white"
-                    x-text="counterModal.player?.commander_damage[other.pk] || 0"></span>
-              <button @click="changeCmdrDamage(counterModal.playerIdx, other.pk, 1)" class="w-6 h-6 rounded bg-gray-200 dark:bg-gray-600 text-xs font-bold">+</button>
+                    x-text="counterModal.player?.commander_damage[src.key] || 0"></span>
+              <button @click="changeCmdrDamage(counterModal.playerIdx, src.key, 1)" class="w-6 h-6 rounded bg-gray-200 dark:bg-gray-600 text-xs font-bold">+</button>
             </div>
           </template>
         </div>
@@ -879,7 +886,7 @@
         p.turnStartLife = p.life;
         p.turnStartCmdrDmg = JSON.parse(JSON.stringify(p.commander_damage || {}));
         p.turnStartCounters = {};
-        ['poison','energy','experience','commander_tax','treasure','rad','storm_count'].forEach(k => { p.turnStartCounters[k] = p[k] || 0; });
+        ['poison','energy','experience','commander_tax','treasure','rad','storm_count','speed','the_ring'].forEach(k => { p.turnStartCounters[k] = p[k] || 0; });
       });
 
       // Track next placement to assign (last place = total players, then decrements)
@@ -998,9 +1005,15 @@
           if (p.life <= 0) return `Life reached ${p.life}`;
           if (p.poison >= 10) return `${p.poison} poison counters`;
           if (this.maxCmdrDamage(p) >= 21) {
-            const sourcePk = Object.entries(p.commander_damage).find(([, v]) => v >= 21)?.[0];
-            const src = this.players.find(x => x.pk === sourcePk);
-            return `21+ commander damage from ${src?.name || 'unknown'}`;
+            const entry = Object.entries(p.commander_damage).find(([, v]) => v >= 21);
+            if (entry) {
+              const key = entry[0];
+              // Key is "pk::Commander Name" or just "pk"
+              const cmdName = key.includes('::') ? key.split('::').slice(1).join('::') : null;
+              const srcPk = key.split('::')[0];
+              const src = this.players.find(x => x.pk === srcPk);
+              return `21+ commander damage from ${cmdName || src?.name || 'unknown'}`;
+            }
           }
           return '';
         },
@@ -1058,13 +1071,41 @@
           this.checkEliminations();
         },
 
-        changeCmdrDamage(targetIdx, sourcePk, delta) {
+        // Commander damage uses keys like "playerPk::Commander Name"
+        // For players without commanders, key is just "playerPk"
+        getCmdrSources(targetPlayer) {
+          const sources = [];
+          this.players.forEach(other => {
+            if (other.pk === targetPlayer.pk) return;
+            if (other.commanders?.length > 0) {
+              other.commanders.forEach(cmd => {
+                sources.push({ player: other, name: cmd, key: other.pk + '::' + cmd });
+              });
+            } else {
+              sources.push({ player: other, name: other.name, key: other.pk });
+            }
+          });
+          return sources;
+        },
+
+        getCmdrDmgByPlayer(targetPlayer, otherPk) {
+          if (!targetPlayer.commander_damage) return 0;
+          let total = 0;
+          Object.keys(targetPlayer.commander_damage).forEach(k => {
+            if (k === otherPk || k.startsWith(otherPk + '::')) {
+              total += targetPlayer.commander_damage[k] || 0;
+            }
+          });
+          return total;
+        },
+
+        changeCmdrDamage(targetIdx, cmdrKey, delta) {
           const p = this.players[targetIdx];
           if (!p.commander_damage) p.commander_damage = {};
-          const current = p.commander_damage[sourcePk] || 0;
-          p.commander_damage[sourcePk] = Math.max(0, current + delta);
+          const current = p.commander_damage[cmdrKey] || 0;
+          p.commander_damage[cmdrKey] = Math.max(0, current + delta);
           p.life -= delta;
-          fetch(`/stats/session/${p.pk}/cmdr-damage/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `source_pk=${sourcePk}&delta=${delta}&lose_life=true`});
+          fetch(`/stats/session/${p.pk}/cmdr-damage/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `source_pk=${encodeURIComponent(cmdrKey)}&delta=${delta}&lose_life=true`});
           this.checkEliminations();
         },
 
@@ -1093,11 +1134,6 @@
           const oldVal = p[key] || 0;
           p[key] = Math.max(0, Math.min(4, oldVal + delta));
           if (p[key] !== oldVal) {
-            const label = key === 'speed' ? 'Speed' : 'The Ring';
-            const icon = key === 'speed' ? 'ms ms-ability-haste' : 'ms ms-ability-the-ring-tempts-you';
-            const css = key === 'speed' ? 'announce-speed' : 'announce-ring';
-            const msg = key === 'the_ring' ? `${p.name} The Ring Tempts You` : `${p.name} — ${label} ${p[key]}`;
-            this.announce(msg, icon, css);
             fetch(`/stats/session/${p.pk}/counter/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `counter=${key}&delta=${delta}`});
           }
         },
@@ -1144,6 +1180,22 @@
             this.announce('Night', 'ms ms-dfc-night', 'announce-night');
           }
           fetch(`/stats/session/${this.players[0].pk}/toggle/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `flag=day_night`});
+        },
+
+        // --- Commander cast ---
+        castCommander(idx, cmdName) {
+          const p = this.players[idx];
+          if (!p.commander_taxes) p.commander_taxes = {};
+          p.commander_taxes[cmdName] = (p.commander_taxes[cmdName] || 0) + 1;
+          const tax = p.commander_taxes[cmdName];
+          this.announce(`${p.name} casts ${cmdName}`, 'ms ms-commander', 'announce-cast');
+          fetch(`/stats/session/${p.pk}/cmdr-tax/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `commander=${encodeURIComponent(cmdName)}`});
+          // Log the cast event
+          fetch(`/stats/session/${SESSION_PK}/log-turn/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify({ turn: this.turn, entries: [{ pk: p.pk, delta: 0, life_after: p.life, source: `Cast ${cmdName} (tax ${tax})` }] }),
+          });
         },
 
         // --- Storm ---
@@ -1274,8 +1326,8 @@
         },
 
         // --- Turn snapshot & batch logging ---
-        _counterKeys: ['poison', 'energy', 'experience', 'commander_tax', 'treasure', 'rad', 'storm_count'],
-        _counterLabels: {poison:'Poison', energy:'Energy', experience:'Exp', commander_tax:'C.Tax', treasure:'Treasure', rad:'Rad', storm_count:'Storm'},
+        _counterKeys: ['poison', 'energy', 'experience', 'commander_tax', 'treasure', 'rad', 'storm_count', 'speed', 'the_ring'],
+        _counterLabels: {poison:'Poison', energy:'Energy', experience:'Exp', commander_tax:'C.Tax', treasure:'Treasure', rad:'Rad', storm_count:'Storm', speed:'Speed', the_ring:'The Ring'},
 
         snapshotTurnStart() {
           this.players.forEach(p => {
@@ -1298,12 +1350,15 @@
             if (pureDelta !== 0) {
               entries.push({ pk: p.pk, delta: pureDelta, life_after: p.life, source: pureDelta > 0 ? 'Life gain' : 'Life loss' });
             }
-            // Commander damage per source
-            Object.keys(p.commander_damage || {}).forEach(srcPk => {
-              const dmg = (p.commander_damage[srcPk] || 0) - (p.turnStartCmdrDmg?.[srcPk] || 0);
+            // Commander damage per source (key is "pk::CmdrName" or "pk")
+            Object.keys(p.commander_damage || {}).forEach(key => {
+              const dmg = (p.commander_damage[key] || 0) - (p.turnStartCmdrDmg?.[key] || 0);
               if (dmg !== 0) {
+                const cmdName = key.includes('::') ? key.split('::').slice(1).join('::') : null;
+                const srcPk = key.split('::')[0];
                 const src = this.players.find(x => x.pk === srcPk);
-                entries.push({ pk: p.pk, delta: -dmg, life_after: p.life, source: `Cmdr dmg (${src?.name || '?'})` });
+                const label = cmdName || src?.name || '?';
+                entries.push({ pk: p.pk, delta: -dmg, life_after: p.life, source: `Cmdr dmg (${label})` });
               }
             });
             // Counter changes
@@ -1366,7 +1421,7 @@
           this.players.forEach(p => {
             p.life = STARTING_LIFE; p.poison = 0; p.energy = 0; p.experience = 0;
             p.commander_tax = 0; p.treasure = 0; p.rad = 0; p.storm_count = 0;
-            p.commander_damage = {}; p.is_monarch = false; p.has_initiative = false;
+            p.commander_damage = {}; p.commander_taxes = {}; p.is_monarch = false; p.has_initiative = false;
             p.has_citys_blessing = false; p.speed = 0; p.the_ring = 0;
             p.koOverride = false; p.placement = 0;
           });

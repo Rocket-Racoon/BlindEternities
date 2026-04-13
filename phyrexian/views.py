@@ -646,6 +646,7 @@ class SessionLiveView(LoginRequiredMixin, TemplateView):
                 "is_dead": p.is_dead,
                 "placement": p.placement,
                 "commanders": player_commanders.get(p.pk, []),
+                "commander_taxes": p.commander_taxes or {},
             }
             for p in players
         ])
@@ -702,6 +703,21 @@ class SessionCounterChangeView(LoginRequiredMixin, TemplateView):
             player.save(update_fields=[counter, "updated_at"])
 
         return self.render_to_response({"player": player, "session": player.session})
+
+
+class SessionCommanderTaxView(LoginRequiredMixin, View):
+    """Update per-commander tax for a player."""
+
+    def post(self, request, *args, **kwargs):
+        from django.http import JsonResponse
+        player = get_object_or_404(PlayerSlot, pk=kwargs["player_pk"])
+        commander = request.POST.get("commander", "")
+        if commander:
+            taxes = player.commander_taxes or {}
+            taxes[commander] = taxes.get(commander, 0) + 1
+            player.commander_taxes = taxes
+            player.save(update_fields=["commander_taxes", "updated_at"])
+        return JsonResponse({"ok": True, "taxes": player.commander_taxes})
 
 
 class SessionToggleStatusView(LoginRequiredMixin, TemplateView):
