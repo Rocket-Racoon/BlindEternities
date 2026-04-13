@@ -629,6 +629,8 @@ class SessionLiveView(LoginRequiredMixin, TemplateView):
                 "has_initiative": p.has_initiative,
                 "has_citys_blessing": p.has_citys_blessing,
                 "is_day": p.is_day,
+                "speed": p.speed,
+                "the_ring": p.the_ring,
                 "commander_damage": p.commander_damage,
                 "color": p.color,
                 "background_image": p.background_image,
@@ -682,10 +684,13 @@ class SessionCounterChangeView(LoginRequiredMixin, TemplateView):
         counter = request.POST.get("counter", "")
         delta = int(request.POST.get("delta", 0))
 
-        valid_counters = ["poison", "energy", "experience", "commander_tax", "treasure", "rad", "storm_count"]
+        valid_counters = ["poison", "energy", "experience", "commander_tax", "treasure", "rad", "storm_count", "speed", "the_ring"]
         if counter in valid_counters:
             current = getattr(player, counter)
-            setattr(player, counter, max(0, current + delta))
+            new_val = max(0, current + delta)
+            if counter in ("speed", "the_ring"):
+                new_val = min(4, new_val)
+            setattr(player, counter, new_val)
             player.save(update_fields=[counter, "updated_at"])
 
         return self.render_to_response({"player": player, "session": player.session})
