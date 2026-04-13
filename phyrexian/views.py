@@ -673,20 +673,18 @@ class SessionLifeChangeView(LoginRequiredMixin, TemplateView):
         player.life += delta
         player.save(update_fields=["life", "updated_at"])
 
-        LifeChange.objects.create(
-            session=session,
-            player=player,
-            delta=delta,
-            life_after=player.life,
-            turn=session.current_turn,
-        )
-
         return self.render_to_response({"player": player, "session": session})
 
 
 class SessionCounterChangeView(LoginRequiredMixin, TemplateView):
     """HTMX endpoint: change a counter (poison, energy, experience) on a player."""
     template_name = "phyrexian/partials/player_panel.html"
+
+    COUNTER_LABELS = {
+        "poison": "Poison", "energy": "Energy", "experience": "Experience",
+        "commander_tax": "Commander Tax", "treasure": "Treasure",
+        "rad": "Rad", "storm_count": "Storm", "speed": "Speed", "the_ring": "The Ring",
+    }
 
     def post(self, request, *args, **kwargs):
         player = get_object_or_404(PlayerSlot, pk=kwargs["player_pk"])
@@ -695,7 +693,7 @@ class SessionCounterChangeView(LoginRequiredMixin, TemplateView):
         delta = int(request.POST.get("delta", 0))
 
         valid_counters = ["poison", "energy", "experience", "commander_tax", "treasure", "rad", "storm_count", "speed", "the_ring"]
-        if counter in valid_counters:
+        if counter in valid_counters and delta != 0:
             current = getattr(player, counter)
             new_val = max(0, current + delta)
             if counter in ("speed", "the_ring"):
@@ -714,21 +712,26 @@ class SessionToggleStatusView(LoginRequiredMixin, TemplateView):
         player = get_object_or_404(PlayerSlot, pk=kwargs["player_pk"])
         flag = request.POST.get("flag", "")
 
+        session = player.session
         if flag == "monarch":
-            player.session.players.update(is_monarch=False)
+            session.players.update(is_monarch=False)
             player.is_monarch = True
             player.save(update_fields=["is_monarch", "updated_at"])
+            LifeChange.objects.create(session=session, player=player, delta=0, life_after=player.life, turn=session.current_turn, source="Monarch")
         elif flag == "initiative":
-            player.session.players.update(has_initiative=False)
+            session.players.update(has_initiative=False)
             player.has_initiative = True
             player.save(update_fields=["has_initiative", "updated_at"])
+            LifeChange.objects.create(session=session, player=player, delta=0, life_after=player.life, turn=session.current_turn, source="Initiative")
         elif flag == "citys_blessing":
             player.has_citys_blessing = not player.has_citys_blessing
             player.save(update_fields=["has_citys_blessing", "updated_at"])
+            if player.has_citys_blessing:
+                LifeChange.objects.create(session=session, player=player, delta=0, life_after=player.life, turn=session.current_turn, source="Ascend")
         elif flag == "day_night":
-            # Day/Night is global — toggle for all players
             new_state = not player.is_day
-            player.session.players.update(is_day=new_state)
+            session.players.update(is_day=new_state)
+            LifeChange.objects.create(session=session, player=player, delta=0, life_after=player.life, turn=session.current_turn, source="Day" if new_state else "Night")
 
         from django.shortcuts import render
         players = list(player.session.players.all())
@@ -757,16 +760,6 @@ class SessionCommanderDamageView(LoginRequiredMixin, TemplateView):
 
         target.save(update_fields=["commander_damage", "life", "updated_at"])
 
-        if delta != 0:
-            LifeChange.objects.create(
-                session=target.session,
-                player=target,
-                delta=-delta if also_lose_life else 0,
-                life_after=target.life,
-                turn=target.session.current_turn,
-                source="commander damage",
-            )
-
         from django.http import JsonResponse
         return JsonResponse({
             "life": target.life,
@@ -784,6 +777,37 @@ class SessionNextTurnView(LoginRequiredMixin, TemplateView):
         session.current_turn += 1
         session.save(update_fields=["current_turn", "updated_at"])
         return self.render_to_response({"session": session})
+
+
+class SessionLogTurnView(LoginRequiredMixin, View):
+    """Batch-log life changes and commander damage at end of turn."""
+
+    def post(self, request, *args, **kwargs):
+        from django.http import JsonResponse
+        import json as _json
+
+        session = get_object_or_404(GameSession, pk=kwargs["pk"])
+        try:
+            data = _json.loads(request.body)
+        except (ValueError, TypeError):
+            return JsonResponse({"ok": False})
+
+        turn = data.get("turn", session.current_turn)
+        entries = data.get("entries", [])
+        # entries: [{pk, delta, life_after, source}, ...]
+        for entry in entries:
+            player = session.players.filter(pk=entry.get("pk")).first()
+            if not player:
+                continue
+            LifeChange.objects.create(
+                session=session,
+                player=player,
+                delta=entry.get("delta", 0),
+                life_after=entry.get("life_after", player.life),
+                turn=turn,
+                source=entry.get("source", ""),
+            )
+        return JsonResponse({"ok": True})
 
 
 class SessionEndView(LoginRequiredMixin, TemplateView):
@@ -856,6 +880,8 @@ class SessionResetView(LoginRequiredMixin, TemplateView):
 
     def post(self, request, *args, **kwargs):
         session = get_object_or_404(GameSession, pk=kwargs["pk"])
+        session.life_changes.all().delete()
+        session.players.update(placement=0)
         session.reset_life()
         players = list(session.players.all())
         return self.render_to_response({"players": players, "session": session})
@@ -927,5 +953,5 @@ class SessionLogPartialView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         session = get_object_or_404(GameSession, pk=kwargs["pk"])
-        ctx["recent_changes"] = session.life_changes.select_related("player").order_by("-created_at")[:20]
+        ctx["recent_changes"] = session.life_changes.select_related("player").order_by("-created_at")[:50]
         return ctx

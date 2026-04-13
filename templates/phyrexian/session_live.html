@@ -607,6 +607,10 @@
                   class="shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap"
                   :class="dayNight === 'day' ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 ring-1 ring-yellow-500/50' : dayNight === 'night' ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 ring-1 ring-indigo-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
             <span x-text="dayNight === 'day' ? '☀ Day' : dayNight === 'night' ? '☽ Night' : '◑ Day/Night'"></span></button>
+          <button @click="modifyCounter('storm_count', 1); stormActive = true; globalStormCount = counterModal.player?.storm_count || 0"
+                  class="shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap"
+                  :class="(counterModal.player?.storm_count || 0) > 0 ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
+            &#127744; Storm <span x-text="counterModal.player?.storm_count || 0" class="font-bold"></span></button>
         </div>
         {# Level-based mechanics #}
         <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-4 mb-2">Levels</p>
@@ -872,6 +876,10 @@
       players.forEach(p => {
         p.deltaShow = false; p.lastDelta = 0;
         p.koOverride = false; p.placement = p.placement || 0;
+        p.turnStartLife = p.life;
+        p.turnStartCmdrDmg = JSON.parse(JSON.stringify(p.commander_damage || {}));
+        p.turnStartCounters = {};
+        ['poison','energy','experience','commander_tax','treasure','rad','storm_count'].forEach(k => { p.turnStartCounters[k] = p[k] || 0; });
       });
 
       // Track next placement to assign (last place = total players, then decrements)
@@ -922,7 +930,6 @@
           {key: 'commander_tax', icon: '⚔', label: 'C.Tax'},
           {key: 'treasure', icon: '💰', label: 'Treasure'},
           {key: 'rad', icon: '☢', label: 'Rad'},
-          {key: 'storm_count', icon: '🌪', label: 'Storm'},
         ],
 
         get gridClass() {
@@ -967,7 +974,6 @@
           if (p.commander_tax) c.push({key: 'ctax', icon: '⚔', value: p.commander_tax});
           if (p.treasure) c.push({key: 'treasure', icon: '💰', value: p.treasure});
           if (p.rad) c.push({key: 'rad', icon: '☢', value: p.rad});
-          if (p.storm_count) c.push({key: 'storm', icon: '🌪', value: p.storm_count});
           return c;
         },
 
@@ -1267,12 +1273,62 @@
           this.massCounterExcludeMode = false;
         },
 
+        // --- Turn snapshot & batch logging ---
+        _counterKeys: ['poison', 'energy', 'experience', 'commander_tax', 'treasure', 'rad', 'storm_count'],
+        _counterLabels: {poison:'Poison', energy:'Energy', experience:'Exp', commander_tax:'C.Tax', treasure:'Treasure', rad:'Rad', storm_count:'Storm'},
+
+        snapshotTurnStart() {
+          this.players.forEach(p => {
+            p.turnStartLife = p.life;
+            p.turnStartCmdrDmg = JSON.parse(JSON.stringify(p.commander_damage || {}));
+            p.turnStartCounters = {};
+            this._counterKeys.forEach(k => { p.turnStartCounters[k] = p[k] || 0; });
+          });
+        },
+
+        flushTurnLog() {
+          const entries = [];
+          this.players.forEach(p => {
+            // Net life change (excluding commander damage)
+            const cmdrLifeLost = Object.keys(p.commander_damage || {}).reduce((sum, k) => {
+              return sum + ((p.commander_damage[k] || 0) - (p.turnStartCmdrDmg?.[k] || 0));
+            }, 0);
+            const totalLifeDelta = p.life - (p.turnStartLife ?? p.life);
+            const pureDelta = totalLifeDelta + cmdrLifeLost;
+            if (pureDelta !== 0) {
+              entries.push({ pk: p.pk, delta: pureDelta, life_after: p.life, source: pureDelta > 0 ? 'Life gain' : 'Life loss' });
+            }
+            // Commander damage per source
+            Object.keys(p.commander_damage || {}).forEach(srcPk => {
+              const dmg = (p.commander_damage[srcPk] || 0) - (p.turnStartCmdrDmg?.[srcPk] || 0);
+              if (dmg !== 0) {
+                const src = this.players.find(x => x.pk === srcPk);
+                entries.push({ pk: p.pk, delta: -dmg, life_after: p.life, source: `Cmdr dmg (${src?.name || '?'})` });
+              }
+            });
+            // Counter changes
+            this._counterKeys.forEach(k => {
+              const delta = (p[k] || 0) - (p.turnStartCounters?.[k] || 0);
+              if (delta !== 0) {
+                entries.push({ pk: p.pk, delta, life_after: p.life, source: this._counterLabels[k] || k });
+              }
+            });
+          });
+          if (entries.length > 0) {
+            fetch(`/stats/session/${SESSION_PK}/log-turn/`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+              body: JSON.stringify({ turn: this.turn, entries }),
+            });
+          }
+        },
+
         // --- Starting player ---
         setStartingPlayer(idx) {
           this.startingPlayerIdx = idx;
           this.activePlayerIdx = idx;
-          // Show reveal screen so the user sees who was picked
           this.starterRevealed = true;
+          this.snapshotTurnStart();
         },
 
         setRandomStarter() {
@@ -1283,7 +1339,9 @@
         // --- Pass turn ---
         passTurn() {
           if (this.activePlayerIdx < 0) return;
-          // Monarch draw reminder before passing
+          // Flush batched life/cmdr log for the ending turn
+          this.flushTurnLog();
+          // Monarch draw reminder
           const current = this.players[this.activePlayerIdx];
           if (current.is_monarch) {
             this.announce(`The Monarch ${current.name} draws a card`, 'ms ms-dfc-enchantment', 'announce-monarch');
@@ -1300,6 +1358,8 @@
           }
           this.activePlayerIdx = next;
           if (this.stormActive) this.resetStormCount();
+          // Snapshot for the new turn
+          this.snapshotTurnStart();
         },
 
         resetGame() {

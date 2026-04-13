@@ -27,6 +27,7 @@ urlpatterns = [
     path("session/<uuid:pk>/next-turn/", views.SessionNextTurnView.as_view(), name="session-next-turn"),
     path("session/<uuid:pk>/reset/", views.SessionResetView.as_view(), name="session-reset"),
     path("session/<uuid:pk>/auto-finish/", views.SessionAutoFinishView.as_view(), name="session-auto-finish"),
+    path("session/<uuid:pk>/log-turn/", views.SessionLogTurnView.as_view(), name="session-log-turn"),
     path("session/<uuid:pk>/log/", views.SessionLogPartialView.as_view(), name="session-log"),
 
     # Session HTMX endpoints (per-player)
