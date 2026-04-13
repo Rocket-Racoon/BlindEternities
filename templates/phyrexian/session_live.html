@@ -1385,7 +1385,10 @@
               source: `Eliminated by ${killer?.name || '?'}`,
             }] }),
           });
+          const wasActive = this.activePlayerIdx === idx;
           this.checkEliminations();
+          // If the eliminated player was taking their turn, auto-pass to the next alive player.
+          if (wasActive && !this.gameFinished) this.passTurn();
         },
 
         maxCmdrDamage(p) {
@@ -1508,7 +1511,35 @@
           p.commander_damage[cmdrKey] = next;
           p.life -= applied;
           fetch(`/stats/session/${p.pk}/cmdr-damage/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `source_pk=${encodeURIComponent(cmdrKey)}&delta=${applied}&lose_life=true`});
+          // Monarch / Initiative transfer on combat damage from a commander.
+          // cmdrKey format: "srcPk" or "srcPk::Commander Name".
+          if (applied > 0) {
+            const srcPk = cmdrKey.split('::')[0];
+            const srcIdx = this.players.findIndex(x => x.pk === srcPk);
+            if (srcIdx >= 0 && srcIdx !== targetIdx) {
+              if (p.is_monarch) this.setMonarch(srcIdx);
+              if (p.has_initiative) this.setInitiative(srcIdx);
+            }
+          }
           this.checkEliminations();
+        },
+
+        setMonarch(idx) {
+          const newMonarch = this.players[idx];
+          if (!newMonarch || newMonarch.is_monarch) return;
+          this.players.forEach(pl => pl.is_monarch = false);
+          newMonarch.is_monarch = true;
+          this.announce(`${newMonarch.name} is the Monarch`, 'ms ms-dfc-enchantment', 'announce-monarch');
+          fetch(`/stats/session/${newMonarch.pk}/toggle/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `flag=monarch`});
+        },
+
+        setInitiative(idx) {
+          const newHolder = this.players[idx];
+          if (!newHolder || newHolder.has_initiative) return;
+          this.players.forEach(pl => pl.has_initiative = false);
+          newHolder.has_initiative = true;
+          this.announce(`${newHolder.name} takes the Initiative`, '', 'announce-initiative');
+          fetch(`/stats/session/${newHolder.pk}/toggle/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}, body: `flag=initiative`});
         },
 
         openCounterModal(idx) {
@@ -1980,9 +2011,9 @@
           if (this.activePlayerIdx < 0) return;
           // Flush batched life/cmdr log for the ending turn
           this.flushTurnLog();
-          // Monarch draw reminder
+          // Monarch draw reminder — skip if the active player is already out.
           const current = this.players[this.activePlayerIdx];
-          if (current.is_monarch) {
+          if (current.is_monarch && this.isAlive(this.activePlayerIdx)) {
             this.announce(`The Monarch ${current.name} draws a card`, 'ms ms-dfc-enchantment', 'announce-monarch');
           }
           const n = this.players.length;
