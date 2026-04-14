@@ -552,7 +552,7 @@
 
           {# Bottom bar #}
           <div class="px-2 pb-1.5 z-10 pointer-events-auto flex items-end gap-1.5" @click.stop>
-            <div class="relative">
+            <div x-show="isCommanderFormat" class="relative">
               <button @click="cmdrPanel = cmdrPanel === player.pk ? null : player.pk"
                       class="bottom-btn flex items-center gap-2">
                 <svg class="w-5 h-5 text-white/70 shrink-0" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1.5l1.5 3.5H14l-3.5 2.5 1.5 4L8 9l-4 2.5 1.5-4L2 5h4.5z"/></svg>
@@ -924,22 +924,26 @@
           </div>
         </div>
 
-        <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-4 mb-2">Commander Damage</p>
-        <div class="space-y-2">
-          <template x-for="src in getCmdrSources(counterModal.player || {})" :key="'cd-'+src.key">
-            <div class="flex items-center gap-2 p-2 rounded-lg bg-gray-50 dark:bg-gray-700/50">
-              <div class="w-4 h-4 rounded-full shrink-0" :style="`background-color: ${src.player.color}`"></div>
-              <div class="flex-1 min-w-0">
-                <span class="text-xs text-gray-700 dark:text-gray-200 font-medium block truncate" x-text="src.name"></span>
-                <span class="text-[9px] text-gray-500 dark:text-gray-400 block truncate" x-text="src.player.name"></span>
-              </div>
-              <button @click="changeCmdrDamage(counterModal.playerIdx, src.key, -1)" class="w-6 h-6 rounded bg-gray-200 dark:bg-gray-600 text-xs font-bold shrink-0">-</button>
-              <span class="w-6 text-center text-sm font-bold tabular-nums text-gray-900 dark:text-white"
-                    x-text="counterModal.player?.commander_damage[src.key] || 0"></span>
-              <button @click="changeCmdrDamage(counterModal.playerIdx, src.key, 1)" class="w-6 h-6 rounded bg-gray-200 dark:bg-gray-600 text-xs font-bold">+</button>
+        <template x-if="isCommanderFormat">
+          <div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-4 mb-2">Commander Damage</p>
+            <div class="space-y-2">
+              <template x-for="src in getCmdrSources(counterModal.player || {})" :key="'cd-'+src.key">
+                <div class="flex items-center gap-2 p-2 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+                  <div class="w-4 h-4 rounded-full shrink-0" :style="`background-color: ${src.player.color}`"></div>
+                  <div class="flex-1 min-w-0">
+                    <span class="text-xs text-gray-700 dark:text-gray-200 font-medium block truncate" x-text="src.name"></span>
+                    <span class="text-[9px] text-gray-500 dark:text-gray-400 block truncate" x-text="src.player.name"></span>
+                  </div>
+                  <button @click="changeCmdrDamage(counterModal.playerIdx, src.key, -1)" class="w-6 h-6 rounded bg-gray-200 dark:bg-gray-600 text-xs font-bold shrink-0">-</button>
+                  <span class="w-6 text-center text-sm font-bold tabular-nums text-gray-900 dark:text-white"
+                        x-text="counterModal.player?.commander_damage[src.key] || 0"></span>
+                  <button @click="changeCmdrDamage(counterModal.playerIdx, src.key, 1)" class="w-6 h-6 rounded bg-gray-200 dark:bg-gray-600 text-xs font-bold">+</button>
+                </div>
+              </template>
             </div>
-          </template>
-        </div>
+          </div>
+        </template>
       </div>
     </div>
   </div>
@@ -1210,6 +1214,7 @@
     const CSRF = '{{ csrf_token }}';
     const SESSION_PK = '{{ session.pk }}';
     const STARTING_LIFE = {{ session.starting_life }};
+    const GAME_FORMAT = '{{ session.format }}';
 
     function liveGame() {
       const players = {{ players_json|safe }};
@@ -1230,8 +1235,11 @@
       // Track next placement to assign (last place = total players, then decrements)
       let nextPlacement = players.length;
 
+      const CMDR_FORMATS = ['commander', 'brawl', 'oathbreaker'];
+
       return {
         players,
+        isCommanderFormat: CMDR_FORMATS.includes(GAME_FORMAT),
         turn: {{ session.current_turn }},
         showMenu: false,
         showLog: false,
@@ -1343,7 +1351,7 @@
         // --- KO logic ---
         isKnockedOut(idx) {
           const p = this.players[idx];
-          return p.life <= 0 || p.poison >= 10 || this.maxCmdrDamage(p) >= 21;
+          return p.life <= 0 || p.poison >= 10 || (this.isCommanderFormat && this.maxCmdrDamage(p) >= 21);
         },
 
         isEffectivelyDead(idx) {
