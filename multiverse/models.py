@@ -222,7 +222,7 @@ class CardPrint(BaseModel):
     artist_id           = models.UUIDField(null=True, blank=True)
     border_color        = models.CharField(max_length=20, choices=BorderColor.choices, blank=True)
     frame               = models.CharField(max_length=20, blank=True)
-    frame_effects       = models.JSONField(default=list)
+    frame_effects       = models.JSONField(default=list, blank=True)
     security_stamp      = models.CharField(max_length=20, blank=True)
     watermark           = models.CharField(max_length=50, blank=True)
     set_type            = models.CharField(max_length=50, choices=CardSetType.choices, blank=True)
@@ -244,7 +244,7 @@ class CardPrint(BaseModel):
     story_spotlight     = models.BooleanField(default=False)
     content_warning     = models.BooleanField(default=False)
     reserved            = models.BooleanField(default=False)
-    promo_types         = models.JSONField(default=list)
+    promo_types         = models.JSONField(default=list, blank=True)
     games               = models.JSONField(default=list)  # ["paper", "mtgo", "arena"]
     variation_of        = models.UUIDField(null=True, blank=True)
 
@@ -255,7 +255,7 @@ class CardPrint(BaseModel):
 
     # Fechas
     released_at         = models.DateField(null=True, blank=True)
-    preview             = models.JSONField(default=dict)
+    preview             = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering        = ["-cardset__released_at", Length("collector_number"), "collector_number"]
