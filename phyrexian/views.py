@@ -629,12 +629,16 @@ class SessionLiveView(LoginRequiredMixin, TemplateView):
             else:
                 player_commanders[p.pk] = []
 
-        # Map commander name → art_crop URL (first available print).
+        # Map commander name → art_crop URL (first available print) and type_line.
+        # type_line is used to filter non-combat commanders (Planeswalker /
+        # Enchantment/Background) out of the commander-damage lists.
         all_cmdr_names = {n for names in player_commanders.values() for n in names}
         commander_art = {}
+        commander_types = {}
         if all_cmdr_names:
             cards = Card.objects.filter(name__in=all_cmdr_names).prefetch_related("prints")
             for c in cards:
+                commander_types[c.name] = c.type_line or ""
                 for pr in c.prints.all():
                     art = (pr.image_uris or {}).get("art_crop")
                     if art:
@@ -666,6 +670,7 @@ class SessionLiveView(LoginRequiredMixin, TemplateView):
                 "placement": p.placement,
                 "commanders": player_commanders.get(p.pk, []),
                 "commander_art": {n: commander_art.get(n, "") for n in player_commanders.get(p.pk, [])},
+                "commander_types": {n: commander_types.get(n, "") for n in player_commanders.get(p.pk, [])},
                 "commander_taxes": p.commander_taxes or {},
             }
             for p in players

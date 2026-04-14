@@ -2,50 +2,52 @@
 
 {% block title %}New Game — {{ site_name }}{% endblock %}
 
-{% block content %}
-<div class="max-w-3xl mx-auto" x-data="sessionSetup()">
+{# Widen the content area — this page wants to use the full viewport for the player grid. #}
+{% block main_class %}w-full{% endblock %}
 
-  <div class="mb-6">
+{% block content %}
+<div class="max-w-[1600px] mx-auto" x-data="sessionSetup()">
+
+  <div class="mb-4">
     <a href="{% url 'phyrexian:dashboard' %}" class="text-sm text-void-600 dark:text-void-400 hover:underline">&larr; Dashboard</a>
-    <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">Start a Game</h1>
   </div>
 
   <form method="post" class="space-y-6">
     {% csrf_token %}
 
-    <!-- Game Setup Section -->
+    <!-- Game Setup Section — Players / Starting Life / Format on one row -->
     <div class="card p-6">
       <h2 class="text-sm uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-4">Game Setup</h2>
 
-      <!-- Players (pill buttons) -->
-      <div class="flex items-center gap-4 mb-5">
-        <span class="text-sm text-gray-700 dark:text-gray-300 w-28">Players</span>
-        <div class="flex gap-2">
-          <template x-for="n in [2,3,4,5,6]" :key="n">
-            <button type="button" @click="playerCount = n; updatePlayers()"
-                    class="w-10 h-10 rounded-full text-sm font-bold transition-all"
-                    :class="playerCount === n
-                      ? 'bg-void-600 text-white ring-2 ring-void-400 ring-offset-2 dark:ring-offset-gray-900'
-                      : 'bg-gray-200 dark:bg-void-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-void-600'"
-                    x-text="n"></button>
-          </template>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+        <!-- Players (pill buttons) -->
+        <div class="flex flex-col gap-2">
+          <span class="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Players</span>
+          <div class="flex gap-2">
+            <template x-for="n in [2,3,4,5,6]" :key="n">
+              <button type="button" @click="playerCount = n; updatePlayers()"
+                      class="w-10 h-10 rounded-full text-sm font-bold transition-all"
+                      :class="playerCount === n
+                        ? 'bg-void-600 text-white ring-2 ring-void-400 ring-offset-2 dark:ring-offset-gray-900'
+                        : 'bg-gray-200 dark:bg-void-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-void-600'"
+                      x-text="n"></button>
+            </template>
+          </div>
+          <input type="hidden" name="player_count" :value="playerCount">
         </div>
-        <input type="hidden" name="player_count" :value="playerCount">
-      </div>
 
-      <!-- Starting Life (pill buttons) -->
-      <div class="flex items-center gap-4 mb-5">
-        <span class="text-sm text-gray-700 dark:text-gray-300 w-28">Starting Life</span>
-        <div class="flex gap-2 flex-wrap">
-          <template x-for="l in [20,25,30,40,60]" :key="l">
-            <button type="button" @click="startingLife = l; customLife = false"
-                    class="w-10 h-10 rounded-full text-sm font-bold transition-all"
-                    :class="startingLife === l && !customLife
-                      ? 'bg-void-600 text-white ring-2 ring-void-400 ring-offset-2 dark:ring-offset-gray-900'
-                      : 'bg-gray-200 dark:bg-void-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-void-600'"
-                    x-text="l"></button>
-          </template>
-          <div class="flex items-center gap-1">
+        <!-- Starting Life (pill buttons) -->
+        <div class="flex flex-col gap-2">
+          <span class="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Starting Life</span>
+          <div class="flex gap-2 flex-wrap items-center">
+            <template x-for="l in [20,25,30,40,60]" :key="l">
+              <button type="button" @click="startingLife = l; customLife = false"
+                      class="w-10 h-10 rounded-full text-sm font-bold transition-all"
+                      :class="startingLife === l && !customLife
+                        ? 'bg-void-600 text-white ring-2 ring-void-400 ring-offset-2 dark:ring-offset-gray-900'
+                        : 'bg-gray-200 dark:bg-void-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-void-600'"
+                      x-text="l"></button>
+            </template>
             <button type="button" @click="customLife = true"
                     class="px-3 h-10 rounded-full text-xs font-bold transition-all"
                     :class="customLife
@@ -56,29 +58,29 @@
             <input x-show="customLife" x-transition type="number" x-model.number="startingLife"
                    class="w-16 input text-sm text-center" min="1" max="999">
           </div>
+          <input type="hidden" name="starting_life" :value="startingLife">
         </div>
-      </div>
-      <input type="hidden" name="starting_life" :value="startingLife">
 
-      <!-- Format -->
-      <div class="flex items-center gap-4">
-        <span class="text-sm text-gray-700 dark:text-gray-300 w-28">Format</span>
-        <select name="format" class="input flex-1" x-model="format" @change="updateLife()">
-          {% for val, label in form.format.field.choices %}
-          <option value="{{ val }}">{{ label }}</option>
-          {% endfor %}
-        </select>
+        <!-- Format -->
+        <div class="flex flex-col gap-2 min-w-0">
+          <span class="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Format</span>
+          <select name="format" class="input h-10" x-model="format" @change="updateLife()">
+            {% for val, label in form.format.field.choices %}
+            <option value="{{ val }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
       </div>
     </div>
 
     <!-- Players Section -->
     <div class="card p-6">
       <h2 class="text-sm uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-4">Players</h2>
-      <div class="space-y-4">
+      <div class="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
         <template x-for="(player, i) in players" :key="i">
           <div class="rounded-xl border border-gray-200 dark:border-void-700">
             <!-- Player header with bg preview -->
-            <div class="relative h-24 flex items-end p-3 rounded-t-xl overflow-hidden"
+            <div class="relative h-56 flex items-end p-3 rounded-t-xl overflow-hidden"
                  :style="player.bg
                    ? `background-image: url(${player.bg}); background-size: cover; background-position: center;`
                    : `background-color: ${player.color}22;`">
@@ -259,7 +261,7 @@
                                 ring-1 ring-black/5 dark:ring-white/10">
                       <template x-for="card in player.cmdr1Results" :key="'c1-'+card.id">
                         <button type="button"
-                                @click="selectCommander(i, 1, card.name)"
+                                @click="selectCommander(i, 1, card)"
                                 class="w-full flex items-center gap-2 px-3 py-1.5
                                        hover:bg-void-100 dark:hover:bg-void-700
                                        border-b border-gray-100 dark:border-void-700 last:border-b-0
@@ -295,7 +297,7 @@
                                 ring-1 ring-black/5 dark:ring-white/10">
                       <template x-for="card in player.cmdr2Results" :key="'c2-'+card.id">
                         <button type="button"
-                                @click="selectCommander(i, 2, card.name)"
+                                @click="selectCommander(i, 2, card)"
                                 class="w-full flex items-center gap-2 px-3 py-1.5
                                        hover:bg-void-100 dark:hover:bg-void-700
                                        border-b border-gray-100 dark:border-void-700 last:border-b-0
@@ -505,7 +507,11 @@
         if (input) input.value = '';
       },
 
-      // --- Commander search — only cards flagged as legal commanders ---
+      // --- Commander search ---
+      // slot 1 -> any legal commander.
+      // slot 2 -> only partner-eligible cards (Partner / Partner with /
+      //          Partner — <tag> / Friends forever / Doctor's companion)
+      //          plus Backgrounds (for "Choose a Background" commanders).
       async searchCommander(idx, slot, query) {
         const p = this.players[idx];
         const resultsKey = slot === 1 ? 'cmdr1Results' : 'cmdr2Results';
@@ -515,8 +521,9 @@
           p[openKey] = false;
           return;
         }
+        const filter = slot === 1 ? 'commander=1' : 'partner=1';
         try {
-          const resp = await fetch(`/collection/api/card-search/?q=${encodeURIComponent(query)}&commander=1`);
+          const resp = await fetch(`/collection/api/card-search/?q=${encodeURIComponent(query)}&${filter}`);
           const data = await resp.json();
           p[resultsKey] = data;
           p[openKey] = data.length > 0;
@@ -525,12 +532,21 @@
         }
       },
 
-      selectCommander(idx, slot, name) {
+      selectCommander(idx, slot, card) {
+        // Accept either a card object or a bare string name (legacy callers).
+        const name = typeof card === 'string' ? card : card.name;
+        const oracle = typeof card === 'string' ? '' : (card.oracle_text || '');
         const p = this.players[idx];
         if (slot === 1) {
           p.commander1 = name;
           p.cmdr1Open = false;
           p.cmdr1Results = [];
+          // "Partner with X" auto-pairs the second commander.
+          const m = oracle.match(/Partner with ([^\n(]+?)(?:\s*\(|\s*$)/i);
+          if (m) {
+            p.hasPartner = true;
+            p.commander2 = m[1].trim();
+          }
         } else {
           p.commander2 = name;
           p.cmdr2Open = false;

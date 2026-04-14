@@ -1475,12 +1475,21 @@
 
         // Commander damage uses keys like "playerPk::Commander Name"
         // For players without commanders, key is just "playerPk"
+        dealsCombatDamage(typeLine) {
+          // Planeswalkers and Enchantments (Backgrounds) can't deal combat
+          // damage, so they never count toward commander damage. If the
+          // type is unknown, include them (safer default).
+          if (!typeLine) return true;
+          return typeLine.includes('Creature') || typeLine.includes('Vehicle');
+        },
         getCmdrSources(targetPlayer) {
           const sources = [];
           this.players.forEach(other => {
             if (other.pk === targetPlayer.pk) return;
             if (other.commanders?.length > 0) {
               other.commanders.forEach(cmd => {
+                const type = (other.commander_types || {})[cmd] || '';
+                if (!this.dealsCombatDamage(type)) return;
                 sources.push({ player: other, name: cmd, key: other.pk + '::' + cmd });
               });
             } else {

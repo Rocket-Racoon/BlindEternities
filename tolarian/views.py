@@ -1329,6 +1329,20 @@ class CardSearchJSON(LoginRequiredMixin, View):
         qs = Card.objects.filter(is_active=True, name__icontains=q)
         if request.GET.get("commander") == "1":
             qs = qs.filter(can_be_commander=True)
+        if request.GET.get("partner") == "1":
+            # Partner-eligible: legendary commanders with a partner-like
+            # ability (Partner / Partner with / Partner — <tag> / Friends
+            # forever / Doctor's companion) OR Backgrounds (partner for
+            # "Choose a Background" commanders).
+            partner_q = (
+                Q(oracle_text__icontains="partner")
+                | Q(oracle_text__icontains="friends forever")
+                | Q(oracle_text__icontains="doctor's companion")
+            )
+            background_q = Q(type_line__icontains="Background")
+            qs = qs.filter(
+                (Q(can_be_commander=True) & partner_q) | background_q
+            )
         if request.GET.get("emblem") == "1":
             qs = qs.filter(type_line__icontains="emblem")
         cards = qs.prefetch_related("prints__cardset").order_by("name")[:10]
