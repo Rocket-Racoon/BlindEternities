@@ -12,6 +12,15 @@ class GameResult(models.TextChoices):
     DRAW = "draw", "Draw"
 
 
+class EliminationCause(models.TextChoices):
+    LIFE             = "life",             "Life (0 or less)"
+    POISON           = "poison",           "Poison Counters"
+    COMMANDER_DAMAGE = "commander_damage",  "Commander Damage"
+    ALT_WINCON       = "alt_wincon",        "Alt. Win Condition"
+    FORFEIT          = "forfeit",          "Forfeit"
+    ALT_LOSECON      = "alt_losecon",      "Alt. Lose Condition"
+
+
 class GameRecord(BaseModel):
     """
     Registro de una partida de Magic.
@@ -51,6 +60,31 @@ class GameRecord(BaseModel):
         help_text="Fecha en que se jugó la partida.",
     )
     notes = models.TextField(blank=True)
+
+    # Multiplayer / robust tracking
+    my_commanders = models.JSONField(
+        default=list, blank=True,
+        help_text="Commander name(s) for user's deck.",
+    )
+    my_placement = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="User's finishing position (1 = winner).",
+    )
+    elimination_cause = models.CharField(
+        max_length=20,
+        choices=EliminationCause.choices,
+        blank=True,
+        help_text="How the user was eliminated (if applicable).",
+    )
+    elimination_turn = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Turn number when the user was eliminated.",
+    )
+    eliminator_name = models.CharField(
+        max_length=100, blank=True,
+        help_text="Name of the player who eliminated the user (own name = forfeit).",
+    )
+
     # Link to live session (if game was tracked live)
     session = models.ForeignKey(
         "GameSession",
@@ -70,6 +104,58 @@ class GameRecord(BaseModel):
 
     def get_absolute_url(self):
         return reverse("phyrexian:game-detail", kwargs={"pk": self.pk})
+
+
+class GamePlayer(BaseModel):
+    """
+    An opponent (or participant) in a logged game.
+    Stores per-player details for multiplayer game records.
+    """
+    game = models.ForeignKey(
+        GameRecord, on_delete=models.CASCADE, related_name="opponents"
+    )
+    name = models.CharField(max_length=100)
+    deck = models.ForeignKey(
+        "tolarian.Deck",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="+",
+        help_text="Link to a deck on the site (optional).",
+    )
+    deck_name = models.CharField(
+        max_length=100, blank=True,
+        help_text="Deck name or archetype (free text).",
+    )
+    commanders = models.JSONField(
+        default=list, blank=True,
+        help_text="Commander name(s).",
+    )
+    placement = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Finishing position (1 = winner).",
+    )
+    elimination_cause = models.CharField(
+        max_length=20,
+        choices=EliminationCause.choices,
+        blank=True,
+    )
+    elimination_turn = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Turn number when this opponent was eliminated.",
+    )
+    eliminator_name = models.CharField(
+        max_length=100, blank=True,
+        help_text="Name of the player who eliminated this opponent (own name = forfeit).",
+    )
+    is_winner = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["placement", "created_at"]
+        verbose_name = "game player"
+        verbose_name_plural = "game players"
+
+    def __str__(self):
+        return f"{self.name} — #{self.placement}" if self.placement else self.name
 
 
 # ---------------------------------------------------------------------------
@@ -146,6 +232,7 @@ class GameSession(BaseModel):
             commander_tax=0, treasure=0, rad=0, storm_count=0,
             commander_damage={}, commander_taxes={}, is_monarch=False, has_initiative=False,
             has_citys_blessing=False, speed=0, the_ring=0, is_day=True, placement=0,
+            elimination_cause="", elimination_turn=None, eliminator=None,
         )
         self.current_turn = 1
         self.status = SessionStatus.ACTIVE
@@ -210,6 +297,24 @@ class PlayerSlot(BaseModel):
 
     # Placement (1 = winner, 2 = second, etc. 0 = not yet placed)
     placement = models.PositiveSmallIntegerField(default=0)
+
+    # Elimination tracking
+    elimination_cause = models.CharField(
+        max_length=20,
+        choices=EliminationCause.choices,
+        blank=True,
+    )
+    elimination_turn = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Turn number when this player was eliminated.",
+    )
+    eliminator = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="eliminations",
+        help_text="Player slot that eliminated this one (self = forfeit).",
+    )
 
     # Deck link (optional)
     deck = models.ForeignKey(

@@ -85,54 +85,105 @@
   </div>
   {% else %}
 
-  <div class="card overflow-hidden">
-    <table class="w-full text-sm">
-      <thead>
-        <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-void-800/50 border-b border-gray-200 dark:border-void-700">
-          <th class="px-4 py-3 font-medium">Result</th>
-          <th class="px-4 py-3 font-medium">Deck</th>
-          <th class="px-4 py-3 font-medium">Format</th>
-          <th class="px-4 py-3 font-medium">Opponent</th>
-          <th class="px-4 py-3 font-medium">Date</th>
-          <th class="px-4 py-3 font-medium text-right">Actions</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-gray-100 dark:divide-void-800">
-        {% for game in games %}
-        <tr class="hover:bg-gray-50 dark:hover:bg-void-800/30 transition-colors">
-          <td class="px-4 py-3">
-            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium
-              {% if game.result == 'win' %}bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400
-              {% elif game.result == 'loss' %}bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400
-              {% else %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400{% endif %}">
-              {{ game.get_result_display }}
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-800 dark:text-gray-200">
+  {# Card-style game list (replaces table for richer data) #}
+  <div class="space-y-3">
+    {% for game in games %}
+    <div class="card p-4 hover:ring-1 hover:ring-void-500/30 transition-all">
+      <div class="flex items-start gap-4">
+        {# Result badge #}
+        <div class="shrink-0 mt-0.5">
+          <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold
+            {% if game.result == 'win' %}bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400
+            {% elif game.result == 'loss' %}bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400
+            {% else %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400{% endif %}">
+            {{ game.get_result_display }}
+          </span>
+          {% if game.my_placement %}
+          <span class="block text-center text-[10px] font-bold mt-1
+            {% if game.my_placement == 1 %}text-yellow-500{% else %}text-gray-400{% endif %}">
+            #{{ game.my_placement }}
+          </span>
+          {% endif %}
+        </div>
+
+        {# Main info #}
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
             {% if game.deck %}
-            <a href="{{ game.deck.get_absolute_url }}" class="hover:text-void-600 dark:hover:text-void-400">
+            <a href="{{ game.deck.get_absolute_url }}" class="font-semibold text-gray-800 dark:text-gray-200 hover:text-void-600 dark:hover:text-void-400">
               {{ game.deck.name }}
             </a>
-            {% else %}—{% endif %}
-          </td>
-          <td class="px-4 py-3 text-gray-500 capitalize">{{ game.format }}</td>
-          <td class="px-4 py-3 text-gray-700 dark:text-gray-300">
-            {{ game.opponent_name|default:"—" }}
-            {% if game.opponent_deck_name %}
-            <span class="text-gray-400 text-xs">({{ game.opponent_deck_name }})</span>
+            {% else %}
+            <span class="text-gray-400">No deck</span>
             {% endif %}
-          </td>
-          <td class="px-4 py-3 text-gray-500">{{ game.date_played }}</td>
-          <td class="px-4 py-3 text-right">
+            <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-void-800 text-gray-500 dark:text-gray-400 capitalize">{{ game.format }}</span>
+            {% if game.elimination_cause %}
+            <span class="text-xs px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400">{{ game.get_elimination_cause_display }}</span>
+            {% endif %}
+            {% if game.elimination_turn %}
+            <span class="text-xs text-gray-400">T{{ game.elimination_turn }}</span>
+            {% endif %}
+            {% if game.eliminator_name %}
+            <span class="text-xs text-gray-400">by {{ game.eliminator_name }}</span>
+            {% endif %}
+          </div>
+
+          {# Commanders #}
+          {% if game.my_commanders %}
+          <div class="flex flex-wrap gap-1 mt-1">
+            {% for cmd in game.my_commanders %}
+            <span class="text-xs text-void-600 dark:text-void-400">{{ cmd }}{% if not forloop.last %},{% endif %}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          {# Opponents #}
+          {% if game.opponents.all %}
+          <div class="mt-2 space-y-1">
+            {% for opp in game.opponents.all %}
+            <div class="flex items-center gap-2 text-sm">
+              <span class="text-gray-500 dark:text-gray-400">vs</span>
+              <span class="text-gray-700 dark:text-gray-300 font-medium">{{ opp.name }}</span>
+              {% if opp.deck_name %}
+              <span class="text-gray-400 text-xs">({{ opp.deck_name }}{% if opp.commanders %} — {{ opp.commanders|join:", " }}{% endif %})</span>
+              {% endif %}
+              {% if opp.placement %}
+              <span class="text-[10px] font-bold {% if opp.placement == 1 %}text-yellow-500{% else %}text-gray-400{% endif %}">#{{ opp.placement }}</span>
+              {% endif %}
+              {% if opp.elimination_cause %}
+              <span class="text-[10px] px-1 py-0.5 rounded bg-red-50 dark:bg-red-900/20 text-red-400">{{ opp.get_elimination_cause_display }}</span>
+              {% endif %}
+              {% if opp.elimination_turn %}
+              <span class="text-[10px] text-gray-400">T{{ opp.elimination_turn }}</span>
+              {% endif %}
+              {% if opp.eliminator_name %}
+              <span class="text-[10px] text-gray-400">by {{ opp.eliminator_name }}</span>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% elif game.opponent_name %}
+          <div class="mt-1 text-sm text-gray-500">
+            vs {{ game.opponent_name }}
+            {% if game.opponent_deck_name %}<span class="text-gray-400 text-xs">({{ game.opponent_deck_name }})</span>{% endif %}
+          </div>
+          {% endif %}
+        </div>
+
+        {# Meta + actions #}
+        <div class="shrink-0 text-right">
+          <div class="text-xs text-gray-500">{{ game.date_played }}</div>
+          {% if game.turns %}<div class="text-[10px] text-gray-400 mt-0.5">{{ game.turns }} turns</div>{% endif %}
+          <div class="mt-2 flex gap-2 justify-end">
             <a href="{% url 'phyrexian:game-edit' game.pk %}"
-               class="text-xs text-void-600 dark:text-void-400 hover:underline mr-2">Edit</a>
+               class="text-xs text-void-600 dark:text-void-400 hover:underline">Edit</a>
             <a href="{% url 'phyrexian:game-delete' game.pk %}"
                class="text-xs text-red-600 dark:text-red-400 hover:underline">Delete</a>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
   </div>
 
   <!-- Pagination -->

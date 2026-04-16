@@ -36,6 +36,10 @@ urlpatterns = [
     path("session/<uuid:player_pk>/toggle/", views.SessionToggleStatusView.as_view(), name="session-toggle"),
     path("session/<uuid:player_pk>/cmdr-damage/", views.SessionCommanderDamageView.as_view(), name="session-cmdr-damage"),
     path("session/<uuid:player_pk>/cmdr-tax/", views.SessionCommanderTaxView.as_view(), name="session-cmdr-tax"),
+    path("session/<uuid:player_pk>/eliminate/", views.PlayerEliminateView.as_view(), name="session-eliminate"),
+
+    # API
+    path("api/deck-search/", views.DeckSearchJSON.as_view(), name="deck-search"),
 
     # HTMX partials
     path("partials/stats/", views.DashboardStatsPartialView.as_view(), name="partial-stats"),

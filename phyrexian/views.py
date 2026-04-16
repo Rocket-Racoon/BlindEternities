@@ -15,8 +15,8 @@ from core.mixins import OwnerRequiredMixin
 from tolarian.models import Collection, CollectionItem, Deck, DeckCard, DeckZone
 from multiverse.models import Card, CardPrint
 from .models import (
-    GameRecord, GameResult, GameSession, PlayerSlot, LifeChange,
-    SessionStatus, FORMAT_STARTING_LIFE,
+    GameRecord, GameResult, GamePlayer, GameSession, PlayerSlot, LifeChange,
+    SessionStatus, EliminationCause, FORMAT_STARTING_LIFE,
 )
 from .forms import GameRecordForm, SessionSetupForm, PLAYER_COLORS
 
@@ -271,6 +271,7 @@ class GameRecordListView(LoginRequiredMixin, ListView):
         qs = (
             GameRecord.objects.filter(user=self.request.user, is_active=True)
             .select_related("deck")
+            .prefetch_related("opponents")
         )
         # Filters
         result = self.request.GET.get("result")
@@ -322,9 +323,49 @@ class GameRecordCreateView(LoginRequiredMixin, CreateView):
         kwargs["user"] = self.request.user
         return kwargs
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["elimination_choices"] = EliminationCause.choices
+        ctx["existing_opponents_json"] = "[]"
+        return ctx
+
     def form_valid(self, form):
         form.instance.user = self.request.user
-        return super().form_valid(form)
+        # my_commanders from Alpine-managed hidden input
+        raw = self.request.POST.get("my_commanders", "[]")
+        try:
+            form.instance.my_commanders = json.loads(raw)
+        except (ValueError, TypeError):
+            form.instance.my_commanders = []
+        response = super().form_valid(form)
+        self._save_opponents(form, self.object)
+        return response
+
+    def _save_opponents(self, form, game):
+        opponents_raw = form.cleaned_data.get("opponents_json", "")
+        if not opponents_raw:
+            return
+        try:
+            opponents = json.loads(opponents_raw)
+        except (ValueError, TypeError):
+            return
+        for opp in opponents:
+            if not opp.get("name", "").strip():
+                continue
+            deck_id = opp.get("deck_id") or None
+            commanders = opp.get("commanders", [])
+            if isinstance(commanders, str):
+                commanders = [c.strip() for c in commanders.split(",") if c.strip()]
+            GamePlayer.objects.create(
+                game=game,
+                name=opp["name"].strip(),
+                deck_id=deck_id if deck_id else None,
+                deck_name=opp.get("deck_name", "").strip(),
+                commanders=commanders,
+                placement=int(opp.get("placement", 0) or 0),
+                elimination_cause=opp.get("elimination_cause", ""),
+                is_winner=int(opp.get("placement", 0) or 0) == 1,
+            )
 
 
 class GameRecordUpdateView(OwnerRequiredMixin, UpdateView):
@@ -337,6 +378,35 @@ class GameRecordUpdateView(OwnerRequiredMixin, UpdateView):
         kwargs = super().get_form_kwargs()
         kwargs["user"] = self.request.user
         return kwargs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["elimination_choices"] = EliminationCause.choices
+        existing = list(self.object.opponents.all())
+        ctx["existing_opponents_json"] = json.dumps([
+            {
+                "name": o.name,
+                "deck_id": str(o.deck_id) if o.deck_id else "",
+                "deck_name": o.deck_name,
+                "commanders": o.commanders or [],
+                "placement": o.placement,
+                "elimination_cause": o.elimination_cause,
+            }
+            for o in existing
+        ])
+        return ctx
+
+    def form_valid(self, form):
+        # my_commanders from Alpine-managed hidden input
+        raw = self.request.POST.get("my_commanders", "[]")
+        try:
+            form.instance.my_commanders = json.loads(raw)
+        except (ValueError, TypeError):
+            form.instance.my_commanders = []
+        response = super().form_valid(form)
+        self.object.opponents.all().delete()
+        GameRecordCreateView._save_opponents(None, form, self.object)
+        return response
 
 
 class GameRecordDeleteView(OwnerRequiredMixin, DeleteView):
@@ -668,6 +738,9 @@ class SessionLiveView(LoginRequiredMixin, TemplateView):
                 "background_image": p.background_image,
                 "is_dead": p.is_dead,
                 "placement": p.placement,
+                "elimination_turn": p.elimination_turn,
+                "eliminator_pk": str(p.eliminator_id) if p.eliminator_id else "",
+                "elimination_cause": p.elimination_cause,
                 "commanders": player_commanders.get(p.pk, []),
                 "commander_art": {n: commander_art.get(n, "") for n in player_commanders.get(p.pk, [])},
                 "commander_types": {n: commander_types.get(n, "") for n in player_commanders.get(p.pk, [])},
@@ -853,6 +926,74 @@ class SessionLogTurnView(LoginRequiredMixin, View):
         return JsonResponse({"ok": True})
 
 
+def _get_slot_commanders(slot):
+    """Get commander names from a PlayerSlot (deck-linked or custom)."""
+    if slot.deck_id:
+        cmdr_cards = slot.deck.commander_cards.select_related("card")
+        return [dc.card.name for dc in cmdr_cards]
+    return list(slot.commanders or [])
+
+
+def _create_game_record_from_session(session, slot, winner_pk):
+    """Create a GameRecord with GamePlayer opponents for a session participant."""
+    if winner_pk and str(slot.pk) == str(winner_pk):
+        result = GameResult.WIN
+    elif winner_pk:
+        result = GameResult.LOSS
+    else:
+        result = GameResult.DRAW
+
+    all_players = list(session.players.all())
+    opponents = [p for p in all_players if p.pk != slot.pk]
+    opponent_names = ", ".join(p.name for p in opponents)
+
+    slot_eliminator_name = ""
+    if slot.eliminator_id:
+        slot_eliminator_name = (
+            slot.name if slot.eliminator_id == slot.pk else slot.eliminator.name
+        )
+
+    record = GameRecord.objects.create(
+        user=slot.user,
+        deck=slot.deck,
+        format=session.format,
+        result=result,
+        opponent_name=opponent_names,
+        my_commanders=_get_slot_commanders(slot),
+        my_placement=slot.placement or 0,
+        elimination_cause=slot.elimination_cause,
+        elimination_turn=slot.elimination_turn,
+        eliminator_name=slot_eliminator_name,
+        turns=session.current_turn,
+        date_played=timezone.now().date(),
+        session=session,
+        notes=f"Live session — {session.player_count} players"
+              + (f" — #{slot.placement} place" if slot.placement else ""),
+    )
+
+    # Create GamePlayer records for each opponent
+    for opp in opponents:
+        opp_eliminator_name = ""
+        if opp.eliminator_id:
+            opp_eliminator_name = (
+                opp.name if opp.eliminator_id == opp.pk else opp.eliminator.name
+            )
+        GamePlayer.objects.create(
+            game=record,
+            name=opp.name,
+            deck=opp.deck,
+            deck_name=opp.deck.name if opp.deck else "",
+            commanders=_get_slot_commanders(opp),
+            placement=opp.placement or 0,
+            elimination_cause=opp.elimination_cause,
+            elimination_turn=opp.elimination_turn,
+            eliminator_name=opp_eliminator_name,
+            is_winner=bool(winner_pk and str(opp.pk) == str(winner_pk)),
+        )
+
+    return record
+
+
 class SessionEndView(LoginRequiredMixin, TemplateView):
     """End the session and optionally create GameRecords."""
     template_name = "phyrexian/session_end.html"
@@ -877,27 +1018,7 @@ class SessionEndView(LoginRequiredMixin, TemplateView):
         # Auto-create a GameRecord for the host if they played
         host_slot = session.players.filter(user=request.user).first()
         if host_slot:
-            if winner_pk and str(host_slot.pk) == winner_pk:
-                result = GameResult.WIN
-            elif winner_pk:
-                result = GameResult.LOSS
-            else:
-                result = GameResult.DRAW
-
-            opponents = session.players.exclude(pk=host_slot.pk)
-            opponent_names = ", ".join(p.name for p in opponents)
-
-            GameRecord.objects.create(
-                user=request.user,
-                deck=host_slot.deck,
-                format=session.format,
-                result=result,
-                opponent_name=opponent_names,
-                turns=session.current_turn,
-                date_played=timezone.now().date(),
-                session=session,
-                notes=f"Live session — {session.player_count} players",
-            )
+            _create_game_record_from_session(session, host_slot, winner_pk)
 
         from django.shortcuts import redirect
         return redirect("phyrexian:session-summary", pk=session.pk)
@@ -964,27 +1085,7 @@ class SessionAutoFinishView(LoginRequiredMixin, View):
 
         # Auto-create GameRecords for all linked users
         for slot in session.players.filter(user__isnull=False):
-            if winner_pk and str(slot.pk) == str(winner_pk):
-                result = GameResult.WIN
-            elif winner_pk:
-                result = GameResult.LOSS
-            else:
-                result = GameResult.DRAW
-
-            opponents = session.players.exclude(pk=slot.pk)
-            opponent_names = ", ".join(p.name for p in opponents)
-
-            GameRecord.objects.create(
-                user=slot.user,
-                deck=slot.deck,
-                format=session.format,
-                result=result,
-                opponent_name=opponent_names,
-                turns=session.current_turn,
-                date_played=timezone.now().date(),
-                session=session,
-                notes=f"Live session — {session.player_count} players — #{slot.placement} place",
-            )
+            _create_game_record_from_session(session, slot, winner_pk)
 
         return JsonResponse({"ok": True})
 
@@ -998,3 +1099,69 @@ class SessionLogPartialView(LoginRequiredMixin, TemplateView):
         session = get_object_or_404(GameSession, pk=kwargs["pk"])
         ctx["recent_changes"] = session.life_changes.select_related("player").order_by("-created_at")[:50]
         return ctx
+
+
+# ---------------------------------------------------------------------------
+# API — Deck search (for opponent deck linking)
+# ---------------------------------------------------------------------------
+class DeckSearchJSON(LoginRequiredMixin, View):
+    """Return up to 10 decks matching a name query."""
+
+    def get(self, request):
+        from django.http import JsonResponse
+        q = request.GET.get("q", "").strip()
+        if len(q) < 2:
+            return JsonResponse([], safe=False)
+        decks = (
+            Deck.objects.filter(is_active=True, name__icontains=q)
+            .filter(Q(is_public=True) | Q(user=request.user))
+            .select_related("user")
+            .prefetch_related("cards__card")
+            .order_by("name")[:10]
+        )
+        results = []
+        for d in decks:
+            cmdr_cards = d.cards.filter(zone="commander").select_related("card")
+            commanders = [dc.card.name for dc in cmdr_cards]
+            results.append({
+                "id": str(d.pk),
+                "name": d.name,
+                "format": d.get_format_display(),
+                "user": d.user.username,
+                "commanders": commanders,
+            })
+        return JsonResponse(results, safe=False)
+
+
+class PlayerEliminateView(LoginRequiredMixin, View):
+    """HTMX endpoint: directly eliminate a player in a session."""
+
+    def post(self, request, *args, **kwargs):
+        from django.http import JsonResponse
+        player = get_object_or_404(PlayerSlot, pk=kwargs["player_pk"])
+        cause = request.POST.get("cause", "forfeit")
+        turn = request.POST.get("turn")
+        eliminator_pk = request.POST.get("eliminator_pk")
+
+        fields = []
+        if cause in dict(EliminationCause.choices):
+            player.elimination_cause = cause
+            fields.append("elimination_cause")
+        if turn:
+            try:
+                player.elimination_turn = int(turn)
+                fields.append("elimination_turn")
+            except (TypeError, ValueError):
+                pass
+        if eliminator_pk:
+            try:
+                player.eliminator = PlayerSlot.objects.get(
+                    pk=eliminator_pk, session=player.session,
+                )
+                fields.append("eliminator")
+            except (PlayerSlot.DoesNotExist, ValueError):
+                pass
+        if fields:
+            fields.append("updated_at")
+            player.save(update_fields=fields)
+        return JsonResponse({"ok": True, "cause": player.elimination_cause})

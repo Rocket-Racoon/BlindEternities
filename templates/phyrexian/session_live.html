@@ -433,8 +433,15 @@
         {# Content #}
         <div class="relative h-full flex flex-col">
 
-          {# Turn banner (absolute) #}
-          <div x-show="activePlayerIdx === playerIdx(player)" x-cloak class="absolute top-0 left-1/2 -translate-x-1/2 z-20 turn-banner">In Turn</div>
+          {# Turn banner (absolute) — flashes briefly on turn change #}
+          <div x-show="showTurnBanner && activePlayerIdx === playerIdx(player)" x-cloak
+               x-transition:enter="transition ease-out duration-200"
+               x-transition:enter-start="opacity-0 -translate-y-1"
+               x-transition:enter-end="opacity-100 translate-y-0"
+               x-transition:leave="transition ease-in duration-500"
+               x-transition:leave-start="opacity-100"
+               x-transition:leave-end="opacity-0"
+               class="absolute top-0 left-1/2 -translate-x-1/2 z-20 turn-banner">In Turn</div>
 
           {# Top overlay: name + commanders + status (absolute, doesn't push life) #}
           <div class="absolute top-0 left-0 right-0 z-10 pointer-events-none px-3 pt-2 flex flex-col gap-0.5">
@@ -620,7 +627,7 @@
           </button>
           <p class="text-[10px] text-white/40 uppercase tracking-wider mb-2 text-center">Eliminated by</p>
           <div class="flex flex-wrap gap-1.5 justify-center max-w-full">
-            <template x-for="killer in playersExcept(player.pk)" :key="'k-'+player.pk+'-'+killer.pk">
+            <template x-for="killer in possibleEliminators(player)" :key="'k-'+player.pk+'-'+killer.pk">
               <button @click="confirmElimination(playerIdx(player), killer.pk)"
                       class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-black/50 hover:bg-red-600/40 active:bg-red-600/60 transition-colors border border-white/10">
                 <div class="w-2.5 h-2.5 rounded-full shrink-0" :style="`background-color: ${killer.color}`"></div>
@@ -648,6 +655,7 @@
             <div class="w-2.5 h-2.5 rounded-full shrink-0" :style="`background-color: ${eliminatorColor(player)}`"></div>
             <span class="text-white/90 text-xs" x-text="'by ' + eliminatorName(player)"></span>
           </div>
+          <span x-show="player.koTurn" x-cloak class="mt-1 text-[10px] text-white/40" x-text="'Turn ' + player.koTurn"></span>
           <button @click="player.eliminatedBy = null"
                   class="mt-2 px-2.5 py-1 rounded text-[11px] text-white/50 hover:text-white hover:bg-white/10 transition-colors">
             Change
@@ -696,7 +704,7 @@
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.617 1.738 5.42a1 1 0 01-.285 1.05 3.975 3.975 0 01-2.683 1.018 3.975 3.975 0 01-2.684-1.018 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.39 7.583l1.715 5.35a1 1 0 01-.285 1.049A3.975 3.975 0 015.136 15a3.975 3.975 0 01-2.684-1.018 1 1 0 01-.285-1.05l1.738-5.42-1.233-.616a1 1 0 01.894-1.79l1.599.799L9 4.323V3a1 1 0 011-1z"/></svg>
             <span>Starting Player</span>
           </div>
-          <button @click="pickingStarter = false"
+          <button @click="pickingStarter = false; flashTurnBanner()"
                   class="px-5 py-2 rounded-xl bg-yellow-500/20 text-yellow-400 text-sm font-semibold hover:bg-yellow-500/30 transition-colors border border-yellow-500/30">
             Start Game
           </button>
@@ -737,10 +745,16 @@
           </div>
         </template>
       </div>
-      <a href="{% url 'phyrexian:dashboard' %}"
-         class="inline-block px-5 py-2 rounded-lg bg-void-600 text-white text-sm font-medium hover:bg-void-500 transition-colors">
-        Back to Dashboard
-      </a>
+      <div class="flex gap-2 justify-center">
+        <button @click="nextGame()"
+                class="px-5 py-2 rounded-lg bg-yellow-500/90 text-black text-sm font-bold hover:bg-yellow-400 transition-colors">
+          Next Game
+        </button>
+        <a href="{% url 'phyrexian:dashboard' %}"
+           class="px-5 py-2 rounded-lg bg-void-600 text-white text-sm font-medium hover:bg-void-500 transition-colors">
+          Dashboard
+        </a>
+      </div>
     </div>
   </div>
 
@@ -816,6 +830,17 @@
               <span class="text-[9px] text-gray-500" x-text="ct.label"></span>
             </div>
           </template>
+          {# Eliminate — two stacked options in the 6th grid cell #}
+          <div class="flex flex-col items-center justify-center gap-1">
+            <button type="button" @click="directEliminate(counterModal.playerIdx, 'forfeit')"
+                    class="w-full flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-gray-500/10 hover:bg-gray-500/20 active:bg-gray-500/30 text-gray-400 dark:text-gray-300 transition-colors border border-gray-500/20 text-[9px] font-semibold">
+              &#9873; Forfeit
+            </button>
+            <button type="button" @click="directEliminate(counterModal.playerIdx, 'alt_losecon')"
+                    class="w-full flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 active:bg-red-500/30 text-red-500 dark:text-red-400 transition-colors border border-red-500/20 text-[9px] font-semibold">
+              &#128128; Alt. Lose
+            </button>
+          </div>
         </div>
         <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-4 mb-2">Status</p>
         <div class="grid grid-cols-3 gap-2">
@@ -1013,6 +1038,23 @@
               <span x-text="p.name"></span>
             </button>
           </template>
+        </div>
+
+        {# Alt. Win Condition — declare a winner #}
+        <div>
+          <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Winner (Alt. Win)</p>
+          <p class="text-[10px] text-gray-500 dark:text-gray-500 mb-2 -mt-1">Approach, Thassa's Oracle, Lab Man, etc.</p>
+          <div class="flex flex-wrap gap-1.5">
+            <template x-for="(p, pi) in players" :key="'altwin-'+p.pk">
+              <button @click="declareAltWinner(pi)"
+                      x-show="!isEffectivelyDead(pi)"
+                      class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500/20 border border-yellow-500/20">
+                <div class="w-2.5 h-2.5 rounded-full" :style="`background-color: ${p.color}`"></div>
+                <span x-text="p.name" class="truncate max-w-[80px]"></span>
+                <span>&#127942;</span>
+              </button>
+            </template>
+          </div>
         </div>
 
         {# Monarch select #}
@@ -1221,7 +1263,10 @@
       players.forEach(p => {
         p.deltaShow = false; p.lastDelta = 0;
         p.koOverride = false; p.placement = p.placement || 0;
-        p.eliminatedBy = null;
+        p.eliminatedBy = p.eliminator_pk || null;
+        p.directEliminated = (p.elimination_cause === 'forfeit' || p.elimination_cause === 'alt_losecon');
+        p.eliminationCauseOverride = p.elimination_cause || '';
+        p.koTurn = p.elimination_turn || null;
         p.emblems = p.emblems || [];
         p.emblemIdx = 0;
         p.turnStartLife = p.life;
@@ -1266,6 +1311,8 @@
         announcement: { show: false, text: '', icon: '', css: '', image: '' },
 
         // Turn tracking
+        showTurnBanner: false,
+        _turnBannerTimer: null,
         pickingStarter: true,
         starterRevealed: false,
         startingPlayerIdx: -1,
@@ -1289,7 +1336,6 @@
           {key: 'poison', icon: '☠', label: 'Poison'},
           {key: 'energy', icon: '⚡', label: 'Energy'},
           {key: 'experience', icon: '✪', label: 'Exp'},
-          {key: 'commander_tax', icon: '⚔', label: 'C.Tax'},
           {key: 'treasure', icon: '💰', label: 'Treasure'},
           {key: 'rad', icon: '☢', label: 'Rad'},
         ],
@@ -1342,7 +1388,6 @@
           if (p.poison) c.push({key: 'poison', icon: '☠', value: p.poison});
           if (p.energy) c.push({key: 'energy', icon: '⚡', value: p.energy});
           if (p.experience) c.push({key: 'experience', icon: '✪', value: p.experience});
-          if (p.commander_tax) c.push({key: 'ctax', icon: '⚔', value: p.commander_tax});
           if (p.treasure) c.push({key: 'treasure', icon: '💰', value: p.treasure});
           if (p.rad) c.push({key: 'rad', icon: '☢', value: p.rad});
           return c;
@@ -1351,7 +1396,7 @@
         // --- KO logic ---
         isKnockedOut(idx) {
           const p = this.players[idx];
-          return p.life <= 0 || p.poison >= 10 || (this.isCommanderFormat && this.maxCmdrDamage(p) >= 21);
+          return p.life <= 0 || p.poison >= 10 || (this.isCommanderFormat && this.maxCmdrDamage(p) >= 21) || p.directEliminated;
         },
 
         isEffectivelyDead(idx) {
@@ -1371,11 +1416,29 @@
           return this.players.filter(p => p.pk !== pk);
         },
 
+        // Eliminator picker for a KO'd target:
+        //   - alive (or just-KO'd undecided) players are always shown
+        //   - already-confirmed-eliminated players only show if KO'd same turn
+        //   - self is shown only if other simultaneous KOs happened
+        possibleEliminators(target) {
+          const targetTurn = target.koTurn || this.turn;
+          const hasSimultaneous = this.players.some(p =>
+            p.pk !== target.pk && (p.koTurn || 0) === targetTurn
+          );
+          return this.players.filter(p => {
+            if (p.pk === target.pk) return hasSimultaneous;
+            if (p.eliminatedBy) return (p.koTurn || 0) === targetTurn;
+            return true;
+          });
+        },
+
         eliminatorName(p) {
+          if (p.eliminatedBy === p.pk) return 'forfeit';
           const k = this.players.find(x => x.pk === p.eliminatedBy);
           return k?.name || '';
         },
         eliminatorColor(p) {
+          if (p.eliminatedBy === p.pk) return '#9ca3af';
           const k = this.players.find(x => x.pk === p.eliminatedBy);
           return k?.color || '#888';
         },
@@ -1384,6 +1447,7 @@
           const p = this.players[idx];
           const killer = this.players.find(k => k.pk === killerPk);
           p.eliminatedBy = killerPk;
+          const cause = this.eliminationCauseCode(idx);
           this.announce(`${killer?.name || '?'} eliminates ${p.name}`, 'ms ms-counter-skull', 'announce-random');
           fetch(`/stats/session/${SESSION_PK}/log-turn/`, {
             method: 'POST',
@@ -1392,6 +1456,12 @@
               pk: p.pk, delta: 0, life_after: p.life,
               source: `Eliminated by ${killer?.name || '?'}`,
             }] }),
+          });
+          // Save elimination cause + turn + eliminator
+          fetch(`/stats/session/${p.pk}/eliminate/`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF},
+            body: `cause=${cause}&turn=${p.koTurn || this.turn}&eliminator_pk=${killerPk}`,
           });
           const wasActive = this.activePlayerIdx === idx;
           this.checkEliminations();
@@ -1407,19 +1477,29 @@
 
         koReason(idx) {
           const p = this.players[idx];
+          if (p.directEliminated) return p.eliminationCauseOverride === 'forfeit' ? 'Forfeit' : 'Alt. lose condition';
           if (p.life <= 0) return `Life reached ${p.life}`;
           if (p.poison >= 10) return `${p.poison} poison counters`;
           if (this.maxCmdrDamage(p) >= 21) {
             const entry = Object.entries(p.commander_damage).find(([, v]) => v >= 21);
             if (entry) {
               const key = entry[0];
-              // Key is "pk::Commander Name" or just "pk"
               const cmdName = key.includes('::') ? key.split('::').slice(1).join('::') : null;
               const srcPk = key.split('::')[0];
               const src = this.players.find(x => x.pk === srcPk);
               return `21+ commander damage from ${cmdName || src?.name || 'unknown'}`;
             }
           }
+          return '';
+        },
+
+        // Determine the elimination cause code for server persistence
+        eliminationCauseCode(idx) {
+          const p = this.players[idx];
+          if (p.directEliminated) return p.eliminationCauseOverride || 'forfeit';
+          if (p.life <= 0) return 'life';
+          if (p.poison >= 10) return 'poison';
+          if (this.isCommanderFormat && this.maxCmdrDamage(p) >= 21) return 'commander_damage';
           return '';
         },
 
@@ -1430,6 +1510,19 @@
         // --- Check eliminations after any state change ---
         checkEliminations() {
           if (this.gameFinished) return;
+
+          // Track when each player first became KO'd (for same-turn filtering).
+          this.players.forEach((p, i) => {
+            const ko = this.isKnockedOut(i);
+            if (ko && !p.koTurn) {
+              p.koTurn = this.turn;
+            } else if (!ko && p.koOverride) {
+              // Player recovered (still KO'd visually but chose to stay) — keep koTurn.
+            } else if (!ko && !p.koOverride && !p.eliminatedBy) {
+              p.koTurn = null;
+            }
+          });
+
           // Wait for the user to decide whether each KO'd player stays or
           // picks a killer before assigning placements or ending the game.
           if (this.hasUndecidedKO()) return;
@@ -1473,7 +1566,7 @@
           p.life += delta;
           if (delta > 0) p.turnLifeGained = (p.turnLifeGained || 0) + delta;
           else if (delta < 0) p.turnLifeLost = (p.turnLifeLost || 0) + (-delta);
-          if (p.life > 0 && p.poison < 10 && this.maxCmdrDamage(p) < 21) p.koOverride = false;
+          if (p.life > 0 && p.poison < 10 && this.maxCmdrDamage(p) < 21 && !p.directEliminated) p.koOverride = false;
           p.lastDelta = delta;
           p.deltaShow = true;
           setTimeout(() => { p.deltaShow = false; }, 700);
@@ -1566,6 +1659,88 @@
           this.counterModal.open = true;
           this.emblemPickerOpen = false;
           this.emblemInput = '';
+        },
+
+        directEliminate(idx, cause) {
+          const p = this.players[idx];
+          p.directEliminated = true;
+          p.eliminationCauseOverride = cause || 'forfeit';
+          this.counterModal.open = false;
+
+          if (cause === 'forfeit') {
+            // Self-elimination — skip the "Stay / Eliminated by" overlay.
+            p.eliminatedBy = p.pk;
+            p.koTurn = p.koTurn || this.turn;
+            this.announce(`${p.name} forfeits`, 'ms ms-counter-skull', 'announce-random');
+            // Log the forfeit as a turn entry
+            fetch(`/stats/session/${SESSION_PK}/log-turn/`, {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+              body: JSON.stringify({ turn: this.turn, entries: [{
+                pk: p.pk, delta: 0, life_after: p.life,
+                source: `${p.name} forfeited`,
+              }]}),
+            });
+            fetch(`/stats/session/${p.pk}/eliminate/`, {
+              method: 'POST',
+              headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF},
+              body: `cause=forfeit&turn=${p.koTurn}&eliminator_pk=${p.pk}`,
+            });
+            const wasActive = this.activePlayerIdx === idx;
+            this.checkEliminations();
+            if (wasActive && !this.gameFinished) this.passTurn();
+          } else {
+            // Alt. lose condition — keep the existing KO overlay flow so the
+            // user picks who caused it.
+            p.koTurn = p.koTurn || this.turn;
+            this.announce(`${p.name} loses the game`, 'ms ms-counter-skull', 'announce-random');
+            fetch(`/stats/session/${p.pk}/eliminate/`, {
+              method: 'POST',
+              headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF},
+              body: `cause=alt_losecon&turn=${p.koTurn}`,
+            });
+            this.checkEliminations();
+          }
+        },
+
+        declareAltWinner(winnerIdx) {
+          const winner = this.players[winnerIdx];
+          if (!winner || this.gameFinished) return;
+          if (!confirm(`Declare ${winner.name} the winner via alt. win condition?`)) return;
+
+          this.showTools = false;
+
+          // Winner gets placement 1
+          winner.placement = 1;
+
+          // Save alt_wincon as the winner's cause
+          fetch(`/stats/session/${winner.pk}/eliminate/`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF},
+            body: 'cause=alt_wincon',
+          });
+
+          // All other alive players share 2nd place
+          this.players.forEach((p, i) => {
+            if (i === winnerIdx) return;
+            if (p.placement === 0) p.placement = 2;
+          });
+
+          this.winnerName = winner.name;
+          this.gameFinished = true;
+          this.announce(`${winner.name} wins!`, '', 'announce-monarch');
+
+          // Save to server
+          const placements = {};
+          this.players.forEach(p => { placements[p.pk] = p.placement; });
+          fetch(`/stats/session/${SESSION_PK}/auto-finish/`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+            body: JSON.stringify({
+              placements,
+              winner: winner.pk,
+            }),
+          });
         },
 
         // --- Emblems (stored as [{name, oracle_text}, ...]) ---
@@ -2011,6 +2186,12 @@
         },
 
         // --- Starting player ---
+        flashTurnBanner() {
+          clearTimeout(this._turnBannerTimer);
+          this.showTurnBanner = true;
+          this._turnBannerTimer = setTimeout(() => { this.showTurnBanner = false; }, 2500);
+        },
+
         setStartingPlayer(idx) {
           this.startingPlayerIdx = idx;
           this.activePlayerIdx = idx;
@@ -2044,9 +2225,14 @@
             fetch(`/stats/session/${SESSION_PK}/next-turn/`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF}});
           }
           this.activePlayerIdx = next;
+          this.flashTurnBanner();
           if (this.stormActive) this.resetStormCount();
           // Snapshot for the new turn
           this.snapshotTurnStart();
+        },
+
+        nextGame() {
+          this.resetGame();
         },
 
         resetGame() {
@@ -2057,7 +2243,7 @@
             p.has_citys_blessing = false; p.speed = 0; p.the_ring = 0;
             p.is_day = true;
             p.koOverride = false; p.placement = 0;
-            p.eliminatedBy = null;
+            p.eliminatedBy = null; p.directEliminated = false; p.eliminationCauseOverride = ''; p.koTurn = null;
             p.emblems = []; p.emblemIdx = 0;
             p.lastDelta = 0; p.deltaShow = false;
             // Reset per-turn tracking snapshots so stale values aren't flushed.
@@ -2077,6 +2263,8 @@
           this.globalStormCount = 0;
           this.cmdrPanel = null;
           this.announcement = { show: false, text: '', icon: '', css: '', image: '' };
+          clearTimeout(this._turnBannerTimer);
+          this.showTurnBanner = false;
           this.counterModal = { open: false, playerIdx: 0, player: null };
           this.randomMode = null;
           this.rouletteRunning = false;

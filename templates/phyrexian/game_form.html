@@ -4,7 +4,7 @@
 {% block title %}{% if object %}Edit Game{% else %}Log Game{% endif %} — {{ site_name }}{% endblock %}
 
 {% block content %}
-<div class="max-w-2xl mx-auto">
+<div class="max-w-3xl mx-auto" x-data="gameForm()">
 
   <!-- Header -->
   <div class="mb-6">
@@ -14,10 +14,18 @@
     </h1>
   </div>
 
-  <div class="card p-6">
-    <form method="post">
-      {% csrf_token %}
+  <form method="post" @submit="prepareSubmit()">
+    {% csrf_token %}
 
+    {# Hidden fields managed by Alpine #}
+    {{ form.opponent_name }}
+    {{ form.opponent_deck_name }}
+    <input type="hidden" name="my_commanders" :value="JSON.stringify(myCommanders)">
+    <input type="hidden" name="opponents_json" :value="JSON.stringify(opponents)">
+
+    {# ── Your Info ── #}
+    <div class="card p-6 mb-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Your Game</h2>
       <div class="grid md:grid-cols-2 gap-4">
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Result</label>
@@ -27,17 +35,36 @@
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Format</label>
           {{ form.format }}
         </div>
-        <div class="md:col-span-2">
+        <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Deck</label>
-          {{ form.deck }}
+          <select name="deck" class="input" x-model="selectedDeckId" @change="onDeckChange()">
+            <option value="">---------</option>
+            {% for d in form.deck.field.queryset %}
+            <option value="{{ d.pk }}" {% if form.deck.value == d.pk|slugify %}selected{% endif %}>{{ d.name }}</option>
+            {% endfor %}
+          </select>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Opponent</label>
-          {{ form.opponent_name }}
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Commander(s)</label>
+          <div class="flex flex-wrap gap-1.5 min-h-[2.5rem] items-center p-2 rounded-lg border border-gray-200 dark:border-void-700 bg-white dark:bg-void-900">
+            <template x-for="(cmd, ci) in myCommanders" :key="ci">
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-void-100 dark:bg-void-700 text-sm text-gray-800 dark:text-gray-200">
+                <span x-text="cmd"></span>
+                <button type="button" @click="myCommanders.splice(ci, 1)" class="text-gray-400 hover:text-red-500">&times;</button>
+              </span>
+            </template>
+            <input type="text" x-model="cmdInput" @keydown.enter.prevent="addCommander()"
+                   placeholder="Add commander..."
+                   class="flex-1 min-w-[120px] bg-transparent border-0 text-sm focus:ring-0 text-gray-800 dark:text-gray-200 placeholder-gray-400 p-0">
+          </div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Opponent's Deck</label>
-          {{ form.opponent_deck_name }}
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Your Placement</label>
+          {{ form.my_placement }}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Elimination Cause</label>
+          {{ form.elimination_cause }}
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date Played</label>
@@ -52,28 +79,185 @@
           {{ form.notes }}
         </div>
       </div>
+    </div>
 
-      {% if form.errors %}
-      <div class="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm">
-        {% for field, errors in form.errors.items %}
-          {% for error in errors %}
-          <p>{{ error }}</p>
-          {% endfor %}
-        {% endfor %}
-      </div>
-      {% endif %}
-
-      <div class="mt-6 flex justify-end gap-3">
-        <a href="{% url 'phyrexian:game-list' %}"
-           class="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-void-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800 transition-colors">
-          Cancel
-        </a>
-        <button type="submit" class="btn-primary">
-          {% if object %}Save Changes{% else %}Log Game{% endif %}
+    {# ── Opponents ── #}
+    <div class="card p-6 mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Opponents</h2>
+        <button type="button" @click="addOpponent()"
+                class="px-3 py-1.5 text-sm rounded-lg bg-void-600 text-white hover:bg-void-700 transition-colors">
+          + Add Opponent
         </button>
       </div>
-    </form>
-  </div>
+
+      <template x-if="opponents.length === 0">
+        <p class="text-sm text-gray-400 dark:text-gray-500 text-center py-4">No opponents added yet.</p>
+      </template>
+
+      <div class="space-y-4">
+        <template x-for="(opp, oi) in opponents" :key="oi">
+          <div class="p-4 rounded-lg border border-gray-200 dark:border-void-700 bg-gray-50 dark:bg-void-800/50 relative">
+            <button type="button" @click="opponents.splice(oi, 1)"
+                    class="absolute top-2 right-2 text-gray-400 hover:text-red-500 text-lg leading-none">&times;</button>
+            <div class="grid md:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Name</label>
+                <input type="text" x-model="opp.name" class="input text-sm" placeholder="Opponent name">
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Deck Name</label>
+                <input type="text" x-model="opp.deck_name" class="input text-sm" placeholder="Deck name or archetype">
+              </div>
+              <div class="relative">
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Deck from Site</label>
+                <input type="text" x-model="opp.deckSearch"
+                       @input.debounce.300ms="searchDeck(oi)"
+                       @focus="if(opp.deckResults?.length) opp.showResults = true"
+                       class="input text-sm" placeholder="Search decks...">
+                <div x-show="opp.showResults && opp.deckResults?.length > 0" x-cloak
+                     @click.away="opp.showResults = false"
+                     class="absolute z-10 top-full left-0 right-0 mt-1 rounded-lg shadow-xl max-h-40 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                  <template x-for="d in opp.deckResults" :key="d.id">
+                    <button type="button" @click="pickDeck(oi, d)"
+                            class="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-left text-sm border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                      <span class="font-medium text-gray-800 dark:text-gray-200 truncate" x-text="d.name"></span>
+                      <span class="text-xs text-gray-400 ml-auto" x-text="d.user"></span>
+                    </button>
+                  </template>
+                </div>
+                <div x-show="opp.deck_id" x-cloak class="mt-1 flex items-center gap-1.5 text-xs text-void-600 dark:text-void-400">
+                  <span x-text="opp.deckSearch || 'Linked'"></span>
+                  <button type="button" @click="opp.deck_id = ''; opp.deckSearch = ''" class="text-red-400 hover:text-red-500">&times;</button>
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Commander(s)</label>
+                <input type="text" x-model="opp.commandersText"
+                       @input="opp.commanders = opp.commandersText.split(',').map(s => s.trim()).filter(Boolean)"
+                       class="input text-sm" placeholder="Comma-separated">
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Placement</label>
+                <input type="number" x-model.number="opp.placement" min="0" class="input text-sm" placeholder="0">
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Elimination Cause</label>
+                <select x-model="opp.elimination_cause" class="input text-sm">
+                  <option value="">—</option>
+                  {% for val, label in elimination_choices %}
+                  <option value="{{ val }}">{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    {% if form.errors %}
+    <div class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm">
+      {% for field, errors in form.errors.items %}
+        {% for error in errors %}
+        <p>{{ error }}</p>
+        {% endfor %}
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="flex justify-end gap-3">
+      <a href="{% url 'phyrexian:game-list' %}"
+         class="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-void-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800 transition-colors">
+        Cancel
+      </a>
+      <button type="submit" class="btn-primary">
+        {% if object %}Save Changes{% else %}Log Game{% endif %}
+      </button>
+    </div>
+  </form>
 
 </div>
+
+<script>
+  function gameForm() {
+    // Parse existing data for edit mode
+    const existingOpponents = {{ existing_opponents_json|default:"[]"|safe }};
+    const existingCommanders = {{ form.my_commanders.value|default:"[]"|safe }};
+
+    // Build deck→commanders map from user's decks
+    const deckCommanders = {};
+    {% for d in form.deck.field.queryset %}
+      deckCommanders["{{ d.pk }}"] = [{% for dc in d.commander_cards.all %}"{{ dc.card.name }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+    {% endfor %}
+
+    return {
+      myCommanders: Array.isArray(existingCommanders) ? existingCommanders : [],
+      cmdInput: '',
+      selectedDeckId: '{{ form.deck.value|default:"" }}',
+      opponents: existingOpponents.map(o => ({
+        ...o,
+        commandersText: (o.commanders || []).join(', '),
+        deckSearch: o.deck_name || '',
+        deckResults: [],
+        showResults: false,
+      })),
+
+      addCommander() {
+        const v = this.cmdInput.trim();
+        if (v && !this.myCommanders.includes(v)) {
+          this.myCommanders.push(v);
+        }
+        this.cmdInput = '';
+      },
+
+      onDeckChange() {
+        const id = this.selectedDeckId;
+        if (id && deckCommanders[id]) {
+          this.myCommanders = [...deckCommanders[id]];
+        }
+      },
+
+      addOpponent() {
+        this.opponents.push({
+          name: '', deck_id: '', deck_name: '', commanders: [],
+          commandersText: '', placement: 0, elimination_cause: '',
+          deckSearch: '', deckResults: [], showResults: false,
+        });
+      },
+
+      async searchDeck(oi) {
+        const opp = this.opponents[oi];
+        const q = (opp.deckSearch || '').trim();
+        if (q.length < 2) { opp.deckResults = []; opp.showResults = false; return; }
+        try {
+          const resp = await fetch(`/stats/api/deck-search/?q=${encodeURIComponent(q)}`);
+          opp.deckResults = await resp.json();
+          opp.showResults = opp.deckResults.length > 0;
+        } catch(e) { console.error(e); }
+      },
+
+      pickDeck(oi, deck) {
+        const opp = this.opponents[oi];
+        opp.deck_id = deck.id;
+        opp.deckSearch = deck.name;
+        opp.deck_name = deck.name;
+        opp.showResults = false;
+        if (deck.commanders?.length) {
+          opp.commanders = deck.commanders;
+          opp.commandersText = deck.commanders.join(', ');
+        }
+      },
+
+      prepareSubmit() {
+        // Sync opponents — build legacy opponent_name for backward compat
+        const names = this.opponents.map(o => o.name).filter(Boolean);
+        const el = document.querySelector('[name="opponent_name"]');
+        if (el) el.value = names.join(', ');
+        const el2 = document.querySelector('[name="opponent_deck_name"]');
+        if (el2 && this.opponents.length) el2.value = this.opponents.map(o => o.deck_name || '').join(', ');
+      },
+    };
+  }
+</script>
 {% endblock %}
