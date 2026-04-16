@@ -377,3 +377,263 @@ class LifeChange(BaseModel):
     def __str__(self):
         sign = "+" if self.delta > 0 else ""
         return f"{self.player.name}: {sign}{self.delta} → {self.life_after} (turn {self.turn})"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Tournament Bracket Tracking
+# ═══════════════════════════════════════════════════════════════════════════
+
+class BracketType(models.TextChoices):
+    SINGLE_ELIM = "single_elim", "Single Elimination"
+    SWISS       = "swiss",       "Swiss"
+
+
+class TournamentStatus(models.TextChoices):
+    SETUP    = "setup",    "Setup"
+    ACTIVE   = "active",   "Active"
+    FINISHED = "finished", "Finished"
+
+
+class Tournament(BaseModel):
+    """A tournament grouping multiple rounds of games."""
+    name = models.CharField(max_length=200)
+    host = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="hosted_tournaments"
+    )
+    format = models.CharField(
+        max_length=20, choices=MagicFormat.choices, default=MagicFormat.COMMANDER,
+    )
+    bracket_type = models.CharField(
+        max_length=20, choices=BracketType.choices, default=BracketType.SWISS,
+    )
+    status = models.CharField(
+        max_length=10, choices=TournamentStatus.choices, default=TournamentStatus.SETUP,
+    )
+    pod_size = models.PositiveSmallIntegerField(
+        default=4,
+        help_text="Players per table (2 for 1v1, 3-4 for multiplayer).",
+    )
+    swiss_rounds = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Number of Swiss rounds (auto-calculated if blank).",
+    )
+    current_round = models.PositiveSmallIntegerField(default=0)
+    date = models.DateField()
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-date", "-created_at"]
+
+    def __str__(self):
+        return f"{self.name} — {self.get_format_display()} ({self.get_bracket_type_display()})"
+
+    def get_absolute_url(self):
+        return reverse("phyrexian:tournament-detail", kwargs={"pk": self.pk})
+
+    @property
+    def participant_count(self):
+        return self.participants.filter(dropped=False).count()
+
+    @property
+    def recommended_rounds(self):
+        """ceil(log2(n)) rounds for Swiss."""
+        import math
+        n = self.participants.count()
+        return max(1, math.ceil(math.log2(n))) if n > 1 else 1
+
+    @property
+    def total_rounds(self):
+        if self.bracket_type == BracketType.SWISS:
+            return self.swiss_rounds or self.recommended_rounds
+        # Single-elim: number of rounds based on pod_size
+        import math
+        n = self.participants.count()
+        if n <= 1:
+            return 0
+        return math.ceil(math.log(n) / math.log(self.pod_size))
+
+
+class TournamentParticipant(BaseModel):
+    """A player registered in a tournament."""
+    tournament = models.ForeignKey(
+        Tournament, on_delete=models.CASCADE, related_name="participants"
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="tournament_entries",
+    )
+    name = models.CharField(max_length=100)
+    deck = models.ForeignKey(
+        "tolarian.Deck", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="+",
+    )
+    deck_name = models.CharField(max_length=100, blank=True)
+    commanders = models.JSONField(default=list, blank=True)
+    seed = models.PositiveSmallIntegerField(default=0)
+
+    # Standing tracking
+    match_points = models.PositiveSmallIntegerField(default=0)
+    match_wins = models.PositiveSmallIntegerField(default=0)
+    match_losses = models.PositiveSmallIntegerField(default=0)
+    match_draws = models.PositiveSmallIntegerField(default=0)
+    game_win_pct = models.FloatField(default=0.0)
+    opp_match_win_pct = models.FloatField(default=0.0)
+    opp_game_win_pct = models.FloatField(default=0.0)
+
+    dropped = models.BooleanField(default=False)
+    final_standing = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["-match_points", "-opp_match_win_pct", "-game_win_pct", "seed"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tournament", "user"],
+                name="unique_tournament_user",
+                condition=models.Q(user__isnull=False),
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.match_points} pts)"
+
+    @property
+    def matches_played(self):
+        return self.match_wins + self.match_losses + self.match_draws
+
+    @property
+    def record_display(self):
+        return f"{self.match_wins}-{self.match_losses}" + (
+            f"-{self.match_draws}" if self.match_draws else ""
+        )
+
+
+class TournamentRound(BaseModel):
+    """A round within a tournament."""
+    tournament = models.ForeignKey(
+        Tournament, on_delete=models.CASCADE, related_name="rounds"
+    )
+    round_number = models.PositiveSmallIntegerField()
+    is_complete = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["round_number"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tournament", "round_number"],
+                name="unique_tournament_round",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Round {self.round_number}"
+
+
+class TournamentMatch(BaseModel):
+    """A single match (pod) within a round."""
+    round = models.ForeignKey(
+        TournamentRound, on_delete=models.CASCADE, related_name="matches"
+    )
+    table_number = models.PositiveSmallIntegerField(default=1)
+    bracket_position = models.PositiveSmallIntegerField(
+        default=0, help_text="Position in single-elim bracket.",
+    )
+    session = models.ForeignKey(
+        GameSession, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="tournament_matches",
+    )
+    is_complete = models.BooleanField(default=False)
+    is_bye = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["table_number"]
+
+    def __str__(self):
+        return f"Table {self.table_number}"
+
+
+class TournamentMatchPlayer(BaseModel):
+    """A participant's entry in a specific match."""
+    match = models.ForeignKey(
+        TournamentMatch, on_delete=models.CASCADE, related_name="players"
+    )
+    participant = models.ForeignKey(
+        TournamentParticipant, on_delete=models.CASCADE, related_name="match_entries"
+    )
+    result = models.CharField(
+        max_length=4, choices=GameResult.choices, blank=True,
+    )
+    placement = models.PositiveSmallIntegerField(
+        default=0, help_text="1=winner in this match.",
+    )
+
+    class Meta:
+        ordering = ["placement"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["match", "participant"],
+                name="unique_match_participant",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.participant.name} — {self.get_result_display() or 'pending'}"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Multiplayer ELO Rating System
+# ═══════════════════════════════════════════════════════════════════════════
+
+class EloRating(BaseModel):
+    """Per-user, per-format ELO rating."""
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="elo_ratings"
+    )
+    format = models.CharField(max_length=20, choices=MagicFormat.choices)
+    rating = models.IntegerField(default=1200)
+    matches_played = models.PositiveIntegerField(default=0)
+    wins = models.PositiveIntegerField(default=0)
+    losses = models.PositiveIntegerField(default=0)
+    draws = models.PositiveIntegerField(default=0)
+    peak_rating = models.IntegerField(default=1200)
+
+    class Meta:
+        ordering = ["-rating"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "format"],
+                name="unique_user_format_elo",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} — {self.get_format_display()} — {self.rating}"
+
+
+class EloHistory(BaseModel):
+    """Log of every rating change for audit / chart purposes."""
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="elo_history"
+    )
+    format = models.CharField(max_length=20, choices=MagicFormat.choices)
+    old_rating = models.IntegerField()
+    new_rating = models.IntegerField()
+    change = models.IntegerField()
+    game = models.ForeignKey(
+        GameRecord, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="elo_changes",
+    )
+    tournament_match = models.ForeignKey(
+        TournamentMatch, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="elo_changes",
+    )
+    opponents_snapshot = models.JSONField(
+        default=list, blank=True,
+        help_text='[{"name": "...", "rating": N, "placement": N}, ...]',
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        sign = "+" if self.change >= 0 else ""
+        return f"{self.user.username}: {sign}{self.change} → {self.new_rating}"

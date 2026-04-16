@@ -17,8 +17,11 @@ from multiverse.models import Card, CardPrint
 from .models import (
     GameRecord, GameResult, GamePlayer, GameSession, PlayerSlot, LifeChange,
     SessionStatus, EliminationCause, FORMAT_STARTING_LIFE,
+    Tournament, TournamentParticipant, TournamentRound,
+    TournamentMatch, TournamentMatchPlayer, TournamentStatus, BracketType,
+    EloRating, EloHistory,
 )
-from .forms import GameRecordForm, SessionSetupForm, PLAYER_COLORS
+from .forms import GameRecordForm, SessionSetupForm, TournamentForm, PLAYER_COLORS
 
 # Color config shared by all chart views
 COLOR_LABELS = {"W": "White", "U": "Blue", "B": "Black", "R": "Red", "G": "Green", "C": "Colorless"}
@@ -934,6 +937,28 @@ def _get_slot_commanders(slot):
     return list(slot.commanders or [])
 
 
+def _apply_elo_for_session(session):
+    """Apply ELO rating changes for all players in a finished session."""
+    from .elo import PlayerResult, apply_elo_changes, DEFAULT_RATING
+    slots = list(session.players.filter(user__isnull=False))
+    if len(slots) < 2:
+        return
+    results = []
+    for s in slots:
+        rating_obj = EloRating.objects.filter(
+            user=s.user, format=session.format,
+        ).first()
+        r = rating_obj.rating if rating_obj else DEFAULT_RATING
+        m = rating_obj.matches_played if rating_obj else 0
+        results.append(PlayerResult(
+            user_id=s.user_id,
+            rating=r,
+            matches_played=m,
+            placement=s.placement or 99,
+        ))
+    apply_elo_changes(session.format, results)
+
+
 def _create_game_record_from_session(session, slot, winner_pk):
     """Create a GameRecord with GamePlayer opponents for a session participant."""
     if winner_pk and str(slot.pk) == str(winner_pk):
@@ -1020,6 +1045,8 @@ class SessionEndView(LoginRequiredMixin, TemplateView):
         if host_slot:
             _create_game_record_from_session(session, host_slot, winner_pk)
 
+        _apply_elo_for_session(session)
+
         from django.shortcuts import redirect
         return redirect("phyrexian:session-summary", pk=session.pk)
 
@@ -1086,6 +1113,8 @@ class SessionAutoFinishView(LoginRequiredMixin, View):
         # Auto-create GameRecords for all linked users
         for slot in session.players.filter(user__isnull=False):
             _create_game_record_from_session(session, slot, winner_pk)
+
+        _apply_elo_for_session(session)
 
         return JsonResponse({"ok": True})
 
@@ -1165,3 +1194,181 @@ class PlayerEliminateView(LoginRequiredMixin, View):
             fields.append("updated_at")
             player.save(update_fields=fields)
         return JsonResponse({"ok": True, "cause": player.elimination_cause})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Tournaments
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TournamentListView(LoginRequiredMixin, ListView):
+    model = Tournament
+    template_name = "phyrexian/tournament_list.html"
+    context_object_name = "tournaments"
+    paginate_by = 20
+
+    def get_queryset(self):
+        return Tournament.objects.filter(
+            host=self.request.user, is_active=True,
+        ).prefetch_related("participants")
+
+
+class TournamentCreateView(LoginRequiredMixin, CreateView):
+    model = Tournament
+    form_class = TournamentForm
+    template_name = "phyrexian/tournament_form.html"
+
+    def form_valid(self, form):
+        form.instance.host = self.request.user
+        return super().form_valid(form)
+
+
+class TournamentDetailView(LoginRequiredMixin, TemplateView):
+    template_name = "phyrexian/tournament_detail.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        t = get_object_or_404(Tournament, pk=kwargs["pk"])
+        ctx["tournament"] = t
+        ctx["participants"] = list(
+            t.participants.order_by("-match_points", "-opp_match_win_pct", "seed")
+        )
+        ctx["rounds"] = list(
+            t.rounds.prefetch_related("matches__players__participant").order_by("round_number")
+        )
+        ctx["can_generate_round"] = (
+            t.status != TournamentStatus.FINISHED
+            and (t.current_round == 0 or t.rounds.filter(
+                round_number=t.current_round, is_complete=True
+            ).exists())
+        )
+        ctx["format_choices"] = GameResult.choices
+        return ctx
+
+
+class TournamentAddParticipantView(LoginRequiredMixin, View):
+    """HTMX / POST: add a participant to a tournament."""
+
+    def post(self, request, *args, **kwargs):
+        from django.shortcuts import redirect
+        t = get_object_or_404(Tournament, pk=kwargs["pk"], host=request.user)
+        name = request.POST.get("name", "").strip()
+        if not name:
+            return redirect("phyrexian:tournament-detail", pk=t.pk)
+
+        deck_id = request.POST.get("deck_id") or None
+        commanders_raw = request.POST.get("commanders", "")
+        commanders = [c.strip() for c in commanders_raw.split(",") if c.strip()]
+        seed = t.participants.count() + 1
+
+        TournamentParticipant.objects.create(
+            tournament=t, name=name, seed=seed,
+            deck_id=deck_id if deck_id else None,
+            deck_name=request.POST.get("deck_name", "").strip(),
+            commanders=commanders,
+            user_id=request.POST.get("user_id") or None,
+        )
+        return redirect("phyrexian:tournament-detail", pk=t.pk)
+
+
+class TournamentDropParticipantView(LoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        from django.shortcuts import redirect
+        t = get_object_or_404(Tournament, pk=kwargs["pk"], host=request.user)
+        p = get_object_or_404(TournamentParticipant, pk=kwargs["participant_pk"], tournament=t)
+        if t.status == TournamentStatus.SETUP:
+            p.delete()
+        else:
+            p.dropped = True
+            p.save(update_fields=["dropped", "updated_at"])
+        return redirect("phyrexian:tournament-detail", pk=t.pk)
+
+
+class TournamentGenerateRoundView(LoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        from django.shortcuts import redirect
+        from .tournament import generate_next_round
+        t = get_object_or_404(Tournament, pk=kwargs["pk"], host=request.user)
+        generate_next_round(t)
+        return redirect("phyrexian:tournament-detail", pk=t.pk)
+
+
+class TournamentRecordResultView(LoginRequiredMixin, View):
+    """Record the result of a single match."""
+
+    def post(self, request, *args, **kwargs):
+        from django.shortcuts import redirect
+        from .tournament import record_match_result
+        match = get_object_or_404(
+            TournamentMatch, pk=kwargs["match_pk"],
+            round__tournament__host=request.user,
+        )
+        placements = {}
+        for key, val in request.POST.items():
+            if key.startswith("placement_"):
+                try:
+                    participant_pk = key.split("_", 1)[1]
+                    placements[int(participant_pk)] = int(val)
+                except (ValueError, IndexError):
+                    pass
+        if placements:
+            record_match_result(match, placements)
+        return redirect(
+            "phyrexian:tournament-detail",
+            pk=match.round.tournament.pk,
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ELO Leaderboard & Profile
+# ═══════════════════════════════════════════════════════════════════════════
+
+class EloLeaderboardView(LoginRequiredMixin, TemplateView):
+    template_name = "phyrexian/elo_leaderboard.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        from core.constants import MagicFormat
+        fmt = self.request.GET.get("format", MagicFormat.COMMANDER)
+        ctx["selected_format"] = fmt
+        ctx["format_choices"] = MagicFormat.choices
+        ctx["ratings"] = (
+            EloRating.objects
+            .filter(format=fmt, matches_played__gt=0)
+            .select_related("user")
+            .order_by("-rating")[:50]
+        )
+        # Current user rating
+        ctx["my_rating"] = EloRating.objects.filter(
+            user=self.request.user, format=fmt,
+        ).first()
+        return ctx
+
+
+class EloProfileView(LoginRequiredMixin, TemplateView):
+    template_name = "phyrexian/elo_profile.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        from django.contrib.auth.models import User as AuthUser
+        user = get_object_or_404(AuthUser, pk=kwargs.get("user_pk", self.request.user.pk))
+        ctx["profile_user"] = user
+        ctx["ratings"] = list(
+            EloRating.objects.filter(user=user, matches_played__gt=0).order_by("-rating")
+        )
+        ctx["history"] = list(
+            EloHistory.objects.filter(user=user)
+            .select_related("game")
+            .order_by("-created_at")[:50]
+        )
+        # Chart data: rating over time per format
+        chart_data = {}
+        for entry in EloHistory.objects.filter(user=user).order_by("created_at"):
+            fmt = entry.format
+            if fmt not in chart_data:
+                chart_data[fmt] = []
+            chart_data[fmt].append({
+                "date": entry.created_at.isoformat(),
+                "rating": entry.new_rating,
+            })
+        ctx["chart_data_json"] = json.dumps(chart_data)
+        return ctx

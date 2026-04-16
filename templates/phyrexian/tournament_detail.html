@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}{{ tournament.name }} — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-start justify-between mb-6">
+    <div>
+      <a href="{% url 'phyrexian:tournament-list' %}" class="text-sm text-void-600 dark:text-void-400 hover:underline">&larr; Tournaments</a>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">{{ tournament.name }}</h1>
+      <div class="flex items-center gap-2 mt-1 text-sm text-gray-500">
+        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold
+          {% if tournament.status == 'finished' %}bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400
+          {% elif tournament.status == 'active' %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400
+          {% else %}bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400{% endif %}">
+          {{ tournament.get_status_display }}
+        </span>
+        <span>{{ tournament.get_format_display }}</span>
+        <span>&middot;</span>
+        <span>{{ tournament.get_bracket_type_display }}</span>
+        <span>&middot;</span>
+        <span>{{ tournament.participant_count }} players</span>
+        <span>&middot;</span>
+        <span>Round {{ tournament.current_round }}{% if tournament.total_rounds %}/{{ tournament.total_rounds }}{% endif %}</span>
+      </div>
+    </div>
+    {% if can_generate_round %}
+    <form method="post" action="{% url 'phyrexian:tournament-generate-round' tournament.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn-primary">
+        {% if tournament.current_round == 0 %}Start Tournament{% else %}Generate Round {{ tournament.current_round|add:1 }}{% endif %}
+      </button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="grid lg:grid-cols-3 gap-6">
+
+    <!-- Standings -->
+    <div class="lg:col-span-1">
+      <div class="card p-4">
+        <h2 class="text-sm font-bold text-gray-900 dark:text-gray-100 mb-3">
+          {% if tournament.status == 'finished' %}Final Standings{% else %}Standings{% endif %}
+        </h2>
+
+        {% if tournament.status == 'setup' %}
+        <!-- Add participant form -->
+        <form method="post" action="{% url 'phyrexian:tournament-add-participant' tournament.pk %}" class="mb-4 space-y-2">
+          {% csrf_token %}
+          <input type="text" name="name" placeholder="Player name" required class="input text-sm w-full">
+          <input type="text" name="deck_name" placeholder="Deck name (optional)" class="input text-sm w-full">
+          <input type="text" name="commanders" placeholder="Commanders (comma-sep)" class="input text-sm w-full">
+          <button type="submit" class="w-full px-3 py-1.5 text-sm rounded-lg bg-void-600 text-white hover:bg-void-700 transition-colors">Add Player</button>
+        </form>
+        {% endif %}
+
+        <div class="space-y-1">
+          {% for p in participants %}
+          <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm
+            {% if p.final_standing == 1 %}bg-yellow-500/10 text-yellow-700 dark:text-yellow-400
+            {% elif p.dropped %}bg-gray-100/50 dark:bg-gray-700/30 text-gray-400 line-through
+            {% else %}text-gray-700 dark:text-gray-300{% endif %}">
+            <span class="w-5 text-right text-xs font-bold text-gray-400">
+              {% if p.final_standing %}#{{ p.final_standing }}{% elif forloop.counter <= 99 %}{{ forloop.counter }}{% endif %}
+            </span>
+            <span class="flex-1 truncate font-medium">{{ p.name }}</span>
+            <span class="text-xs tabular-nums">{{ p.record_display }}</span>
+            <span class="text-[10px] text-gray-400 tabular-nums w-8 text-right">{{ p.match_points }}p</span>
+            {% if tournament.status == 'setup' %}
+            <form method="post" action="{% url 'phyrexian:tournament-drop-participant' tournament.pk p.pk %}" class="inline">
+              {% csrf_token %}
+              <button type="submit" class="text-red-400 hover:text-red-500 text-xs">&times;</button>
+            </form>
+            {% endif %}
+          </div>
+          {% empty %}
+          <p class="text-xs text-gray-400 text-center py-4">No players yet.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Rounds -->
+    <div class="lg:col-span-2 space-y-4">
+      {% for rnd in rounds %}
+      <div class="card p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-bold text-gray-900 dark:text-gray-100">
+            Round {{ rnd.round_number }}
+          </h3>
+          {% if rnd.is_complete %}
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 font-bold">Complete</span>
+          {% endif %}
+        </div>
+        <div class="space-y-3">
+          {% for match in rnd.matches.all %}
+          <div class="p-3 rounded-lg border border-gray-200 dark:border-void-700 {% if match.is_complete %}bg-gray-50 dark:bg-void-800/30{% endif %}">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs text-gray-500 font-medium">Table {{ match.table_number }}{% if match.is_bye %} (BYE){% endif %}</span>
+              {% if match.is_complete %}
+              <span class="text-[10px] text-green-500 font-bold">Done</span>
+              {% endif %}
+            </div>
+            {% if not match.is_complete and not match.is_bye %}
+            <form method="post" action="{% url 'phyrexian:tournament-record-result' match.pk %}">
+              {% csrf_token %}
+              <div class="space-y-1.5">
+                {% for mp in match.players.all %}
+                <div class="flex items-center gap-2">
+                  <span class="flex-1 text-sm text-gray-800 dark:text-gray-200 font-medium truncate">{{ mp.participant.name }}</span>
+                  <select name="placement_{{ mp.participant.pk }}" class="input text-xs w-20 py-1">
+                    <option value="0">—</option>
+                    {% for i in "1234" %}
+                    <option value="{{ forloop.counter }}">{{ forloop.counter }}{{ forloop.counter|yesno:"st,nd,rd,th" }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                {% endfor %}
+              </div>
+              <button type="submit" class="mt-2 w-full px-3 py-1.5 text-xs rounded-lg bg-void-600 text-white hover:bg-void-700 transition-colors">Save Result</button>
+            </form>
+            {% else %}
+            <div class="space-y-1">
+              {% for mp in match.players.all %}
+              <div class="flex items-center gap-2 text-sm">
+                {% if mp.placement == 1 %}
+                <span class="text-yellow-500 font-bold text-xs">1st</span>
+                {% elif mp.placement > 0 %}
+                <span class="text-gray-400 text-xs">{{ mp.placement }}{{ mp.placement|yesno:"st,nd,rd,th" }}</span>
+                {% else %}
+                <span class="text-gray-400 text-xs">—</span>
+                {% endif %}
+                <span class="text-gray-800 dark:text-gray-200 {% if mp.placement == 1 %}font-bold{% endif %} truncate">{{ mp.participant.name }}</span>
+                <span class="ml-auto text-xs px-1.5 py-0.5 rounded
+                  {% if mp.result == 'win' %}bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400
+                  {% elif mp.result == 'loss' %}bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400
+                  {% endif %}">
+                  {{ mp.get_result_display|default:"—" }}
+                </span>
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% empty %}
+      <div class="card p-8 text-center text-gray-400">
+        {% if tournament.status == 'setup' %}
+        <p class="text-sm">Add players and start the tournament.</p>
+        {% else %}
+        <p class="text-sm">No rounds generated yet.</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

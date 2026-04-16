@@ -38,6 +38,19 @@ urlpatterns = [
     path("session/<uuid:player_pk>/cmdr-tax/", views.SessionCommanderTaxView.as_view(), name="session-cmdr-tax"),
     path("session/<uuid:player_pk>/eliminate/", views.PlayerEliminateView.as_view(), name="session-eliminate"),
 
+    # Tournaments
+    path("tournaments/", views.TournamentListView.as_view(), name="tournament-list"),
+    path("tournaments/new/", views.TournamentCreateView.as_view(), name="tournament-create"),
+    path("tournaments/<uuid:pk>/", views.TournamentDetailView.as_view(), name="tournament-detail"),
+    path("tournaments/<uuid:pk>/add-player/", views.TournamentAddParticipantView.as_view(), name="tournament-add-participant"),
+    path("tournaments/<uuid:pk>/drop/<uuid:participant_pk>/", views.TournamentDropParticipantView.as_view(), name="tournament-drop-participant"),
+    path("tournaments/<uuid:pk>/generate-round/", views.TournamentGenerateRoundView.as_view(), name="tournament-generate-round"),
+    path("tournaments/match/<uuid:match_pk>/result/", views.TournamentRecordResultView.as_view(), name="tournament-record-result"),
+
+    # ELO
+    path("elo/", views.EloLeaderboardView.as_view(), name="elo-leaderboard"),
+    path("elo/profile/<int:user_pk>/", views.EloProfileView.as_view(), name="elo-profile"),
+
     # API
     path("api/deck-search/", views.DeckSearchJSON.as_view(), name="deck-search"),
 

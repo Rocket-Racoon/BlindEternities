@@ -3,7 +3,10 @@ from django import forms
 from django.utils import timezone
 from core.constants import MagicFormat
 from tolarian.models import Deck
-from .models import GameRecord, GameSession, EliminationCause, FORMAT_STARTING_LIFE
+from .models import (
+    GameRecord, GameSession, Tournament, BracketType,
+    EliminationCause, FORMAT_STARTING_LIFE,
+)
 
 
 class GameRecordForm(forms.ModelForm):
@@ -100,3 +103,36 @@ class PlayerSetupForm(forms.Form):
         initial="#6366F1",
         widget=forms.HiddenInput(),
     )
+
+
+# ---------------------------------------------------------------------------
+# Tournament
+# ---------------------------------------------------------------------------
+POD_SIZE_CHOICES = [(2, "1v1"), (3, "3-Player Pods"), (4, "4-Player Pods")]
+
+
+class TournamentForm(forms.ModelForm):
+    class Meta:
+        model = Tournament
+        fields = ["name", "format", "bracket_type", "pod_size", "swiss_rounds", "date", "notes"]
+        widgets = {
+            "date": forms.DateInput(attrs={"type": "date", "class": "input"}),
+            "notes": forms.Textarea(attrs={"rows": 3, "class": "input"}),
+        }
+
+    pod_size = forms.ChoiceField(
+        choices=POD_SIZE_CHOICES, initial=4,
+        widget=forms.Select(attrs={"class": "input"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["date"].initial = timezone.now().date()
+        self.fields["swiss_rounds"].required = False
+        for name in self.fields:
+            f = self.fields[name]
+            if not isinstance(f.widget, (forms.Textarea, forms.DateInput, forms.HiddenInput)):
+                f.widget.attrs.setdefault("class", "input")
+
+    def clean_pod_size(self):
+        return int(self.cleaned_data["pod_size"])

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}ELO — {{ profile_user.username }} — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+  <div class="mb-6">
+    <a href="{% url 'phyrexian:elo-leaderboard' %}" class="text-sm text-void-600 dark:text-void-400 hover:underline">&larr; Leaderboard</a>
+    <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">{{ profile_user.username }} — ELO Ratings</h1>
+  </div>
+
+  <!-- Rating cards -->
+  {% if ratings %}
+  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+    {% for r in ratings %}
+    <div class="card p-4">
+      <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">{{ r.get_format_display }}</div>
+      <div class="text-3xl font-black tabular-nums
+        {% if r.rating >= 1400 %}text-yellow-600 dark:text-yellow-400
+        {% elif r.rating >= 1200 %}text-gray-800 dark:text-gray-200
+        {% else %}text-gray-400{% endif %}">{{ r.rating }}</div>
+      <div class="text-xs text-gray-500 mt-1">
+        {{ r.matches_played }} games &middot; {{ r.wins }}W / {{ r.losses }}L / {{ r.draws }}D &middot; Peak {{ r.peak_rating }}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card p-8 text-center text-gray-400 mb-6">
+    <p class="text-sm">No rated formats yet.</p>
+  </div>
+  {% endif %}
+
+  <!-- Rating chart -->
+  {% if ratings %}
+  <div class="card p-4 mb-6">
+    <h2 class="text-sm font-bold text-gray-900 dark:text-gray-100 mb-3">Rating History</h2>
+    <canvas id="eloChart" height="200"></canvas>
+  </div>
+  {% endif %}
+
+  <!-- Recent history -->
+  {% if history %}
+  <div class="card p-4">
+    <h2 class="text-sm font-bold text-gray-900 dark:text-gray-100 mb-3">Recent Changes</h2>
+    <div class="space-y-1">
+      {% for h in history %}
+      <div class="flex items-center gap-3 px-2 py-1.5 rounded text-sm">
+        <span class="text-xs text-gray-400 w-20 shrink-0">{{ h.created_at|date:"M d" }}</span>
+        <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-void-800 text-gray-500 capitalize">{{ h.format }}</span>
+        <span class="flex-1 text-gray-600 dark:text-gray-400 tabular-nums">{{ h.old_rating }} &rarr; {{ h.new_rating }}</span>
+        <span class="font-bold tabular-nums {% if h.change > 0 %}text-green-600 dark:text-green-400{% elif h.change < 0 %}text-red-600 dark:text-red-400{% else %}text-gray-400{% endif %}">
+          {% if h.change > 0 %}+{% endif %}{{ h.change }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% if ratings %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+  const chartData = {{ chart_data_json|safe }};
+  const ctx = document.getElementById('eloChart').getContext('2d');
+  const colors = ['#6366F1','#EF4444','#22C55E','#EAB308','#06B6D4','#F97316'];
+  const datasets = [];
+  let ci = 0;
+  for (const [fmt, points] of Object.entries(chartData)) {
+    datasets.push({
+      label: fmt.charAt(0).toUpperCase() + fmt.slice(1),
+      data: points.map(p => ({x: p.date, y: p.rating})),
+      borderColor: colors[ci % colors.length],
+      backgroundColor: colors[ci % colors.length] + '33',
+      tension: 0.3,
+      fill: false,
+      pointRadius: 3,
+    });
+    ci++;
+  }
+  new Chart(ctx, {
+    type: 'line',
+    data: {datasets},
+    options: {
+      responsive: true,
+      scales: {
+        x: {type: 'time', time: {unit: 'day'}, grid: {display: false}},
+        y: {beginAtZero: false, grid: {color: 'rgba(255,255,255,0.05)'}},
+      },
+      plugins: {legend: {position: 'top', labels: {color: '#9ca3af', font: {size: 11}}}},
+    },
+  });
+</script>
+{% endif %}
+{% endblock %}
