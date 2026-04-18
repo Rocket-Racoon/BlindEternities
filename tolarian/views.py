@@ -893,6 +893,51 @@ class DeckDetailView(LoginRequiredMixin, TemplateView):
             ctx["deck_draws"] = deck_games.filter(result=GameResult.DRAW).count()
             ctx["deck_win_rate"] = round(deck_wins / deck_game_count * 100, 1)
 
+            # ── Win rate trend over time (monthly) ──
+            import json as _json
+            from django.db import models as _models
+            from django.db.models.functions import TruncMonth
+
+            monthly = (
+                deck_games
+                .annotate(period=TruncMonth("date_played"))
+                .values("period")
+                .annotate(
+                    total=_models.Count("id"),
+                    wins=_models.Count("id", filter=_models.Q(result=GameResult.WIN)),
+                    losses=_models.Count("id", filter=_models.Q(result=GameResult.LOSS)),
+                    draws=_models.Count("id", filter=_models.Q(result=GameResult.DRAW)),
+                )
+                .order_by("period")
+            )
+            labels = []
+            win_rate_series = []
+            rolling_series = []
+            game_count_series = []
+            cum_wins = 0
+            cum_total = 0
+            for entry in monthly:
+                labels.append(entry["period"].strftime("%Y-%m"))
+                wr = (entry["wins"] / entry["total"] * 100) if entry["total"] else 0
+                win_rate_series.append(round(wr, 1))
+                game_count_series.append(entry["total"])
+                cum_wins += entry["wins"]
+                cum_total += entry["total"]
+                rolling_series.append(round(cum_wins / cum_total * 100, 1))
+
+            ctx["deck_trend_chart_json"] = _json.dumps({
+                "labels": labels,
+                "monthly_win_rate": win_rate_series,
+                "cumulative_win_rate": rolling_series,
+                "game_counts": game_count_series,
+            })
+            ctx["deck_trend_has_data"] = len(labels) > 1
+
+            # Recent games (latest 10)
+            ctx["deck_recent_games"] = list(
+                deck_games.order_by("-date_played", "-created_at")[:10]
+            )
+
         return ctx
 
 

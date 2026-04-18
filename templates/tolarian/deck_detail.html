@@ -514,6 +514,55 @@
           {% include "tolarian/partials/deck_stats.html" %}
         </div>
       </div>
+
+      {# ── Game History & Win Rate Trend ── #}
+      {% if deck_game_count %}
+      <div class="rounded-lg border border-gray-200 dark:border-void-700 bg-white dark:bg-void-900/50 p-3">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+            Record
+          </h3>
+          <a href="{% url 'phyrexian:game-list' %}?deck={{ deck.pk }}" class="text-[10px] text-void-500 hover:underline">View all</a>
+        </div>
+        <div class="grid grid-cols-3 gap-1 mb-2 text-center">
+          <div class="p-1.5 rounded bg-green-500/10">
+            <p class="text-sm font-bold text-green-600 dark:text-green-400 tabular-nums">{{ deck_wins }}</p>
+            <p class="text-[9px] text-gray-500">Wins</p>
+          </div>
+          <div class="p-1.5 rounded bg-red-500/10">
+            <p class="text-sm font-bold text-red-600 dark:text-red-400 tabular-nums">{{ deck_losses }}</p>
+            <p class="text-[9px] text-gray-500">Losses</p>
+          </div>
+          <div class="p-1.5 rounded bg-yellow-500/10">
+            <p class="text-sm font-bold text-yellow-600 dark:text-yellow-400 tabular-nums">{{ deck_draws }}</p>
+            <p class="text-[9px] text-gray-500">Draws</p>
+          </div>
+        </div>
+
+        {% if deck_trend_has_data %}
+        <h4 class="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 mt-3 mb-1">Win Rate Trend</h4>
+        <div class="h-32"><canvas id="deckWinRateChart"></canvas></div>
+        {% endif %}
+
+        {% if deck_recent_games %}
+        <h4 class="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 mt-3 mb-1">Recent Games</h4>
+        <div class="space-y-0.5">
+          {% for g in deck_recent_games %}
+          <a href="{% url 'phyrexian:game-edit' g.pk %}" class="flex items-center gap-1.5 px-1.5 py-1 rounded text-[11px] hover:bg-gray-100 dark:hover:bg-void-800/50 transition-colors">
+            <span class="w-2 h-2 rounded-full shrink-0
+              {% if g.result == 'win' %}bg-green-500
+              {% elif g.result == 'loss' %}bg-red-500
+              {% else %}bg-yellow-500{% endif %}"></span>
+            <span class="flex-1 text-gray-700 dark:text-gray-300 truncate">
+              {{ g.get_result_display }}{% if g.my_placement %} (#{{ g.my_placement }}){% endif %}
+            </span>
+            <span class="text-[9px] text-gray-400 tabular-nums">{{ g.date_played|date:"M d" }}</span>
+          </a>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
     </aside>
   </div>
 
@@ -814,4 +863,55 @@ function categoryHeader(catPk) {
   };
 }
 </script>
+
+{% if deck_trend_has_data %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  const el = document.getElementById('deckWinRateChart');
+  if (!el) return;
+  const d = {{ deck_trend_chart_json|safe }};
+  new Chart(el, {
+    type: 'line',
+    data: {
+      labels: d.labels,
+      datasets: [
+        {
+          label: 'Monthly',
+          data: d.monthly_win_rate,
+          borderColor: '#6366F1',
+          backgroundColor: 'rgba(99,102,241,0.15)',
+          tension: 0.3, fill: false, pointRadius: 3,
+        },
+        {
+          label: 'Cumulative',
+          data: d.cumulative_win_rate,
+          borderColor: '#22C55E',
+          backgroundColor: 'rgba(34,197,94,0.08)',
+          tension: 0.3, fill: true, pointRadius: 2, borderDash: [4, 4],
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: {mode: 'index', intersect: false},
+      scales: {
+        x: {grid: {display: false}, ticks: {font: {size: 9}}},
+        y: {beginAtZero: true, max: 100,
+            ticks: {callback: v => v + '%', font: {size: 9}},
+            grid: {color: 'rgba(255,255,255,0.05)'}},
+      },
+      plugins: {
+        legend: {position: 'top', labels: {boxWidth: 8, font: {size: 9}, padding: 4}},
+        tooltip: {
+          callbacks: {
+            afterBody: ctx => ctx[0] ? d.game_counts[ctx[0].dataIndex] + ' games' : '',
+          }
+        }
+      },
+    }
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}
