@@ -114,7 +114,7 @@ POD_SIZE_CHOICES = [(2, "1v1"), (3, "3-Player Pods"), (4, "4-Player Pods")]
 class TournamentForm(forms.ModelForm):
     class Meta:
         model = Tournament
-        fields = ["name", "format", "bracket_type", "pod_size", "swiss_rounds", "date", "notes"]
+        fields = ["name", "format", "bracket_type", "pod_size", "best_of", "swiss_rounds", "date", "notes"]
         widgets = {
             "date": forms.DateInput(attrs={"type": "date", "class": "input"}),
             "notes": forms.Textarea(attrs={"rows": 3, "class": "input"}),
@@ -122,6 +122,11 @@ class TournamentForm(forms.ModelForm):
 
     pod_size = forms.ChoiceField(
         choices=POD_SIZE_CHOICES, initial=4,
+        widget=forms.Select(attrs={"class": "input"}),
+    )
+    best_of = forms.ChoiceField(
+        choices=[(1, "Single Game"), (3, "Best of 3")],
+        initial=1,
         widget=forms.Select(attrs={"class": "input"}),
     )
 
@@ -136,3 +141,6 @@ class TournamentForm(forms.ModelForm):
 
     def clean_pod_size(self):
         return int(self.cleaned_data["pod_size"])
+
+    def clean_best_of(self):
+        return int(self.cleaned_data["best_of"])

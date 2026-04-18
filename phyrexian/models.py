@@ -417,6 +417,10 @@ class Tournament(BaseModel):
         null=True, blank=True,
         help_text="Number of Swiss rounds (auto-calculated if blank).",
     )
+    best_of = models.PositiveSmallIntegerField(
+        default=1,
+        help_text="Best-of-N games per match (1 = single game, 3 = Bo3).",
+    )
     current_round = models.PositiveSmallIntegerField(default=0)
     date = models.DateField()
     notes = models.TextField(blank=True)
@@ -541,6 +545,9 @@ class TournamentMatch(BaseModel):
         GameSession, on_delete=models.SET_NULL,
         null=True, blank=True, related_name="tournament_matches",
     )
+    current_game = models.PositiveSmallIntegerField(
+        default=1, help_text="Current game number in a best-of-N match.",
+    )
     is_complete = models.BooleanField(default=False)
     is_bye = models.BooleanField(default=False)
 
@@ -549,6 +556,11 @@ class TournamentMatch(BaseModel):
 
     def __str__(self):
         return f"Table {self.table_number}"
+
+    @property
+    def wins_needed(self):
+        best_of = self.round.tournament.best_of
+        return (best_of // 2) + 1
 
 
 class TournamentMatchPlayer(BaseModel):
@@ -565,6 +577,9 @@ class TournamentMatchPlayer(BaseModel):
     placement = models.PositiveSmallIntegerField(
         default=0, help_text="1=winner in this match.",
     )
+    game_wins = models.PositiveSmallIntegerField(
+        default=0, help_text="Games won within this best-of-N match.",
+    )
 
     class Meta:
         ordering = ["placement"]
@@ -577,6 +592,60 @@ class TournamentMatchPlayer(BaseModel):
 
     def __str__(self):
         return f"{self.participant.name} — {self.get_result_display() or 'pending'}"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Tournament Statistics (per-user aggregate)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TournamentStats(BaseModel):
+    """Aggregated tournament performance for a user in a given format."""
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="tournament_stats"
+    )
+    format = models.CharField(max_length=20, choices=MagicFormat.choices)
+
+    tournaments_played = models.PositiveIntegerField(default=0)
+    tournaments_won = models.PositiveIntegerField(default=0, help_text="1st place finishes.")
+    top_4 = models.PositiveIntegerField(default=0)
+
+    match_wins = models.PositiveIntegerField(default=0)
+    match_losses = models.PositiveIntegerField(default=0)
+    match_draws = models.PositiveIntegerField(default=0)
+
+    game_wins = models.PositiveIntegerField(default=0)
+    game_losses = models.PositiveIntegerField(default=0)
+
+    best_placement = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Best tournament finish (1 = won). 0 = never finished.",
+    )
+
+    class Meta:
+        ordering = ["-tournaments_won", "-match_wins"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "format"],
+                name="unique_user_format_tstats",
+            ),
+        ]
+        verbose_name = "tournament stats"
+        verbose_name_plural = "tournament stats"
+
+    def __str__(self):
+        return (
+            f"{self.user.username} — {self.get_format_display()} — "
+            f"{self.tournaments_won}W / {self.tournaments_played}T"
+        )
+
+    @property
+    def total_matches(self):
+        return self.match_wins + self.match_losses + self.match_draws
+
+    @property
+    def match_win_pct(self):
+        total = self.total_matches
+        return (self.match_wins / total * 100) if total else 0.0
 
 
 # ═══════════════════════════════════════════════════════════════════════════

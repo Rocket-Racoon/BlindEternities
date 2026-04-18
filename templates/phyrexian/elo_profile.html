@@ -31,6 +31,77 @@
   </div>
   {% endif %}
 
+  <!-- Tournament stats -->
+  {% if tournament_stats %}
+  <div class="card p-4 mb-6">
+    <h2 class="text-sm font-bold text-gray-900 dark:text-gray-100 mb-3">Tournament Performance</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-void-700">
+            <th class="pb-2 font-medium">Format</th>
+            <th class="pb-2 font-medium text-right">Played</th>
+            <th class="pb-2 font-medium text-right">Won</th>
+            <th class="pb-2 font-medium text-right">Top 4</th>
+            <th class="pb-2 font-medium text-right">Best</th>
+            <th class="pb-2 font-medium text-right">Matches</th>
+            <th class="pb-2 font-medium text-right">Games</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100 dark:divide-void-800">
+          {% for s in tournament_stats %}
+          <tr>
+            <td class="py-2 text-gray-800 dark:text-gray-200 capitalize">{{ s.format }}</td>
+            <td class="py-2 text-right tabular-nums text-gray-600 dark:text-gray-400">{{ s.tournaments_played }}</td>
+            <td class="py-2 text-right tabular-nums font-bold text-yellow-600 dark:text-yellow-400">{{ s.tournaments_won }}</td>
+            <td class="py-2 text-right tabular-nums text-gray-600 dark:text-gray-400">{{ s.top_4 }}</td>
+            <td class="py-2 text-right tabular-nums text-gray-800 dark:text-gray-200">{% if s.best_placement %}#{{ s.best_placement }}{% else %}—{% endif %}</td>
+            <td class="py-2 text-right tabular-nums text-gray-600 dark:text-gray-400">
+              {{ s.match_wins }}-{{ s.match_losses }}{% if s.match_draws %}-{{ s.match_draws }}{% endif %}
+            </td>
+            <td class="py-2 text-right tabular-nums text-gray-600 dark:text-gray-400">
+              {% if s.game_wins or s.game_losses %}{{ s.game_wins }}-{{ s.game_losses }}{% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Tournament match-by-match trend -->
+  {% if tournament_trend_has_data %}
+  <div class="card p-4 mb-6">
+    <h2 class="text-sm font-bold text-gray-900 dark:text-gray-100 mb-3">Tournament Match Trend</h2>
+    <p class="text-[10px] text-gray-400 mb-2">Cumulative win rate across all tournament matches (chronological)</p>
+    <div class="h-48"><canvas id="tMatchTrend"></canvas></div>
+  </div>
+  {% endif %}
+
+  <!-- Recent tournament finishes -->
+  {% if recent_tournaments %}
+  <div class="card p-4 mb-6">
+    <h2 class="text-sm font-bold text-gray-900 dark:text-gray-100 mb-3">Recent Tournaments</h2>
+    <div class="space-y-1">
+      {% for p in recent_tournaments %}
+      <a href="{{ p.tournament.get_absolute_url }}" class="flex items-center gap-3 px-2 py-1.5 rounded text-sm hover:bg-gray-50 dark:hover:bg-void-800/30 transition-colors">
+        <span class="text-[10px] font-bold w-8 text-right
+          {% if p.final_standing == 1 %}text-yellow-500
+          {% elif p.final_standing <= 4 %}text-void-500 dark:text-void-400
+          {% else %}text-gray-400{% endif %}">
+          {% if p.final_standing %}#{{ p.final_standing }}{% else %}—{% endif %}
+        </span>
+        <span class="flex-1 truncate text-gray-800 dark:text-gray-200 font-medium">{{ p.tournament.name }}</span>
+        <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-void-800 text-gray-500 capitalize">{{ p.tournament.format }}</span>
+        <span class="text-xs text-gray-500 tabular-nums">{{ p.record_display }}</span>
+        <span class="text-xs text-gray-400 w-20 text-right">{{ p.tournament.date }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Rating chart -->
   {% if ratings %}
   <div class="card p-4 mb-6">
@@ -61,6 +132,7 @@
 
 {% if ratings %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script>
   const chartData = {{ chart_data_json|safe }};
   const ctx = document.getElementById('eloChart').getContext('2d');
@@ -91,6 +163,44 @@
       plugins: {legend: {position: 'top', labels: {color: '#9ca3af', font: {size: 11}}}},
     },
   });
+
+  {% if tournament_trend_has_data %}
+  const tm = {{ tournament_trend_json|safe }};
+  const pointColors = tm.results.map(r =>
+    r === 'win' ? '#22C55E' : r === 'loss' ? '#EF4444' : '#EAB308'
+  );
+  new Chart(document.getElementById('tMatchTrend'), {
+    type: 'line',
+    data: {
+      labels: tm.labels,
+      datasets: [{
+        label: 'Cumulative Win Rate %',
+        data: tm.win_rate,
+        borderColor: '#6366F1',
+        backgroundColor: 'rgba(99,102,241,0.12)',
+        tension: 0.3, fill: true,
+        pointBackgroundColor: pointColors,
+        pointRadius: 4, pointHoverRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: {grid: {display: false}, ticks: {display: false}},
+        y: {beginAtZero: true, max: 100, ticks: {callback: v => v + '%', font: {size: 10}}},
+      },
+      plugins: {
+        legend: {display: false},
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.parsed.y + '%',
+            afterLabel: ctx => 'Result: ' + tm.results[ctx.dataIndex],
+          }
+        }
+      },
+    }
+  });
+  {% endif %}
 </script>
 {% endif %}
 {% endblock %}

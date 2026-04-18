@@ -14,6 +14,67 @@
     <a href="{% url 'phyrexian:game-create' %}" class="btn-primary">Log Game</a>
   </div>
 
+  <!-- Filters -->
+  <div class="card p-4 mb-6" x-data="{ open: {% if filter_deck or filter_commander or filter_color or filter_format %}true{% else %}false{% endif %} }">
+    <button @click="open = !open" class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 w-full">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+      </svg>
+      Filters
+      {% if filter_deck or filter_commander or filter_color or filter_format %}
+      <span class="text-xs text-void-500 font-normal">(active)</span>
+      {% endif %}
+      <svg class="w-3 h-3 ml-auto transition-transform" :class="open && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+      </svg>
+    </button>
+    <form x-show="open" x-transition method="get" class="mt-4 grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Format</label>
+        <select name="format" class="input text-sm">
+          <option value="">All</option>
+          {% for val, label in format_choices %}
+          <option value="{{ val }}" {% if filter_format == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Deck</label>
+        <select name="deck" class="input text-sm">
+          <option value="">All</option>
+          {% for d in user_decks %}
+          <option value="{{ d.pk }}" {% if filter_deck == d.pk|slugify %}selected{% endif %}>{{ d.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Commander</label>
+        <input type="text" name="commander" value="{{ filter_commander }}" placeholder="Name contains..." class="input text-sm">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Color Identity</label>
+        <select name="color" class="input text-sm">
+          <option value="">All</option>
+          {% for val, label in color_choices %}
+          <option value="{{ val }}" {% if filter_color == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Trend Granularity</label>
+        <select name="granularity" class="input text-sm">
+          <option value="month" {% if filter_granularity == "month" %}selected{% endif %}>Month</option>
+          <option value="year" {% if filter_granularity == "year" %}selected{% endif %}>Year</option>
+        </select>
+      </div>
+      <div class="col-span-2 md:col-span-5 flex gap-2">
+        <button type="submit" class="px-4 py-1.5 text-sm rounded-lg bg-void-600 text-white hover:bg-void-700 transition-colors">Apply</button>
+        <a href="{% url 'phyrexian:win-rate' %}" class="px-4 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-void-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800 transition-colors">Clear</a>
+      </div>
+    </form>
+  </div>
+
   {% if not has_data %}
   <div class="card p-16 text-center text-gray-400 dark:text-gray-600">
     <p class="text-sm">No games recorded yet.</p>
@@ -109,27 +170,97 @@
     </div>
   </div>
 
-  <!-- By opponent -->
-  {% if opponent_stats %}
-  <div class="card p-6">
-    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">By Opponent</h2>
+  <!-- Win Rate Trend -->
+  {% if trend_has_data %}
+  <div class="card p-6 mb-8">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+      Win Rate Trend — {{ filter_granularity|title }}ly
+    </h2>
+    <div class="h-64"><canvas id="trendChart"></canvas></div>
+  </div>
+  {% endif %}
+
+  <!-- Row 2: Elimination cause + Placement distribution + Turn duration -->
+  <div class="grid md:grid-cols-3 gap-6 mb-8">
+
+    {# Elimination cause breakdown (losses) #}
+    <div class="card p-6">
+      <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">How You Lose</h2>
+      {% if elim_has_data %}
+      <div class="h-48"><canvas id="elimChart"></canvas></div>
+      {% else %}
+      <p class="text-xs text-gray-400 mt-8 text-center">No elimination data yet — log games with elimination causes.</p>
+      {% endif %}
+    </div>
+
+    {# Placement distribution #}
+    <div class="card p-6">
+      <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Placement Distribution</h2>
+      {% if placement_has_data %}
+      <div class="h-48"><canvas id="placementChart"></canvas></div>
+      {% else %}
+      <p class="text-xs text-gray-400 mt-8 text-center">No placement data yet.</p>
+      {% endif %}
+    </div>
+
+    {# Turn duration #}
+    <div class="card p-6">
+      <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Game Length (Turns)</h2>
+      {% if avg_turns_overall %}
+      <div class="space-y-4 mt-6">
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-gray-500 uppercase tracking-wider">Average</span>
+          <span class="text-2xl font-bold text-gray-800 dark:text-gray-200 tabular-nums">{{ avg_turns_overall }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-green-600 dark:text-green-400 uppercase tracking-wider">Your wins</span>
+          <span class="text-lg font-bold text-green-600 dark:text-green-400 tabular-nums">{{ avg_turns_wins }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-red-600 dark:text-red-400 uppercase tracking-wider">Your losses</span>
+          <span class="text-lg font-bold text-red-600 dark:text-red-400 tabular-nums">{{ avg_turns_losses }}</span>
+        </div>
+        <div class="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-void-700">
+          <span class="text-xs text-gray-500">Range</span>
+          <span class="text-xs text-gray-500 tabular-nums">{{ min_turns }} — {{ max_turns }}</span>
+        </div>
+      </div>
+      {% else %}
+      <p class="text-xs text-gray-400 mt-8 text-center">No turn data yet — add turns to your game records.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Row 3: Commander performance -->
+  {% if commander_stats %}
+  <div class="card p-6 mb-8">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Commander Performance</h2>
     <div class="overflow-x-auto">
       <table class="w-full text-sm">
         <thead>
           <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-void-700">
-            <th class="pb-2 font-medium">Opponent</th>
+            <th class="pb-2 font-medium">Commander</th>
             <th class="pb-2 font-medium text-right">Games</th>
-            <th class="pb-2 font-medium text-right">Wins</th>
-            <th class="pb-2 font-medium text-right">Win Rate</th>
+            <th class="pb-2 font-medium text-right">W/L/D</th>
+            <th class="pb-2 font-medium text-right w-32">Win Rate</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100 dark:divide-void-800">
-          {% for o in opponent_stats %}
+          {% for c in commander_stats %}
           <tr>
-            <td class="py-2 text-gray-800 dark:text-gray-200">{{ o.opponent_name }}</td>
-            <td class="py-2 text-right text-gray-500">{{ o.total }}</td>
-            <td class="py-2 text-right text-gray-500">{{ o.wins }}</td>
-            <td class="py-2 text-right font-medium text-void-600 dark:text-void-400">{{ o.win_rate }}%</td>
+            <td class="py-2 text-gray-800 dark:text-gray-200 font-medium">{{ c.name }}</td>
+            <td class="py-2 text-right text-gray-500 tabular-nums">{{ c.total }}</td>
+            <td class="py-2 text-right text-gray-500 tabular-nums">{{ c.wins }}/{{ c.losses }}/{{ c.draws }}</td>
+            <td class="py-2 text-right">
+              <div class="flex items-center justify-end gap-2">
+                <div class="flex h-2 w-20 rounded-full overflow-hidden bg-gray-200 dark:bg-void-700">
+                  <div class="bg-green-500" style="width: {% widthratio c.wins c.total 100 %}%"></div>
+                  <div class="bg-red-500" style="width: {% widthratio c.losses c.total 100 %}%"></div>
+                  <div class="bg-yellow-500" style="width: {% widthratio c.draws c.total 100 %}%"></div>
+                </div>
+                <span class="font-medium text-void-600 dark:text-void-400 tabular-nums w-12 text-right">{{ c.win_rate }}%</span>
+              </div>
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -137,6 +268,59 @@
     </div>
   </div>
   {% endif %}
+
+  <!-- Row 4: Opponents + Eliminators side-by-side -->
+  <div class="grid md:grid-cols-2 gap-6 mb-8">
+
+    {# Opponents #}
+    {% if opponent_stats %}
+    <div class="card p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Head-to-Head</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-void-700">
+              <th class="pb-2 font-medium">Opponent</th>
+              <th class="pb-2 font-medium text-right">Games</th>
+              <th class="pb-2 font-medium text-right">Wins</th>
+              <th class="pb-2 font-medium text-right">Win Rate</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 dark:divide-void-800">
+            {% for o in opponent_stats %}
+            <tr>
+              <td class="py-2 text-gray-800 dark:text-gray-200">{{ o.opponent_name }}</td>
+              <td class="py-2 text-right text-gray-500 tabular-nums">{{ o.total }}</td>
+              <td class="py-2 text-right text-gray-500 tabular-nums">{{ o.wins }}</td>
+              <td class="py-2 text-right font-medium text-void-600 dark:text-void-400 tabular-nums">{{ o.win_rate }}%</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {# Top eliminators #}
+    {% if eliminator_stats %}
+    <div class="card p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Your Biggest Threats</h2>
+      <p class="text-xs text-gray-500 mb-3">Who eliminates you most often</p>
+      <div class="space-y-2">
+        {% for name, count in eliminator_stats %}
+        <div class="flex items-center gap-3">
+          <span class="w-5 text-right text-xs font-bold text-gray-400">{{ forloop.counter }}</span>
+          <span class="flex-1 text-sm text-gray-800 dark:text-gray-200 truncate">{{ name }}</span>
+          <div class="flex items-center gap-2">
+            <div class="h-2 bg-red-500/30 rounded-full" style="width: {% widthratio count eliminator_stats.0.1 80 %}px"></div>
+            <span class="text-sm font-bold text-red-600 dark:text-red-400 tabular-nums w-6 text-right">{{ count }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
 
   {% endif %}
 </div>
@@ -161,6 +345,94 @@
       plugins: {legend: {position: 'bottom', labels: {boxWidth: 12, padding: 8}}}
     }
   });
+
+  {% if elim_has_data %}
+  const elimData = {{ elim_chart_json|safe }};
+  new Chart(document.getElementById('elimChart'), {
+    type: 'doughnut',
+    data: {
+      labels: elimData.labels,
+      datasets: [{data: elimData.data, backgroundColor: elimData.colors, borderWidth: 0}]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '55%',
+      plugins: {legend: {position: 'bottom', labels: {boxWidth: 10, padding: 6, font: {size: 10}}}}
+    }
+  });
+  {% endif %}
+
+  {% if trend_has_data %}
+  const trendData = {{ trend_chart_json|safe }};
+  new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels: trendData.labels,
+      datasets: [
+        {
+          label: 'Win Rate %',
+          data: trendData.win_rate,
+          borderColor: '#6366F1',
+          backgroundColor: 'rgba(99,102,241,0.15)',
+          tension: 0.3, fill: true, yAxisID: 'y',
+        },
+        {
+          label: 'Wins', data: trendData.wins,
+          borderColor: '#22C55E', backgroundColor: 'transparent',
+          tension: 0.3, yAxisID: 'y1', borderDash: [4, 4],
+        },
+        {
+          label: 'Losses', data: trendData.losses,
+          borderColor: '#EF4444', backgroundColor: 'transparent',
+          tension: 0.3, yAxisID: 'y1', borderDash: [4, 4],
+        },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: {mode: 'index', intersect: false},
+      scales: {
+        x: {grid: {display: false}, ticks: {font: {size: 10}}},
+        y: {
+          type: 'linear', position: 'left',
+          beginAtZero: true, max: 100,
+          grid: {color: 'rgba(255,255,255,0.05)'},
+          ticks: {callback: v => v + '%', font: {size: 10}},
+          title: {display: true, text: 'Win Rate', font: {size: 10}},
+        },
+        y1: {
+          type: 'linear', position: 'right', beginAtZero: true,
+          grid: {drawOnChartArea: false},
+          ticks: {precision: 0, font: {size: 10}},
+          title: {display: true, text: 'Game Count', font: {size: 10}},
+        },
+      },
+      plugins: {legend: {position: 'top', labels: {boxWidth: 12, font: {size: 11}}}},
+    }
+  });
+  {% endif %}
+
+  {% if placement_has_data %}
+  const placementData = {{ placement_chart_json|safe }};
+  new Chart(document.getElementById('placementChart'), {
+    type: 'bar',
+    data: {
+      labels: placementData.labels,
+      datasets: [{
+        data: placementData.data,
+        backgroundColor: placementData.colors,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: {grid: {display: false}, ticks: {font: {size: 11}}},
+        y: {beginAtZero: true, grid: {color: 'rgba(255,255,255,0.05)'}, ticks: {precision: 0, font: {size: 10}}},
+      },
+      plugins: {legend: {display: false}}
+    }
+  });
+  {% endif %}
 </script>
 {% endif %}
 {% endblock %}

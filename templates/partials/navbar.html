@@ -24,6 +24,8 @@
            class="nav-link {% active_url 'deck-list' %}">Decks</a>
         <a href="{% url 'phyrexian:dashboard' %}"
            class="nav-link {% active_url 'stats' %}">Stats</a>
+        <a href="{% url 'phyrexian:tournament-list' %}"
+           class="nav-link {% active_url 'tournament' %}">Tournaments</a>
         {% endif %}
         <a href="#"
            class="nav-link {% active_url 'marketplace' %}">Trades</a>
@@ -107,6 +109,7 @@
       <a href="{% url 'tolarian:collection-list' %}" class="block nav-link">Collection</a>
       <a href="{% url 'tolarian:deck-list' %}" class="block nav-link">Decks</a>
       <a href="{% url 'phyrexian:dashboard' %}" class="block nav-link">Stats</a>
+      <a href="{% url 'phyrexian:tournament-list' %}" class="block nav-link">Tournaments</a>
       {% endif %}
       <a href="#" class="block nav-link">Trades</a>
     </div>

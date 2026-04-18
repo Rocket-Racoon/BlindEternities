@@ -19,6 +19,7 @@ from .models import (
     SessionStatus, EliminationCause, FORMAT_STARTING_LIFE,
     Tournament, TournamentParticipant, TournamentRound,
     TournamentMatch, TournamentMatchPlayer, TournamentStatus, BracketType,
+    TournamentStats,
     EloRating, EloHistory,
 )
 from .forms import GameRecordForm, SessionSetupForm, TournamentForm, PLAYER_COLORS
@@ -42,6 +43,17 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         user = self.request.user
 
+        # ── Filters ──
+        filter_format = self.request.GET.get("format", "")
+        filter_deck = self.request.GET.get("deck", "")
+        filter_period = self.request.GET.get("period", "all")  # all, 30d, 90d, 1y
+        ctx["filter_format"] = filter_format
+        ctx["filter_deck"] = filter_deck
+        ctx["filter_period"] = filter_period
+        from core.constants import MagicFormat
+        ctx["format_choices"] = MagicFormat.choices
+        ctx["user_decks"] = Deck.objects.filter(user=user, is_active=True).order_by("name")
+
         # Summary counts
         ctx["total_decks"] = Deck.objects.filter(user=user, is_active=True).count()
         ctx["total_collections"] = Collection.objects.filter(user=user, is_active=True).count()
@@ -51,8 +63,20 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         collections = Collection.objects.filter(user=user, is_active=True)
         ctx["total_collection_value"] = sum(c.total_value for c in collections)
 
-        # Win rate summary
+        # Win rate summary (filtered)
         games = GameRecord.objects.filter(user=user, is_active=True)
+        if filter_format:
+            games = games.filter(format=filter_format)
+        if filter_deck:
+            games = games.filter(deck_id=filter_deck)
+        if filter_period != "all":
+            from datetime import timedelta
+            days_map = {"30d": 30, "90d": 90, "1y": 365}
+            days = days_map.get(filter_period)
+            if days:
+                cutoff = timezone.now().date() - timedelta(days=days)
+                games = games.filter(date_played__gte=cutoff)
+
         total = games.count()
         if total:
             wins = games.filter(result=GameResult.WIN).count()
@@ -312,6 +336,44 @@ class GameRecordListView(LoginRequiredMixin, ListView):
         ctx["result_choices"] = GameResult.choices
         from core.constants import MagicFormat
         ctx["format_choices"] = MagicFormat.choices
+
+        # ── Mini trend chart for filtered games ──
+        filtered = self.get_queryset()
+        total = filtered.count()
+        wins = filtered.filter(result=GameResult.WIN).count()
+        losses = filtered.filter(result=GameResult.LOSS).count()
+        draws = filtered.filter(result=GameResult.DRAW).count()
+        ctx["summary_total"] = total
+        ctx["summary_wins"] = wins
+        ctx["summary_losses"] = losses
+        ctx["summary_draws"] = draws
+        ctx["summary_win_rate"] = round(wins / total * 100, 1) if total else 0
+
+        # Monthly trend
+        from django.db.models.functions import TruncMonth
+        trend_qs = (
+            filtered.annotate(period=TruncMonth("date_played"))
+            .values("period")
+            .annotate(
+                total=Count("id"),
+                wins=Count("id", filter=Q(result=GameResult.WIN)),
+            )
+            .order_by("period")
+        )
+        trend_labels = []
+        trend_win_rate = []
+        trend_game_count = []
+        for e in trend_qs:
+            trend_labels.append(e["period"].strftime("%Y-%m"))
+            wr = (e["wins"] / e["total"] * 100) if e["total"] else 0
+            trend_win_rate.append(round(wr, 1))
+            trend_game_count.append(e["total"])
+        ctx["trend_chart_json"] = json.dumps({
+            "labels": trend_labels,
+            "win_rate": trend_win_rate,
+            "games": trend_game_count,
+        })
+        ctx["trend_has_data"] = len(trend_labels) > 1
         return ctx
 
 
@@ -428,6 +490,33 @@ class WinRateView(LoginRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         user = self.request.user
         games = GameRecord.objects.filter(user=user, is_active=True).select_related("deck")
+
+        # ── Filters (apply to all stats below) ──
+        filter_deck = self.request.GET.get("deck", "")
+        filter_commander = self.request.GET.get("commander", "").strip()
+        filter_color = self.request.GET.get("color", "")
+        filter_format = self.request.GET.get("format", "")
+        filter_granularity = self.request.GET.get("granularity", "month")
+
+        if filter_deck:
+            games = games.filter(deck_id=filter_deck)
+        if filter_format:
+            games = games.filter(format=filter_format)
+        if filter_commander:
+            games = games.filter(my_commanders__icontains=filter_commander)
+        if filter_color:
+            games = games.filter(deck__cards__card__color_identity__contains=[filter_color]).distinct()
+
+        ctx["filter_deck"] = filter_deck
+        ctx["filter_commander"] = filter_commander
+        ctx["filter_color"] = filter_color
+        ctx["filter_format"] = filter_format
+        ctx["filter_granularity"] = filter_granularity
+        ctx["user_decks"] = Deck.objects.filter(user=user, is_active=True).order_by("name")
+        from core.constants import MagicFormat
+        ctx["format_choices"] = MagicFormat.choices
+        ctx["color_choices"] = [("W", "White"), ("U", "Blue"), ("B", "Black"), ("R", "Red"), ("G", "Green"), ("C", "Colorless")]
+
         total = games.count()
 
         if not total:
@@ -509,6 +598,122 @@ class WinRateView(LoginRequiredMixin, TemplateView):
                 break
         ctx["streak_type"] = streak_type
         ctx["streak_count"] = streak_count
+
+        # ── Elimination cause breakdown (losses only) ──
+        elim_counts = Counter()
+        for g in games.filter(result=GameResult.LOSS).exclude(elimination_cause=""):
+            elim_counts[g.elimination_cause] += 1
+        elim_labels_map = {
+            "life": "Life (0 or less)",
+            "poison": "Poison",
+            "commander_damage": "Cmdr Damage",
+            "alt_wincon": "Alt Wincon",
+            "forfeit": "Forfeit",
+            "alt_losecon": "Alt Losecon",
+        }
+        elim_colors = {
+            "life": "#EF4444", "poison": "#22C55E", "commander_damage": "#A855F7",
+            "alt_wincon": "#EAB308", "forfeit": "#6B7280", "alt_losecon": "#EC4899",
+        }
+        elim_ordered = elim_counts.most_common()
+        ctx["elim_chart_json"] = json.dumps({
+            "labels": [elim_labels_map.get(k, k) for k, _ in elim_ordered],
+            "data": [v for _, v in elim_ordered],
+            "colors": [elim_colors.get(k, "#6B7280") for k, _ in elim_ordered],
+        })
+        ctx["elim_has_data"] = len(elim_ordered) > 0
+
+        # ── Placement distribution (multiplayer games) ──
+        placement_counts = Counter()
+        for g in games.exclude(my_placement=0):
+            placement_counts[g.my_placement] += 1
+        placement_sorted = sorted(placement_counts.items())
+        placement_colors_map = {
+            1: "#EAB308", 2: "#A3A3A3", 3: "#B45309", 4: "#6B7280",
+            5: "#6B7280", 6: "#6B7280",
+        }
+        ctx["placement_chart_json"] = json.dumps({
+            "labels": [f"#{p}" for p, _ in placement_sorted],
+            "data": [c for _, c in placement_sorted],
+            "colors": [placement_colors_map.get(p, "#6B7280") for p, _ in placement_sorted],
+        })
+        ctx["placement_has_data"] = len(placement_sorted) > 0
+
+        # ── Turn duration stats ──
+        wins_turns = [g.turns for g in games.filter(result=GameResult.WIN) if g.turns]
+        losses_turns = [g.turns for g in games.filter(result=GameResult.LOSS) if g.turns]
+        all_turns = [g.turns for g in games if g.turns]
+        ctx["avg_turns_overall"] = round(sum(all_turns) / len(all_turns), 1) if all_turns else 0
+        ctx["avg_turns_wins"] = round(sum(wins_turns) / len(wins_turns), 1) if wins_turns else 0
+        ctx["avg_turns_losses"] = round(sum(losses_turns) / len(losses_turns), 1) if losses_turns else 0
+        ctx["min_turns"] = min(all_turns) if all_turns else 0
+        ctx["max_turns"] = max(all_turns) if all_turns else 0
+
+        # ── Commander performance ──
+        cmdr_stats = {}
+        for g in games:
+            for cmdr in (g.my_commanders or []):
+                if cmdr not in cmdr_stats:
+                    cmdr_stats[cmdr] = {"total": 0, "wins": 0, "losses": 0, "draws": 0}
+                cmdr_stats[cmdr]["total"] += 1
+                if g.result == GameResult.WIN:
+                    cmdr_stats[cmdr]["wins"] += 1
+                elif g.result == GameResult.LOSS:
+                    cmdr_stats[cmdr]["losses"] += 1
+                else:
+                    cmdr_stats[cmdr]["draws"] += 1
+        cmdr_list = []
+        for name, s in cmdr_stats.items():
+            s["name"] = name
+            s["win_rate"] = round(s["wins"] / s["total"] * 100, 1) if s["total"] else 0
+            cmdr_list.append(s)
+        cmdr_list.sort(key=lambda x: (-x["total"], -x["win_rate"]))
+        ctx["commander_stats"] = cmdr_list[:15]
+
+        # ── Kill graph (who eliminated you most) ──
+        eliminator_counts = Counter()
+        for g in games.filter(result=GameResult.LOSS).exclude(eliminator_name=""):
+            eliminator_counts[g.eliminator_name] += 1
+        ctx["eliminator_stats"] = eliminator_counts.most_common(10)
+
+        # ── Win rate trend (monthly/yearly) ──
+        from django.db.models.functions import TruncMonth, TruncYear
+        trunc_fn = TruncYear if filter_granularity == "year" else TruncMonth
+        trend_qs = (
+            games.annotate(period=trunc_fn("date_played"))
+            .values("period")
+            .annotate(
+                total=Count("id"),
+                wins=Count("id", filter=Q(result=GameResult.WIN)),
+                losses=Count("id", filter=Q(result=GameResult.LOSS)),
+                draws=Count("id", filter=Q(result=GameResult.DRAW)),
+            )
+            .order_by("period")
+        )
+        trend_periods = []
+        trend_win_rate = []
+        trend_wins = []
+        trend_losses = []
+        trend_draws = []
+        for entry in trend_qs:
+            period_str = (
+                entry["period"].strftime("%Y") if filter_granularity == "year"
+                else entry["period"].strftime("%Y-%m")
+            )
+            trend_periods.append(period_str)
+            wr = (entry["wins"] / entry["total"] * 100) if entry["total"] else 0
+            trend_win_rate.append(round(wr, 1))
+            trend_wins.append(entry["wins"])
+            trend_losses.append(entry["losses"])
+            trend_draws.append(entry["draws"])
+        ctx["trend_chart_json"] = json.dumps({
+            "labels": trend_periods,
+            "win_rate": trend_win_rate,
+            "wins": trend_wins,
+            "losses": trend_losses,
+            "draws": trend_draws,
+        })
+        ctx["trend_has_data"] = len(trend_periods) > 0
 
         return ctx
 
@@ -1162,6 +1367,58 @@ class DeckSearchJSON(LoginRequiredMixin, View):
         return JsonResponse(results, safe=False)
 
 
+class UserSearchJSON(LoginRequiredMixin, View):
+    """Return up to 10 users matching a query (for tournament player adding)."""
+
+    def get(self, request):
+        from django.http import JsonResponse
+        from django.contrib.auth.models import User as AuthUser
+        q = request.GET.get("q", "").strip()
+        if len(q) < 2:
+            return JsonResponse([], safe=False)
+        users = (
+            AuthUser.objects
+            .filter(
+                Q(username__icontains=q) | Q(profile__display_name__icontains=q),
+                is_active=True,
+            )
+            .select_related("profile")[:10]
+        )
+        results = []
+        for u in users:
+            profile = getattr(u, "profile", None)
+            results.append({
+                "id": u.pk,
+                "username": u.username,
+                "display_name": profile.name if profile else u.username,
+                "avatar": profile.avatar.url if profile and profile.avatar else "",
+            })
+        return JsonResponse(results, safe=False)
+
+
+class UserDecksJSON(LoginRequiredMixin, View):
+    """Return decks for a specific user (with commanders)."""
+
+    def get(self, request, user_pk):
+        from django.http import JsonResponse
+        decks = (
+            Deck.objects.filter(user_id=user_pk, is_active=True)
+            .order_by("name")
+        )
+        if int(user_pk) != request.user.pk:
+            decks = decks.filter(is_public=True)
+        results = []
+        for d in decks:
+            cmdr_cards = d.commander_cards.select_related("card")
+            results.append({
+                "id": str(d.pk),
+                "name": d.name,
+                "format": d.get_format_display(),
+                "commanders": [dc.card.name for dc in cmdr_cards],
+            })
+        return JsonResponse(results, safe=False)
+
+
 class PlayerEliminateView(LoginRequiredMixin, View):
     """HTMX endpoint: directly eliminate a player in a session."""
 
@@ -1241,7 +1498,10 @@ class TournamentDetailView(LoginRequiredMixin, TemplateView):
                 round_number=t.current_round, is_complete=True
             ).exists())
         )
-        ctx["format_choices"] = GameResult.choices
+        CMDR_FORMATS = {"commander", "oathbreaker", "brawl", "other"}
+        ctx["needs_commander"] = t.format in CMDR_FORMATS
+        ctx["is_1v1"] = t.pod_size == 2
+        ctx["is_bo3"] = t.best_of == 3
         return ctx
 
 
@@ -1293,7 +1553,7 @@ class TournamentGenerateRoundView(LoginRequiredMixin, View):
 
 
 class TournamentRecordResultView(LoginRequiredMixin, View):
-    """Record the result of a single match."""
+    """Record the result of a single-game match (best_of=1)."""
 
     def post(self, request, *args, **kwargs):
         from django.shortcuts import redirect
@@ -1307,7 +1567,9 @@ class TournamentRecordResultView(LoginRequiredMixin, View):
             if key.startswith("placement_"):
                 try:
                     participant_pk = key.split("_", 1)[1]
-                    placements[int(participant_pk)] = int(val)
+                    placement = int(val)
+                    if placement > 0:
+                        placements[participant_pk] = placement
                 except (ValueError, IndexError):
                     pass
         if placements:
@@ -1316,6 +1578,83 @@ class TournamentRecordResultView(LoginRequiredMixin, View):
             "phyrexian:tournament-detail",
             pk=match.round.tournament.pk,
         )
+
+
+class TournamentRecordGameView(LoginRequiredMixin, View):
+    """Record one game within a best-of-N match."""
+
+    def post(self, request, *args, **kwargs):
+        from django.shortcuts import redirect
+        from .tournament import record_match_result
+        match = get_object_or_404(
+            TournamentMatch, pk=kwargs["match_pk"],
+            round__tournament__host=request.user,
+        )
+        if match.is_complete:
+            return redirect("phyrexian:tournament-detail", pk=match.round.tournament.pk)
+
+        best_of = match.round.tournament.best_of
+        wins_needed = (best_of // 2) + 1
+
+        # Parse game placements (same format as single-game)
+        placements = {}
+        for key, val in request.POST.items():
+            if key.startswith("placement_"):
+                try:
+                    ppk = key.split("_", 1)[1]
+                    p = int(val)
+                    if p > 0:
+                        placements[ppk] = p
+                except (ValueError, IndexError):
+                    pass
+
+        if not placements:
+            return redirect("phyrexian:tournament-detail", pk=match.round.tournament.pk)
+
+        # Detect tie (all same placement)
+        is_tie = len(set(placements.values())) == 1 and len(placements) == match.players.count()
+
+        # Award game wins
+        for mp in match.players.all():
+            pk_str = str(mp.participant_id)
+            place = placements.get(pk_str, 0)
+            if is_tie:
+                pass  # ties don't award game wins
+            elif place == 1:
+                mp.game_wins += 1
+                mp.save(update_fields=["game_wins", "updated_at"])
+
+        match.current_game += 1
+        match.save(update_fields=["current_game", "updated_at"])
+
+        # Check if anyone reached the win threshold
+        leader = match.players.order_by("-game_wins").first()
+        all_games_played = (match.current_game - 1) >= best_of
+
+        if leader and leader.game_wins >= wins_needed:
+            # Match decided — build final placements by game_wins desc
+            final = {}
+            players_sorted = list(match.players.order_by("-game_wins"))
+            for i, mp in enumerate(players_sorted, start=1):
+                final[str(mp.participant_id)] = i
+            record_match_result(match, final)
+        elif all_games_played:
+            # All games played — resolve by game_wins
+            final = {}
+            players_sorted = list(match.players.order_by("-game_wins"))
+            # Handle ties in game_wins
+            prev_gw = None
+            prev_place = 0
+            for i, mp in enumerate(players_sorted, start=1):
+                if mp.game_wins == prev_gw:
+                    final[str(mp.participant_id)] = prev_place
+                else:
+                    final[str(mp.participant_id)] = i
+                    prev_place = i
+                prev_gw = mp.game_wins
+            record_match_result(match, final)
+
+        return redirect("phyrexian:tournament-detail", pk=match.round.tournament.pk)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1370,5 +1709,55 @@ class EloProfileView(LoginRequiredMixin, TemplateView):
                 "date": entry.created_at.isoformat(),
                 "rating": entry.new_rating,
             })
+        # Tournament stats
+        ctx["tournament_stats"] = list(
+            TournamentStats.objects
+            .filter(user=user, tournaments_played__gt=0)
+            .order_by("-tournaments_won", "-match_wins")
+        )
+        ctx["recent_tournaments"] = list(
+            TournamentParticipant.objects
+            .filter(user=user, tournament__status=TournamentStatus.FINISHED)
+            .select_related("tournament")
+            .order_by("-tournament__date")[:10]
+        )
+
+        # ── Tournament match-by-match trend ──
+        match_history = []
+        tmps = (
+            TournamentMatchPlayer.objects
+            .filter(
+                participant__user=user,
+                match__is_complete=True,
+                match__is_bye=False,
+            )
+            .select_related("match__round__tournament", "participant")
+            .order_by("match__round__tournament__date", "match__round__round_number", "match__table_number")
+        )
+        cumulative_wins = 0
+        cumulative_losses = 0
+        cumulative_draws = 0
+        for mp in tmps:
+            if mp.result == GameResult.WIN:
+                cumulative_wins += 1
+            elif mp.result == GameResult.LOSS:
+                cumulative_losses += 1
+            elif mp.result == GameResult.DRAW:
+                cumulative_draws += 1
+            total_m = cumulative_wins + cumulative_losses + cumulative_draws
+            wr = (cumulative_wins / total_m * 100) if total_m else 0
+            match_history.append({
+                "tournament": mp.match.round.tournament.name,
+                "round": mp.match.round.round_number,
+                "date": mp.match.round.tournament.date.isoformat(),
+                "result": mp.result,
+                "win_rate": round(wr, 1),
+            })
+        ctx["tournament_trend_json"] = json.dumps({
+            "labels": [f"{h['tournament']} R{h['round']}" for h in match_history],
+            "win_rate": [h["win_rate"] for h in match_history],
+            "results": [h["result"] for h in match_history],
+        })
+        ctx["tournament_trend_has_data"] = len(match_history) > 1
         ctx["chart_data_json"] = json.dumps(chart_data)
         return ctx

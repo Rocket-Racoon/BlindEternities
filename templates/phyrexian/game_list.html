@@ -14,6 +14,36 @@
     <a href="{% url 'phyrexian:game-create' %}" class="btn-primary">Log Game</a>
   </div>
 
+  <!-- Summary + mini trend -->
+  {% if summary_total %}
+  <div class="card p-4 mb-6 grid md:grid-cols-4 gap-4 items-center">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg
+        {% if summary_win_rate >= 60 %}bg-green-500/20 text-green-600 dark:text-green-400
+        {% elif summary_win_rate >= 40 %}bg-yellow-500/20 text-yellow-600 dark:text-yellow-400
+        {% else %}bg-red-500/20 text-red-600 dark:text-red-400{% endif %}">{{ summary_win_rate }}%</div>
+      <div>
+        <div class="text-xs text-gray-500 uppercase tracking-wider">Win Rate</div>
+        <div class="text-sm text-gray-800 dark:text-gray-200">
+          <span class="text-green-500 font-bold">{{ summary_wins }}W</span>
+          <span class="text-gray-400">/</span>
+          <span class="text-red-500 font-bold">{{ summary_losses }}L</span>
+          {% if summary_draws %}<span class="text-gray-400">/</span>
+          <span class="text-yellow-500 font-bold">{{ summary_draws }}D</span>{% endif %}
+          <span class="text-xs text-gray-400 ml-1">({{ summary_total }} games)</span>
+        </div>
+      </div>
+    </div>
+    <div class="md:col-span-3 h-20">
+      {% if trend_has_data %}
+      <canvas id="miniTrendChart"></canvas>
+      {% else %}
+      <p class="text-xs text-gray-400 text-center pt-6">Need more games across multiple months for trend.</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Filters -->
   <div class="card p-4 mb-6" x-data="{ open: {% if filter_result or filter_format or filter_deck or filter_from or filter_to %}true{% else %}false{% endif %} }">
     <button @click="open = !open" class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 w-full">
@@ -211,4 +241,39 @@
 
   {% endif %}
 </div>
+
+{% if trend_has_data %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+  const trend = {{ trend_chart_json|safe }};
+  new Chart(document.getElementById('miniTrendChart'), {
+    type: 'line',
+    data: {
+      labels: trend.labels,
+      datasets: [{
+        data: trend.win_rate,
+        borderColor: '#6366F1',
+        backgroundColor: 'rgba(99,102,241,0.15)',
+        tension: 0.35, fill: true, pointRadius: 2,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: {display: false},
+        y: {display: false, beginAtZero: true, max: 100},
+      },
+      plugins: {
+        legend: {display: false},
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.parsed.y + '% win rate',
+            afterLabel: ctx => trend.games[ctx.dataIndex] + ' games',
+          }
+        }
+      },
+    }
+  });
+</script>
+{% endif %}
 {% endblock %}

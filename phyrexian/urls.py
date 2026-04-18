@@ -46,6 +46,7 @@ urlpatterns = [
     path("tournaments/<uuid:pk>/drop/<uuid:participant_pk>/", views.TournamentDropParticipantView.as_view(), name="tournament-drop-participant"),
     path("tournaments/<uuid:pk>/generate-round/", views.TournamentGenerateRoundView.as_view(), name="tournament-generate-round"),
     path("tournaments/match/<uuid:match_pk>/result/", views.TournamentRecordResultView.as_view(), name="tournament-record-result"),
+    path("tournaments/match/<uuid:match_pk>/game/", views.TournamentRecordGameView.as_view(), name="tournament-record-game"),
 
     # ELO
     path("elo/", views.EloLeaderboardView.as_view(), name="elo-leaderboard"),
@@ -53,6 +54,8 @@ urlpatterns = [
 
     # API
     path("api/deck-search/", views.DeckSearchJSON.as_view(), name="deck-search"),
+    path("api/user-search/", views.UserSearchJSON.as_view(), name="user-search"),
+    path("api/user-decks/<int:user_pk>/", views.UserDecksJSON.as_view(), name="user-decks"),
 
     # HTMX partials
     path("partials/stats/", views.DashboardStatsPartialView.as_view(), name="partial-stats"),

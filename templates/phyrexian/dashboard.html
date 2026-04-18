@@ -22,6 +22,56 @@
     </div>
   </div>
 
+  <!-- Filters -->
+  <div class="card p-3 mb-6" x-data="{ open: {% if filter_format or filter_deck or filter_period != 'all' %}true{% else %}false{% endif %} }">
+    <button @click="open = !open" class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 w-full">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+      </svg>
+      Filters
+      {% if filter_format or filter_deck or filter_period != 'all' %}
+      <span class="text-xs text-void-500 font-normal">(active)</span>
+      {% endif %}
+      <svg class="w-3 h-3 ml-auto transition-transform" :class="open && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+      </svg>
+    </button>
+    <form x-show="open" x-transition method="get" class="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Period</label>
+        <select name="period" class="input text-sm">
+          <option value="all" {% if filter_period == 'all' %}selected{% endif %}>All time</option>
+          <option value="30d" {% if filter_period == '30d' %}selected{% endif %}>Last 30 days</option>
+          <option value="90d" {% if filter_period == '90d' %}selected{% endif %}>Last 90 days</option>
+          <option value="1y" {% if filter_period == '1y' %}selected{% endif %}>Last year</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Format</label>
+        <select name="format" class="input text-sm">
+          <option value="">All</option>
+          {% for val, label in format_choices %}
+          <option value="{{ val }}" {% if filter_format == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Deck</label>
+        <select name="deck" class="input text-sm">
+          <option value="">All</option>
+          {% for d in user_decks %}
+          <option value="{{ d.pk }}" {% if filter_deck == d.pk|slugify %}selected{% endif %}>{{ d.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="flex items-end gap-2">
+        <button type="submit" class="flex-1 px-3 py-1.5 text-sm rounded-lg bg-void-600 text-white hover:bg-void-700 transition-colors">Apply</button>
+        <a href="{% url 'phyrexian:dashboard' %}" class="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-void-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-void-800 transition-colors">Clear</a>
+      </div>
+    </form>
+  </div>
+
   <!-- Summary cards (HTMX refreshable) -->
   <div hx-get="{% url 'phyrexian:partial-stats' %}" hx-trigger="revealed" hx-swap="outerHTML"
        class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8" id="dashboard-stats">

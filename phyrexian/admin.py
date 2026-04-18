@@ -3,7 +3,7 @@ from django.contrib import admin
 from .models import (
     GameRecord, GamePlayer, GameSession, PlayerSlot, LifeChange,
     Tournament, TournamentParticipant, TournamentRound,
-    TournamentMatch, TournamentMatchPlayer,
+    TournamentMatch, TournamentMatchPlayer, TournamentStats,
     EloRating, EloHistory,
 )
 
@@ -89,6 +89,17 @@ class TournamentMatchAdmin(admin.ModelAdmin):
 @admin.register(EloRating)
 class EloRatingAdmin(admin.ModelAdmin):
     list_display = ("user", "format", "rating", "matches_played", "wins", "losses", "peak_rating")
+    list_filter = ("format",)
+    search_fields = ("user__username",)
+    raw_id_fields = ("user",)
+
+
+@admin.register(TournamentStats)
+class TournamentStatsAdmin(admin.ModelAdmin):
+    list_display = (
+        "user", "format", "tournaments_played", "tournaments_won",
+        "top_4", "best_placement", "match_wins", "match_losses",
+    )
     list_filter = ("format",)
     search_fields = ("user__username",)
     raw_id_fields = ("user",)

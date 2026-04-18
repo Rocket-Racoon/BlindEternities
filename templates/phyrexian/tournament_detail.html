@@ -22,6 +22,10 @@
         <span>{{ tournament.get_bracket_type_display }}</span>
         <span>&middot;</span>
         <span>{{ tournament.participant_count }} players</span>
+        {% if tournament.best_of > 1 %}
+        <span>&middot;</span>
+        <span>Bo{{ tournament.best_of }}</span>
+        {% endif %}
         <span>&middot;</span>
         <span>Round {{ tournament.current_round }}{% if tournament.total_rounds %}/{{ tournament.total_rounds }}{% endif %}</span>
       </div>
@@ -47,13 +51,193 @@
 
         {% if tournament.status == 'setup' %}
         <!-- Add participant form -->
-        <form method="post" action="{% url 'phyrexian:tournament-add-participant' tournament.pk %}" class="mb-4 space-y-2">
-          {% csrf_token %}
-          <input type="text" name="name" placeholder="Player name" required class="input text-sm w-full">
-          <input type="text" name="deck_name" placeholder="Deck name (optional)" class="input text-sm w-full">
-          <input type="text" name="commanders" placeholder="Commanders (comma-sep)" class="input text-sm w-full">
-          <button type="submit" class="w-full px-3 py-1.5 text-sm rounded-lg bg-void-600 text-white hover:bg-void-700 transition-colors">Add Player</button>
-        </form>
+        <div x-data="addPlayer()" class="mb-4">
+          {# Toggle: Registered / Guest #}
+          <div class="flex rounded-lg overflow-hidden border border-gray-200 dark:border-void-700 mb-3">
+            <button type="button" @click="mode = 'registered'" class="flex-1 px-3 py-1.5 text-xs font-medium transition-colors"
+                    :class="mode === 'registered' ? 'bg-void-600 text-white' : 'bg-transparent text-gray-500 hover:bg-gray-100 dark:hover:bg-void-800'">
+              Registered User
+            </button>
+            <button type="button" @click="mode = 'guest'" class="flex-1 px-3 py-1.5 text-xs font-medium transition-colors"
+                    :class="mode === 'guest' ? 'bg-void-600 text-white' : 'bg-transparent text-gray-500 hover:bg-gray-100 dark:hover:bg-void-800'">
+              Guest
+            </button>
+          </div>
+
+          <form method="post" action="{% url 'phyrexian:tournament-add-participant' tournament.pk %}" class="space-y-2">
+            {% csrf_token %}
+            <input type="hidden" name="user_id" :value="selectedUser?.id || ''">
+            <input type="hidden" name="deck_id" :value="selectedDeck?.id || ''">
+
+            {# Registered: user search #}
+            <template x-if="mode === 'registered'">
+              <div class="space-y-2">
+                <div class="relative">
+                  <input type="text" x-model="userQuery" @input.debounce.300ms="searchUsers()"
+                         @focus="if(userResults.length) userOpen = true"
+                         placeholder="Search user..."
+                         class="input text-sm w-full" autocomplete="off">
+                  <div x-show="userOpen && userResults.length" x-cloak
+                       @click.away="userOpen = false"
+                       class="absolute z-10 top-full left-0 right-0 mt-1 rounded-lg shadow-xl max-h-40 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                    <template x-for="u in userResults" :key="u.id">
+                      <button type="button" @click="pickUser(u)"
+                              class="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-left text-sm border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                        <template x-if="u.avatar">
+                          <img :src="u.avatar" class="w-5 h-5 rounded-full object-cover">
+                        </template>
+                        <template x-if="!u.avatar">
+                          <div class="w-5 h-5 rounded-full bg-void-600 flex items-center justify-center text-white text-[10px] font-bold" x-text="u.username[0].toUpperCase()"></div>
+                        </template>
+                        <span class="font-medium text-gray-800 dark:text-gray-200" x-text="u.display_name"></span>
+                        <span class="text-xs text-gray-400 ml-auto" x-text="'@' + u.username"></span>
+                      </button>
+                    </template>
+                  </div>
+                </div>
+                {# Selected user pill #}
+                <div x-show="selectedUser" x-cloak class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-void-100 dark:bg-void-800 text-sm">
+                  <span class="font-medium text-gray-800 dark:text-gray-200" x-text="selectedUser?.display_name"></span>
+                  <span class="text-xs text-gray-400" x-text="'@' + (selectedUser?.username || '')"></span>
+                  <button type="button" @click="clearUser()" class="ml-auto text-gray-400 hover:text-red-500">&times;</button>
+                </div>
+                <input type="hidden" name="name" :value="selectedUser?.display_name || ''">
+
+                {# Deck dropdown (loaded from user's decks) #}
+                <div x-show="selectedUser" x-cloak>
+                  <select @change="onDeckSelect($event.target.value)" class="input text-sm w-full">
+                    <option value="">— Select deck —</option>
+                    <template x-for="d in userDecks" :key="d.id">
+                      <option :value="d.id" x-text="d.name"></option>
+                    </template>
+                  </select>
+                  <input type="hidden" name="deck_name" :value="selectedDeck?.name || ''">
+                </div>
+              </div>
+            </template>
+
+            {# Guest: just name + deck name text #}
+            <template x-if="mode === 'guest'">
+              <div class="space-y-2">
+                <input type="text" name="name" placeholder="Player name" required class="input text-sm w-full">
+                <input type="text" name="deck_name" placeholder="Deck name (optional)" class="input text-sm w-full">
+              </div>
+            </template>
+
+            {# Commander autocomplete — only for commander-like formats #}
+            {% if needs_commander %}
+            <div>
+              <div class="flex flex-wrap gap-1 min-h-[2rem] items-center p-1.5 rounded-lg border border-gray-200 dark:border-void-700 bg-white dark:bg-void-900">
+                <template x-for="(cmd, ci) in commanders" :key="ci">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-void-100 dark:bg-void-700 text-xs text-gray-800 dark:text-gray-200">
+                    <span x-text="cmd"></span>
+                    <button type="button" @click="commanders.splice(ci, 1)" class="text-gray-400 hover:text-red-500">&times;</button>
+                  </span>
+                </template>
+                <div class="relative flex-1 min-w-[100px]">
+                  <input type="text" x-model="cmdQuery"
+                         @input.debounce.300ms="searchCommanders()"
+                         @focus="if(cmdResults.length) cmdOpen = true"
+                         @keydown.enter.prevent="if(cmdResults.length) pickCommander(cmdResults[0].name); else if(cmdQuery.trim()) { commanders.push(cmdQuery.trim()); cmdQuery = ''; }"
+                         placeholder="Commander..."
+                         class="w-full bg-transparent border-0 text-xs focus:ring-0 text-gray-800 dark:text-gray-200 placeholder-gray-400 p-0.5">
+                  <div x-show="cmdOpen && cmdResults.length" x-cloak
+                       @click.away="cmdOpen = false"
+                       class="absolute z-10 top-full left-0 right-0 mt-1 rounded-lg shadow-xl max-h-40 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                    <template x-for="card in cmdResults" :key="card.id">
+                      <button type="button" @click="pickCommander(card.name)"
+                              class="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-left text-xs border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                        <span class="text-gray-800 dark:text-gray-200 truncate" x-text="card.name"></span>
+                      </button>
+                    </template>
+                  </div>
+                </div>
+              </div>
+              <input type="hidden" name="commanders" :value="commanders.join(', ')">
+            </div>
+            {% endif %}
+
+            <button type="submit" class="w-full px-3 py-1.5 text-sm rounded-lg bg-void-600 text-white hover:bg-void-700 transition-colors">Add Player</button>
+          </form>
+        </div>
+
+        <script>
+          function addPlayer() {
+            return {
+              mode: 'registered',
+              // User search
+              userQuery: '',
+              userResults: [],
+              userOpen: false,
+              selectedUser: null,
+              // User decks
+              userDecks: [],
+              selectedDeck: null,
+              // Commander autocomplete
+              commanders: [],
+              cmdQuery: '',
+              cmdResults: [],
+              cmdOpen: false,
+
+              async searchUsers() {
+                const q = this.userQuery.trim();
+                if (q.length < 2) { this.userResults = []; this.userOpen = false; return; }
+                try {
+                  const resp = await fetch(`/stats/api/user-search/?q=${encodeURIComponent(q)}`);
+                  this.userResults = await resp.json();
+                  this.userOpen = this.userResults.length > 0;
+                } catch(e) { console.error(e); }
+              },
+
+              async pickUser(user) {
+                this.selectedUser = user;
+                this.userQuery = user.display_name;
+                this.userOpen = false;
+                // Load their decks
+                try {
+                  const resp = await fetch(`/stats/api/user-decks/${user.id}/`);
+                  this.userDecks = await resp.json();
+                } catch(e) { console.error(e); }
+                this.selectedDeck = null;
+                this.commanders = [];
+              },
+
+              clearUser() {
+                this.selectedUser = null;
+                this.userQuery = '';
+                this.userDecks = [];
+                this.selectedDeck = null;
+                this.commanders = [];
+              },
+
+              onDeckSelect(deckId) {
+                if (!deckId) { this.selectedDeck = null; this.commanders = []; return; }
+                const deck = this.userDecks.find(d => d.id === deckId);
+                if (deck) {
+                  this.selectedDeck = deck;
+                  if (deck.commanders?.length) this.commanders = [...deck.commanders];
+                }
+              },
+
+              async searchCommanders() {
+                const q = this.cmdQuery.trim();
+                if (q.length < 2) { this.cmdResults = []; this.cmdOpen = false; return; }
+                try {
+                  const resp = await fetch(`/collection/api/card-search/?q=${encodeURIComponent(q)}&commander=1`);
+                  this.cmdResults = await resp.json();
+                  this.cmdOpen = this.cmdResults.length > 0;
+                } catch(e) { console.error(e); }
+              },
+
+              pickCommander(name) {
+                if (!this.commanders.includes(name)) this.commanders.push(name);
+                this.cmdQuery = '';
+                this.cmdResults = [];
+                this.cmdOpen = false;
+              },
+            };
+          }
+        </script>
         {% endif %}
 
         <div class="space-y-1">
@@ -65,9 +249,17 @@
             <span class="w-5 text-right text-xs font-bold text-gray-400">
               {% if p.final_standing %}#{{ p.final_standing }}{% elif forloop.counter <= 99 %}{{ forloop.counter }}{% endif %}
             </span>
-            <span class="flex-1 truncate font-medium">{{ p.name }}</span>
-            <span class="text-xs tabular-nums">{{ p.record_display }}</span>
-            <span class="text-[10px] text-gray-400 tabular-nums w-8 text-right">{{ p.match_points }}p</span>
+            <div class="flex-1 min-w-0">
+              <span class="font-medium truncate block">{{ p.name }}</span>
+              {% if p.deck_name or p.commanders %}
+              <span class="text-[10px] text-gray-400 truncate block">
+                {% if p.deck_name %}{{ p.deck_name }}{% endif %}
+                {% if p.commanders %} — {{ p.commanders|join:", " }}{% endif %}
+              </span>
+              {% endif %}
+            </div>
+            <span class="text-xs tabular-nums shrink-0">{{ p.record_display }}</span>
+            <span class="text-[10px] text-gray-400 tabular-nums w-8 text-right shrink-0">{{ p.match_points }}p</span>
             {% if tournament.status == 'setup' %}
             <form method="post" action="{% url 'phyrexian:tournament-drop-participant' tournament.pk p.pk %}" class="inline">
               {% csrf_token %}
@@ -104,6 +296,124 @@
               {% endif %}
             </div>
             {% if not match.is_complete and not match.is_bye %}
+
+            {% if is_bo3 %}
+            {# ── Best of 3: game-by-game recording ── #}
+            <div class="mb-2">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-[10px] text-gray-400 uppercase tracking-wider">Game {{ match.current_game }} of {{ tournament.best_of }}</span>
+                <span class="text-[10px] text-gray-400">First to {{ match.wins_needed }} wins</span>
+              </div>
+              {# Current score #}
+              <div class="flex gap-2 mb-2">
+                {% for mp in match.players.all %}
+                <div class="flex-1 flex items-center gap-1.5 px-2 py-1 rounded bg-gray-800/50 text-xs">
+                  <span class="text-gray-300 truncate flex-1">{{ mp.participant.name }}</span>
+                  <span class="font-bold tabular-nums {% if mp.game_wins >= match.wins_needed %}text-green-400{% else %}text-white{% endif %}">{{ mp.game_wins }}</span>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+
+            {% if is_1v1 %}
+            {# Bo3 1v1: winner buttons per game #}
+            <form method="post" action="{% url 'phyrexian:tournament-record-game' match.pk %}"
+                  x-data="{ result: '' }" class="space-y-2">
+              {% csrf_token %}
+              {% for mp in match.players.all %}
+              <input type="hidden" name="placement_{{ mp.participant.pk }}"
+                     :value="result === 'tie' ? '1' : result === '{{ mp.participant.pk }}' ? '1' : result ? '2' : '0'">
+              {% endfor %}
+              <div class="space-y-1.5">
+                {% for mp in match.players.all %}
+                <button type="button" @click="result = '{{ mp.participant.pk }}'"
+                        class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors border"
+                        :class="result === '{{ mp.participant.pk }}'
+                          ? 'bg-green-500/20 text-green-400 border-green-500/50'
+                          : result && result !== 'tie' && result !== '{{ mp.participant.pk }}'
+                            ? 'bg-red-500/10 text-red-400/60 border-red-500/20'
+                            : 'bg-transparent text-gray-300 border-gray-700 hover:bg-white/5'">
+                  <span class="flex-1 text-left truncate">{{ mp.participant.name }}</span>
+                  <span class="text-xs tabular-nums font-bold text-gray-500" x-text="'(' + {{ mp.game_wins }} + ')'"></span>
+                  <span x-show="result === '{{ mp.participant.pk }}'" x-cloak class="text-xs font-bold">WIN</span>
+                  <span x-show="result && result !== 'tie' && result !== '{{ mp.participant.pk }}'" x-cloak class="text-xs">LOSS</span>
+                </button>
+                {% endfor %}
+              </div>
+              <button type="button" @click="result = result === 'tie' ? '' : 'tie'"
+                      class="w-full px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border"
+                      :class="result === 'tie' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50' : 'bg-transparent text-gray-400 border-gray-700 hover:bg-white/5'">
+                Tie
+              </button>
+              <button type="submit" :disabled="!result"
+                      class="w-full px-3 py-1.5 text-xs rounded-lg bg-void-600 text-white hover:bg-void-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                Record Game {{ match.current_game }}
+              </button>
+            </form>
+            {% else %}
+            {# Bo3 multiplayer: placement per game #}
+            <form method="post" action="{% url 'phyrexian:tournament-record-game' match.pk %}">
+              {% csrf_token %}
+              <div class="space-y-1.5">
+                {% for mp in match.players.all %}
+                <div class="flex items-center gap-2">
+                  <span class="flex-1 text-sm text-gray-800 dark:text-gray-200 font-medium truncate">{{ mp.participant.name }}</span>
+                  <span class="text-xs tabular-nums text-gray-400">({{ mp.game_wins }})</span>
+                  <select name="placement_{{ mp.participant.pk }}" class="input text-xs w-20 py-1">
+                    <option value="0">—</option>
+                    <option value="1">1st</option>
+                    <option value="2">2nd</option>
+                    <option value="3">3rd</option>
+                    <option value="4">4th</option>
+                  </select>
+                </div>
+                {% endfor %}
+              </div>
+              <button type="submit" class="mt-2 w-full px-3 py-1.5 text-xs rounded-lg bg-void-600 text-white hover:bg-void-700 transition-colors">
+                Record Game {{ match.current_game }}
+              </button>
+            </form>
+            {% endif %}
+
+            {% elif is_1v1 %}
+            {# ── Single game 1v1: Winner / Tie buttons ── #}
+            <form method="post" action="{% url 'phyrexian:tournament-record-result' match.pk %}"
+                  x-data="{ result: '' }"
+                  class="space-y-2">
+              {% csrf_token %}
+              {% for mp in match.players.all %}
+              <input type="hidden" name="placement_{{ mp.participant.pk }}"
+                     :value="result === 'tie' ? '1' : result === '{{ mp.participant.pk }}' ? '1' : result ? '2' : '0'">
+              {% endfor %}
+              <div class="space-y-1.5">
+                {% for mp in match.players.all %}
+                <button type="button" @click="result = '{{ mp.participant.pk }}'"
+                        class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors border"
+                        :class="result === '{{ mp.participant.pk }}'
+                          ? 'bg-green-500/20 text-green-400 border-green-500/50'
+                          : result && result !== 'tie' && result !== '{{ mp.participant.pk }}'
+                            ? 'bg-red-500/10 text-red-400/60 border-red-500/20'
+                            : 'bg-transparent text-gray-300 border-gray-700 hover:bg-white/5'">
+                  <span class="flex-1 text-left truncate">{{ mp.participant.name }}</span>
+                  <span x-show="result === '{{ mp.participant.pk }}'" x-cloak class="text-xs font-bold">WIN</span>
+                  <span x-show="result && result !== 'tie' && result !== '{{ mp.participant.pk }}'" x-cloak class="text-xs">LOSS</span>
+                </button>
+                {% endfor %}
+              </div>
+              <button type="button" @click="result = result === 'tie' ? '' : 'tie'"
+                      class="w-full px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border"
+                      :class="result === 'tie'
+                        ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50'
+                        : 'bg-transparent text-gray-400 border-gray-700 hover:bg-white/5'">
+                Tie
+              </button>
+              <button type="submit" :disabled="!result"
+                      class="w-full px-3 py-1.5 text-xs rounded-lg bg-void-600 text-white hover:bg-void-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                Save Result
+              </button>
+            </form>
+            {% else %}
+            {# ── Single game multiplayer: placement dropdowns ── #}
             <form method="post" action="{% url 'phyrexian:tournament-record-result' match.pk %}">
               {% csrf_token %}
               <div class="space-y-1.5">
@@ -112,15 +422,17 @@
                   <span class="flex-1 text-sm text-gray-800 dark:text-gray-200 font-medium truncate">{{ mp.participant.name }}</span>
                   <select name="placement_{{ mp.participant.pk }}" class="input text-xs w-20 py-1">
                     <option value="0">—</option>
-                    {% for i in "1234" %}
-                    <option value="{{ forloop.counter }}">{{ forloop.counter }}{{ forloop.counter|yesno:"st,nd,rd,th" }}</option>
-                    {% endfor %}
+                    <option value="1">1st</option>
+                    <option value="2">2nd</option>
+                    <option value="3">3rd</option>
+                    <option value="4">4th</option>
                   </select>
                 </div>
                 {% endfor %}
               </div>
               <button type="submit" class="mt-2 w-full px-3 py-1.5 text-xs rounded-lg bg-void-600 text-white hover:bg-void-700 transition-colors">Save Result</button>
             </form>
+            {% endif %}
             {% else %}
             <div class="space-y-1">
               {% for mp in match.players.all %}
@@ -128,14 +440,16 @@
                 {% if mp.placement == 1 %}
                 <span class="text-yellow-500 font-bold text-xs">1st</span>
                 {% elif mp.placement > 0 %}
-                <span class="text-gray-400 text-xs">{{ mp.placement }}{{ mp.placement|yesno:"st,nd,rd,th" }}</span>
+                <span class="text-gray-400 text-xs">{% if mp.placement == 2 %}2nd{% elif mp.placement == 3 %}3rd{% else %}{{ mp.placement }}th{% endif %}</span>
                 {% else %}
                 <span class="text-gray-400 text-xs">—</span>
                 {% endif %}
                 <span class="text-gray-800 dark:text-gray-200 {% if mp.placement == 1 %}font-bold{% endif %} truncate">{{ mp.participant.name }}</span>
+                {% if is_bo3 %}<span class="text-[10px] text-gray-400 tabular-nums">({{ mp.game_wins }}W)</span>{% endif %}
                 <span class="ml-auto text-xs px-1.5 py-0.5 rounded
                   {% if mp.result == 'win' %}bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400
                   {% elif mp.result == 'loss' %}bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400
+                  {% elif mp.result == 'draw' %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400
                   {% endif %}">
                   {{ mp.get_result_display|default:"—" }}
                 </span>

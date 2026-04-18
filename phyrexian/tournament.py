@@ -36,14 +36,34 @@ def generate_next_round(tournament: Tournament) -> TournamentRound | None:
         return _generate_single_elim_round(tournament, next_num)
 
 
+def _randomize_seeds(tournament: Tournament) -> None:
+    """Shuffle seed numbers for all participants (called once at tournament start)."""
+    participants = list(tournament.participants.filter(dropped=False))
+    random.shuffle(participants)
+    for i, p in enumerate(participants, start=1):
+        p.seed = i
+    TournamentParticipant.objects.bulk_update(participants, ["seed"])
+
+
 def _generate_swiss_round(tournament: Tournament, round_number: int) -> TournamentRound:
     """Swiss pairing: group players by match points, avoid rematches."""
     pod_size = tournament.pod_size
-    participants = list(
-        tournament.participants
-        .filter(dropped=False)
-        .order_by("-match_points", "-opp_match_win_pct", "?")
-    )
+
+    if round_number == 1:
+        # Randomize seating for the first round
+        _randomize_seeds(tournament)
+        participants = list(
+            tournament.participants
+            .filter(dropped=False)
+            .order_by("seed")
+        )
+    else:
+        # Subsequent rounds: pair by standings, break ties by seed
+        participants = list(
+            tournament.participants
+            .filter(dropped=False)
+            .order_by("-match_points", "-opp_match_win_pct", "seed")
+        )
 
     # Build set of past pairings to avoid rematches
     past_pods: set[frozenset] = set()
@@ -104,7 +124,7 @@ def _pair_into_pods(
             # Prefer a player we haven't faced yet
             best = None
             for i, candidate in enumerate(remaining):
-                test_set = frozenset(p.pk for p in pod) | {candidate.pk}
+                test_set = frozenset(member.pk for member in pod) | {candidate.pk}
                 # For 1v1 check exact pair; for multiplayer just check
                 # we haven't been in the same pod before.
                 if pod_size == 2:
@@ -114,7 +134,8 @@ def _pair_into_pods(
                 else:
                     # In multiplayer, avoid any pair that already met
                     pair_overlap = any(
-                        frozenset({p.pk, candidate.pk}).issubset(past)
+                        frozenset({member.pk, candidate.pk}).issubset(past)
+                        for member in pod
                         for past in avoid
                     )
                     if not pair_overlap:
@@ -136,11 +157,12 @@ def _generate_single_elim_round(
     pod_size = tournament.pod_size
 
     if round_number == 1:
-        # Seed-based initial bracket
+        # Randomize seating for the first round
+        _randomize_seeds(tournament)
         participants = list(
             tournament.participants
             .filter(dropped=False)
-            .order_by("seed", "?")
+            .order_by("seed")
         )
     else:
         # Advance winners from previous round
@@ -190,21 +212,33 @@ def _generate_single_elim_round(
 
 def record_match_result(
     match: TournamentMatch,
-    placements: dict[int, int],
+    placements: dict,
 ) -> None:
     """
     Record the result of a match.
 
     Args:
         match: the TournamentMatch
-        placements: {participant_pk: placement} — 1 = winner, 2 = second, …
+        placements: {participant_pk_str: placement} — 1 = winner, 2 = second, …
     """
+    player_count = match.players.count()
+    placed_values = [
+        placements.get(str(mp.participant_id), 0)
+        for mp in match.players.all()
+    ]
+    # Tie: everyone has the same placement (e.g. all 1)
+    is_tie = len(set(v for v in placed_values if v > 0)) == 1 and placed_values.count(placed_values[0]) == player_count
+
     for mp in match.players.all():
-        place = placements.get(mp.participant_id, 0)
+        place = placements.get(str(mp.participant_id), 0)
+        if place == 0:
+            place = player_count
         mp.placement = place
-        if place == 1:
+        if is_tie:
+            mp.result = GameResult.DRAW
+        elif place == 1:
             mp.result = GameResult.WIN
-        elif place > 1:
+        else:
             mp.result = GameResult.LOSS
         mp.save(update_fields=["placement", "result", "updated_at"])
 
@@ -276,6 +310,9 @@ def _update_standings(tournament: Tournament) -> None:
         total_games = s["mw"] + s["ml"] + s["md"]
         p.game_win_pct = s["mw"] / total_games if total_games else 0.0
 
+    # Build per-participant game_win_pct lookup for tiebreaker calc
+    gwp_lookup = {p.pk: p.game_win_pct for p in participants}
+
     # Opponent match win % and game win % (Swiss tiebreakers)
     for p in participants:
         opp_pks = opponents[p.pk]
@@ -286,7 +323,7 @@ def _update_standings(tournament: Tournament) -> None:
                 os = stats[opk]
                 ot = os["mw"] + os["ml"] + os["md"]
                 mwp = max(0.33, os["mw"] / ot) if ot else 0.33
-                gwp = max(0.33, os["mw"] / ot) if ot else 0.33
+                gwp = max(0.33, gwp_lookup.get(opk, 0.0)) if gwp_lookup.get(opk, 0.0) > 0 else 0.33
                 opp_mwps.append(mwp)
                 opp_gwps.append(gwp)
             p.opp_match_win_pct = sum(opp_mwps) / len(opp_mwps)
@@ -295,11 +332,15 @@ def _update_standings(tournament: Tournament) -> None:
             p.opp_match_win_pct = 0.0
             p.opp_game_win_pct = 0.0
 
+    from django.utils import timezone as tz
+    now = tz.now()
+    for p in participants:
+        p.updated_at = now
     TournamentParticipant.objects.bulk_update(
         participants,
         [
             "match_wins", "match_losses", "match_draws", "match_points",
-            "game_win_pct", "opp_match_win_pct", "opp_game_win_pct",
+            "game_win_pct", "opp_match_win_pct", "opp_game_win_pct", "updated_at",
         ],
     )
 
@@ -311,18 +352,99 @@ def _finish_tournament(tournament: Tournament) -> None:
         .filter(dropped=False)
         .order_by("-match_points", "-opp_match_win_pct", "-game_win_pct")
     )
+    from django.utils import timezone as tz
+    now = tz.now()
     for i, p in enumerate(participants, start=1):
         p.final_standing = i
-    TournamentParticipant.objects.bulk_update(participants, ["final_standing"])
+        p.updated_at = now
+    TournamentParticipant.objects.bulk_update(participants, ["final_standing", "updated_at"])
 
     # Also assign dropped players after the active ones
     dropped = list(tournament.participants.filter(dropped=True))
     next_pos = len(participants) + 1
     for p in dropped:
         p.final_standing = next_pos
+        p.updated_at = now
         next_pos += 1
     if dropped:
-        TournamentParticipant.objects.bulk_update(dropped, ["final_standing"])
+        TournamentParticipant.objects.bulk_update(dropped, ["final_standing", "updated_at"])
 
     tournament.status = TournamentStatus.FINISHED
     tournament.save(update_fields=["status", "updated_at"])
+
+    # Update TournamentStats for every registered user in this tournament
+    user_ids = (
+        tournament.participants
+        .filter(user__isnull=False)
+        .values_list("user_id", flat=True)
+        .distinct()
+    )
+    for uid in user_ids:
+        recompute_tournament_stats(uid, tournament.format)
+
+
+def recompute_tournament_stats(user_id: int, game_format: str) -> None:
+    """
+    Recompute aggregate tournament stats for a user in a specific format.
+
+    Walks every finished tournament the user has participated in for the
+    given format, aggregating final standings, match record, and game wins.
+    """
+    from django.db.models import Sum, Count, Q, Min
+    from .models import TournamentStats, TournamentParticipant, TournamentMatchPlayer
+
+    participants = TournamentParticipant.objects.filter(
+        user_id=user_id,
+        tournament__format=game_format,
+        tournament__status=TournamentStatus.FINISHED,
+    ).select_related("tournament")
+
+    tournaments_played = participants.count()
+    tournaments_won = participants.filter(final_standing=1).count()
+    top_4 = participants.filter(final_standing__lte=4, final_standing__gt=0).count()
+
+    match_agg = participants.aggregate(
+        mw=Sum("match_wins"),
+        ml=Sum("match_losses"),
+        md=Sum("match_draws"),
+    )
+    best = participants.filter(final_standing__gt=0).aggregate(bp=Min("final_standing"))
+
+    # Game wins/losses across all match entries
+    game_agg = TournamentMatchPlayer.objects.filter(
+        participant__user_id=user_id,
+        participant__tournament__format=game_format,
+        participant__tournament__status=TournamentStatus.FINISHED,
+        match__is_complete=True,
+    ).aggregate(
+        gw=Sum("game_wins"),
+    )
+    total_game_wins = game_agg["gw"] or 0
+
+    # For game losses, sum other players' game_wins in the same matches
+    game_losses = 0
+    match_ids = TournamentMatchPlayer.objects.filter(
+        participant__user_id=user_id,
+        participant__tournament__format=game_format,
+        participant__tournament__status=TournamentStatus.FINISHED,
+        match__is_complete=True,
+    ).values_list("match_id", flat=True)
+    if match_ids:
+        other_wins = TournamentMatchPlayer.objects.filter(
+            match_id__in=list(match_ids),
+        ).exclude(participant__user_id=user_id).aggregate(total=Sum("game_wins"))
+        game_losses = other_wins["total"] or 0
+
+    stats, _ = TournamentStats.objects.get_or_create(
+        user_id=user_id, format=game_format,
+    )
+    stats.tournaments_played = tournaments_played
+    stats.tournaments_won = tournaments_won
+    stats.top_4 = top_4
+    stats.match_wins = match_agg["mw"] or 0
+    stats.match_losses = match_agg["ml"] or 0
+    stats.match_draws = match_agg["md"] or 0
+    stats.game_wins = total_game_wins
+    stats.game_losses = game_losses
+    stats.best_placement = best["bp"] or 0
+    stats.save()
