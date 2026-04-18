@@ -1767,6 +1767,73 @@ class DeckCompareView(LoginRequiredMixin, TemplateView):
                     "diff": in_a["total_qty"] - in_b["total_qty"],
                 })
 
+        a_total = sum(m["total_qty"] for m in map_a.values())
+        b_total = sum(m["total_qty"] for m in map_b.values())
+
+        # ── Enhanced comparison statistics ──
+        import json as _json
+        from collections import Counter as _Counter
+
+        def _mana_curve(m):
+            """Return {cmc: qty} for non-land cards."""
+            curve = _Counter()
+            for entry in m.values():
+                c = entry["card"]
+                if c.cmc is None or "land" in (c.type_line or "").lower():
+                    continue
+                curve[int(c.cmc)] += entry["total_qty"]
+            return dict(sorted(curve.items()))
+
+        def _type_counts(m):
+            """Return {type_label: qty} across the deck."""
+            counts = _Counter()
+            for entry in m.values():
+                tl = (entry["card"].type_line or "").lower()
+                qty = entry["total_qty"]
+                for t in ["creature", "instant", "sorcery", "artifact",
+                          "enchantment", "planeswalker", "land", "battle"]:
+                    if t in tl:
+                        counts[t.capitalize()] += qty
+                        break  # count each card once even if multi-typed
+            return counts
+
+        def _color_identity(m):
+            """Return set of color identity symbols across the deck."""
+            ci = set()
+            for entry in m.values():
+                for color in (entry["card"].color_identity or []):
+                    ci.add(color)
+            return sorted(ci)
+
+        curve_a = _mana_curve(map_a)
+        curve_b = _mana_curve(map_b)
+        all_cmcs = sorted(set(curve_a.keys()) | set(curve_b.keys()))
+
+        types_a = _type_counts(map_a)
+        types_b = _type_counts(map_b)
+        all_types = ["Creature", "Instant", "Sorcery", "Artifact",
+                     "Enchantment", "Planeswalker", "Land", "Battle"]
+
+        ci_a = _color_identity(map_a)
+        ci_b = _color_identity(map_b)
+
+        # Overlap %: shared unique card names / total unique names across both
+        total_unique = len(map_a) + len(map_b) - len(shared)
+        overlap_pct = round(len(shared) / total_unique * 100, 1) if total_unique else 0
+
+        # Value and cost-to-transform
+        val_a = float(deck_a.total_value or 0)
+        val_b = float(deck_b.total_value or 0)
+        # Cost to build B using cards A doesn't have
+        try:
+            cost_to_transform = sum(
+                float(entry.print.price_usd or 0) * entry.quantity
+                for entry in deck_b.cards.select_related("print").exclude(zone=DeckZone.EXTRAS)
+                if entry.print and entry.card.name not in map_a
+            )
+        except Exception:
+            cost_to_transform = 0
+
         ctx.update({
             "deck_a": deck_a,
             "deck_b": deck_b,
@@ -1774,11 +1841,35 @@ class DeckCompareView(LoginRequiredMixin, TemplateView):
             "only_b": only_b,
             "shared": shared,
             "stats": {
-                "a_total": sum(m["total_qty"] for m in map_a.values()),
-                "b_total": sum(m["total_qty"] for m in map_b.values()),
+                "a_total": a_total,
+                "b_total": b_total,
                 "only_a_count": len(only_a),
                 "only_b_count": len(only_b),
                 "shared_count": len(shared),
+                "overlap_pct": overlap_pct,
+                "value_a": round(val_a, 2),
+                "value_b": round(val_b, 2),
+                "value_diff": round(val_b - val_a, 2),
+                "cost_to_transform": round(cost_to_transform, 2),
+                "ci_a": ci_a,
+                "ci_b": ci_b,
+                "ci_shared": sorted(set(ci_a) & set(ci_b)),
+                "ci_only_a": sorted(set(ci_a) - set(ci_b)),
+                "ci_only_b": sorted(set(ci_b) - set(ci_a)),
             },
+            "curve_chart_json": _json.dumps({
+                "labels": [str(c) for c in all_cmcs],
+                "a": [curve_a.get(c, 0) for c in all_cmcs],
+                "b": [curve_b.get(c, 0) for c in all_cmcs],
+                "a_name": deck_a.name,
+                "b_name": deck_b.name,
+            }),
+            "types_chart_json": _json.dumps({
+                "labels": [t for t in all_types if types_a.get(t) or types_b.get(t)],
+                "a": [types_a.get(t, 0) for t in all_types if types_a.get(t) or types_b.get(t)],
+                "b": [types_b.get(t, 0) for t in all_types if types_a.get(t) or types_b.get(t)],
+                "a_name": deck_a.name,
+                "b_name": deck_b.name,
+            }),
         })
         return ctx

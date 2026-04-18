@@ -85,6 +85,106 @@
     </div>
   </div>
 
+  <!-- ═══ Rich analytics panel ═══ -->
+  <div class="grid md:grid-cols-4 gap-4 mb-6">
+    {# Overlap % #}
+    <div class="card p-4 text-center">
+      <p class="text-3xl font-bold
+        {% if stats.overlap_pct >= 60 %}text-green-500
+        {% elif stats.overlap_pct >= 30 %}text-yellow-500
+        {% else %}text-void-500{% endif %} tabular-nums">{{ stats.overlap_pct }}%</p>
+      <p class="text-xs text-gray-500 mt-1">Overlap</p>
+      <p class="text-[10px] text-gray-400 mt-0.5">{{ stats.shared_count }} shared of {{ stats.only_a_count|add:stats.only_b_count|add:stats.shared_count }} unique</p>
+    </div>
+
+    {# Value A #}
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-gray-800 dark:text-gray-200 tabular-nums">${{ stats.value_a|floatformat:0 }}</p>
+      <p class="text-xs text-gray-500 mt-1 truncate">{{ deck_a.name|truncatechars:18 }}</p>
+    </div>
+
+    {# Value B + diff #}
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-gray-800 dark:text-gray-200 tabular-nums">${{ stats.value_b|floatformat:0 }}</p>
+      <p class="text-xs text-gray-500 mt-1 truncate">{{ deck_b.name|truncatechars:18 }}</p>
+      {% if stats.value_diff %}
+      <p class="text-[10px] mt-0.5 tabular-nums
+        {% if stats.value_diff > 0 %}text-red-500
+        {% else %}text-green-500{% endif %}">
+        {% if stats.value_diff > 0 %}+{% endif %}${{ stats.value_diff|floatformat:2 }} diff
+      </p>
+      {% endif %}
+    </div>
+
+    {# Cost to transform #}
+    <div class="card p-4 text-center">
+      <p class="text-2xl font-bold text-yellow-600 dark:text-yellow-400 tabular-nums">${{ stats.cost_to_transform|floatformat:0 }}</p>
+      <p class="text-xs text-gray-500 mt-1">To Transform A → B</p>
+      <p class="text-[10px] text-gray-400 mt-0.5">Cards in B missing from A</p>
+    </div>
+  </div>
+
+  {# Color identity comparison #}
+  <div class="card p-4 mb-6">
+    <h3 class="text-xs text-gray-500 uppercase tracking-wider mb-2">Color Identity</h3>
+    <div class="grid md:grid-cols-3 gap-4 text-sm">
+      <div>
+        <p class="text-xs text-green-600 dark:text-green-400 font-medium mb-1">{{ deck_a.name|truncatechars:18 }}</p>
+        <div class="flex gap-1.5">
+          {% for c in stats.ci_a %}
+          <span class="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold
+            {% if c == 'W' %}bg-yellow-100 text-yellow-800
+            {% elif c == 'U' %}bg-blue-100 text-blue-800
+            {% elif c == 'B' %}bg-gray-800 text-gray-100
+            {% elif c == 'R' %}bg-red-100 text-red-800
+            {% elif c == 'G' %}bg-green-100 text-green-800
+            {% else %}bg-gray-200 text-gray-600{% endif %}">{{ c }}</span>
+          {% empty %}<span class="text-gray-400 text-xs italic">Colorless</span>{% endfor %}
+        </div>
+      </div>
+      <div>
+        <p class="text-xs text-gray-500 font-medium mb-1">Shared</p>
+        <div class="flex gap-1.5">
+          {% for c in stats.ci_shared %}
+          <span class="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ring-2 ring-gray-400
+            {% if c == 'W' %}bg-yellow-100 text-yellow-800
+            {% elif c == 'U' %}bg-blue-100 text-blue-800
+            {% elif c == 'B' %}bg-gray-800 text-gray-100
+            {% elif c == 'R' %}bg-red-100 text-red-800
+            {% elif c == 'G' %}bg-green-100 text-green-800
+            {% else %}bg-gray-200 text-gray-600{% endif %}">{{ c }}</span>
+          {% empty %}<span class="text-gray-400 text-xs italic">None shared</span>{% endfor %}
+        </div>
+      </div>
+      <div>
+        <p class="text-xs text-blue-600 dark:text-blue-400 font-medium mb-1">{{ deck_b.name|truncatechars:18 }}</p>
+        <div class="flex gap-1.5">
+          {% for c in stats.ci_b %}
+          <span class="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold
+            {% if c == 'W' %}bg-yellow-100 text-yellow-800
+            {% elif c == 'U' %}bg-blue-100 text-blue-800
+            {% elif c == 'B' %}bg-gray-800 text-gray-100
+            {% elif c == 'R' %}bg-red-100 text-red-800
+            {% elif c == 'G' %}bg-green-100 text-green-800
+            {% else %}bg-gray-200 text-gray-600{% endif %}">{{ c }}</span>
+          {% empty %}<span class="text-gray-400 text-xs italic">Colorless</span>{% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Mana curve + type distribution charts #}
+  <div class="grid md:grid-cols-2 gap-6 mb-6">
+    <div class="card p-4">
+      <h3 class="text-xs text-gray-500 uppercase tracking-wider mb-3">Mana Curve</h3>
+      <div class="h-48"><canvas id="curveCompare"></canvas></div>
+    </div>
+    <div class="card p-4">
+      <h3 class="text-xs text-gray-500 uppercase tracking-wider mb-3">Type Distribution</h3>
+      <div class="h-48"><canvas id="typesCompare"></canvas></div>
+    </div>
+  </div>
+
   <!-- Comparison columns -->
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
@@ -173,4 +273,49 @@
   {% endif %}
 
 </div>
+
+{% if deck_a %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+  const curveData = {{ curve_chart_json|safe }};
+  const typesData = {{ types_chart_json|safe }};
+  const A_COLOR = '#22C55E';
+  const B_COLOR = '#3B82F6';
+
+  const barOpts = {
+    responsive: true, maintainAspectRatio: false,
+    interaction: {mode: 'index', intersect: false},
+    scales: {
+      x: {grid: {display: false}, ticks: {font: {size: 10}}},
+      y: {beginAtZero: true, ticks: {precision: 0, font: {size: 10}},
+          grid: {color: 'rgba(255,255,255,0.05)'}},
+    },
+    plugins: {legend: {position: 'top', labels: {boxWidth: 10, font: {size: 10}}}},
+  };
+
+  new Chart(document.getElementById('curveCompare'), {
+    type: 'bar',
+    data: {
+      labels: curveData.labels,
+      datasets: [
+        {label: curveData.a_name, data: curveData.a, backgroundColor: A_COLOR, borderRadius: 3},
+        {label: curveData.b_name, data: curveData.b, backgroundColor: B_COLOR, borderRadius: 3},
+      ]
+    },
+    options: barOpts,
+  });
+
+  new Chart(document.getElementById('typesCompare'), {
+    type: 'bar',
+    data: {
+      labels: typesData.labels,
+      datasets: [
+        {label: typesData.a_name, data: typesData.a, backgroundColor: A_COLOR, borderRadius: 3},
+        {label: typesData.b_name, data: typesData.b, backgroundColor: B_COLOR, borderRadius: 3},
+      ]
+    },
+    options: barOpts,
+  });
+</script>
+{% endif %}
 {% endblock %}
