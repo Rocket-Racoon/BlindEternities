@@ -26,6 +26,8 @@
            class="nav-link {% active_url 'stats' %}">Stats</a>
         <a href="{% url 'phyrexian:tournament-list' %}"
            class="nav-link {% active_url 'tournament' %}">Tournaments</a>
+        <a href="{% url 'phyrexian:elo-leaderboard' %}"
+           class="nav-link {% active_url 'elo' %}">ELO</a>
         {% endif %}
         <a href="#"
            class="nav-link {% active_url 'marketplace' %}">Trades</a>
@@ -110,6 +112,7 @@
       <a href="{% url 'tolarian:deck-list' %}" class="block nav-link">Decks</a>
       <a href="{% url 'phyrexian:dashboard' %}" class="block nav-link">Stats</a>
       <a href="{% url 'phyrexian:tournament-list' %}" class="block nav-link">Tournaments</a>
+      <a href="{% url 'phyrexian:elo-leaderboard' %}" class="block nav-link">ELO</a>
       {% endif %}
       <a href="#" class="block nav-link">Trades</a>
     </div>
