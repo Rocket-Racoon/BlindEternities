@@ -80,8 +80,22 @@
       </div>
 
       <!-- Info secundaria -->
-      <div class="text-right shrink-0">
-        <p class="text-sm text-gray-500 dark:text-gray-400">
+      <div class="text-right shrink-0 w-40">
+        {% if request.user.is_authenticated and cardset.card_count %}
+        <div class="mb-1">
+          <div class="flex items-center justify-end gap-2 text-xs">
+            <span class="font-medium {% if cardset.completion_pct == 100 %}text-green-600 dark:text-green-400{% elif cardset.owned_count %}text-void-600 dark:text-void-400{% else %}text-gray-400{% endif %} tabular-nums">
+              {{ cardset.owned_count|default:0 }} / {{ cardset.card_count }}
+            </span>
+            <span class="text-gray-400 tabular-nums w-10">{{ cardset.completion_pct|floatformat:0 }}%</span>
+          </div>
+          <div class="h-1.5 mt-1 rounded-full bg-gray-200 dark:bg-void-800 overflow-hidden">
+            <div class="h-full {% if cardset.completion_pct == 100 %}bg-green-500{% else %}bg-void-500{% endif %}"
+                 style="width: {{ cardset.completion_pct|floatformat:0 }}%"></div>
+          </div>
+        </div>
+        {% endif %}
+        <p class="text-xs text-gray-500 dark:text-gray-400">
           {{ cardset.released_at|date:"d M Y"|default:"—" }}
         </p>
         <div class="flex gap-2 justify-end mt-1">

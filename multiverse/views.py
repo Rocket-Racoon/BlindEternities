@@ -234,6 +234,31 @@ class CardDetailView(TemplateView):
         return ctx
 
 
+def _user_owned_card_ids_by_set(user, set_ids):
+    """
+    Return {set_id: set_of_card_ids} for cards the user owns
+    (from any of their collections) within the given set IDs.
+    """
+    if not user.is_authenticated or not set_ids:
+        return {}
+    from tolarian.models import CollectionItem
+    items = (
+        CollectionItem.objects
+        .filter(
+            collection__user=user,
+            collection__is_active=True,
+            is_active=True,
+            print__cardset_id__in=set_ids,
+        )
+        .values_list("print__cardset_id", "card_id")
+        .distinct()
+    )
+    result = {}
+    for set_id, card_id in items:
+        result.setdefault(set_id, set()).add(card_id)
+    return result
+
+
 class SetListView(TemplateView):
     template_name = "multiverse/set_list.html"
 
@@ -245,9 +270,21 @@ class SetListView(TemplateView):
         if form.is_valid():
             qs = form.filter_queryset(qs)
 
+        page_obj = paginate_queryset(qs, self.request.GET.get("page"), per_page=40)
+
+        # Attach per-user completion stats to each set on the page
+        user = self.request.user
+        if user.is_authenticated:
+            set_ids = [s.pk for s in page_obj.object_list]
+            owned_map = _user_owned_card_ids_by_set(user, set_ids)
+            for s in page_obj.object_list:
+                owned = len(owned_map.get(s.pk, set()))
+                s.owned_count = owned
+                s.completion_pct = (owned / s.card_count * 100) if s.card_count else 0
+
         ctx.update({
             "form":      form,
-            "page_obj":  paginate_queryset(qs, self.request.GET.get("page"), per_page=40),
+            "page_obj":  page_obj,
             "set_types": CardSetType.choices,
         })
         return ctx
@@ -271,12 +308,109 @@ class SetDetailView(TemplateView):
             .order_by(Length("collector_number"), "collector_number")
         )
 
+        page_obj = paginate_queryset(prints, self.request.GET.get("page"), per_page=40)
+
+        # Per-user ownership data
+        user = self.request.user
+        owned_card_ids = set()
+        total_owned = 0
+        user_collections = []
+        if user.is_authenticated:
+            from tolarian.models import CollectionItem, Collection
+            # All owned card IDs in this set (for the whole set — used for header)
+            total_owned = (
+                CollectionItem.objects
+                .filter(
+                    collection__user=user,
+                    collection__is_active=True,
+                    is_active=True,
+                    print__cardset=cardset,
+                )
+                .values("card_id").distinct().count()
+            )
+            # Just the IDs on this page — for grey-out styling
+            owned_card_ids = set(
+                CollectionItem.objects
+                .filter(
+                    collection__user=user,
+                    collection__is_active=True,
+                    is_active=True,
+                    card_id__in=[p.card_id for p in page_obj.object_list],
+                )
+                .values_list("card_id", flat=True)
+                .distinct()
+            )
+            # User's collections for the quick-add dropdown
+            user_collections = list(
+                Collection.objects.filter(user=user, is_active=True)
+                .order_by("collection_type", "name")
+            )
+
         ctx.update({
             "cardset":  cardset,
-            "page_obj": paginate_queryset(prints, self.request.GET.get("page"), per_page=40),
+            "page_obj": page_obj,
             "rarities": CardRarity.choices,
+            "owned_card_ids": owned_card_ids,
+            "total_owned_in_set": total_owned,
+            "completion_pct": round(total_owned / cardset.card_count * 100, 1) if cardset.card_count else 0,
+            "user_collections": user_collections,
         })
         return ctx
+
+
+class QuickAddToCollectionView(TemplateView):
+    """
+    Quick-add endpoint used from the Set Detail page.
+    POST: collection_id, card_id, print_id
+    """
+
+    def post(self, request, *args, **kwargs):
+        from django.shortcuts import redirect
+        from django.contrib.auth.mixins import LoginRequiredMixin  # noqa
+        from django.contrib import messages
+        from tolarian.models import Collection, CollectionItem
+
+        if not request.user.is_authenticated:
+            return redirect("account_login")
+
+        collection_id = request.POST.get("collection_id")
+        card_id = request.POST.get("card_id")
+        print_id = request.POST.get("print_id")
+
+        collection = get_object_or_404(
+            Collection, pk=collection_id, user=request.user, is_active=True,
+        )
+        card = get_object_or_404(Card, pk=card_id)
+        print_obj = CardPrint.objects.filter(pk=print_id).first()
+
+        # Create or increment
+        existing = CollectionItem.objects.filter(
+            collection=collection,
+            card=card,
+            print=print_obj,
+            condition="NM",
+            finish="nonfoil",
+            language="en",
+        ).first()
+        if existing:
+            existing.quantity += 1
+            existing.save(update_fields=["quantity", "updated_at"])
+            messages.success(request, f"{card.name} → {collection.name} (x{existing.quantity})")
+        else:
+            CollectionItem.objects.create(
+                collection=collection,
+                card=card,
+                print=print_obj,
+                quantity=1,
+                condition="NM",
+                finish="nonfoil",
+                language="en",
+            )
+            messages.success(request, f"Added {card.name} to {collection.name}")
+
+        # Redirect back
+        back = request.META.get("HTTP_REFERER") or "/"
+        return redirect(back)
 
 
 class CardRulingsPartialView(TemplateView):

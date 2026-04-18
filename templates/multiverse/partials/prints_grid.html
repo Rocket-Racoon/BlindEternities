@@ -1,29 +1,71 @@
 {% for print in page_obj %}
-<a href="{% url 'multiverse:card-detail' print.card.oracle_id %}"
-   class="group block">
-  <div class="card overflow-hidden transition-transform duration-150
-              group-hover:-translate-y-1 group-hover:shadow-md">
+<div class="group relative {% if print.card_id not in owned_card_ids %}unowned-card{% else %}owned-card{% endif %}">
+  <a href="{% url 'multiverse:card-detail' print.card.oracle_id %}" class="block">
+    <div class="card overflow-hidden transition-transform duration-150
+                group-hover:-translate-y-1 group-hover:shadow-md
+                {% if request.user.is_authenticated and print.card_id not in owned_card_ids %}opacity-50 grayscale{% endif %}">
 
-    {% with faces=print.card.faces.all %}
-    {% with img_sm=print.image_small img_md=print.image_normal img_lg=print.image_large card_name=print.card.name lazy="lazy" %}
-    {% if faces|length > 1 %}
-    {% with img_back_sm=faces.1.image_uris.small img_back_md=faces.1.image_uris.normal img_back_lg=faces.1.image_uris.large %}
-    {% include "multiverse/partials/_card_image.html" %}
-    {% endwith %}
-    {% else %}
-    {% include "multiverse/partials/_card_image.html" %}
-    {% endif %}
-    {% endwith %}
-    {% endwith %}
+      {% with faces=print.card.faces.all %}
+      {% with img_sm=print.image_small img_md=print.image_normal img_lg=print.image_large card_name=print.card.name lazy="lazy" %}
+      {% if faces|length > 1 %}
+      {% with img_back_sm=faces.1.image_uris.small img_back_md=faces.1.image_uris.normal img_back_lg=faces.1.image_uris.large %}
+      {% include "multiverse/partials/_card_image.html" %}
+      {% endwith %}
+      {% else %}
+      {% include "multiverse/partials/_card_image.html" %}
+      {% endif %}
+      {% endwith %}
+      {% endwith %}
 
-    <div class="p-1.5">
-      <p class="text-xs text-gray-500 dark:text-gray-400 text-center">
-        #{{ print.collector_number }}
-      </p>
+      <div class="p-1.5 flex items-center justify-between">
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          #{{ print.collector_number }}
+        </p>
+        {% if request.user.is_authenticated and print.card_id in owned_card_ids %}
+        <span class="text-[10px] text-green-500 font-bold">✓ Owned</span>
+        {% endif %}
+      </div>
     </div>
+  </a>
 
+  {# Quick-add button (hover reveal) — only for authenticated users with collections #}
+  {% if request.user.is_authenticated and user_collections %}
+  <div class="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+       x-data="{ open: false }">
+    <button @click.prevent.stop="open = !open"
+            class="w-7 h-7 rounded-full bg-void-600/90 hover:bg-void-600 text-white flex items-center justify-center shadow-lg backdrop-blur-sm"
+            title="Add to collection">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+      </svg>
+    </button>
+    <div x-show="open" x-cloak @click.away="open = false"
+         x-transition
+         class="absolute right-0 top-full mt-1 w-56 rounded-lg shadow-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-2 z-20">
+      <p class="text-[10px] text-gray-500 uppercase tracking-wider px-2 pb-1">Add to…</p>
+      {% for c in user_collections %}
+      <form method="post" action="{% url 'multiverse:quick-add-to-collection' %}" class="contents">
+        {% csrf_token %}
+        <input type="hidden" name="collection_id" value="{{ c.pk }}">
+        <input type="hidden" name="card_id" value="{{ print.card_id }}">
+        <input type="hidden" name="print_id" value="{{ print.pk }}">
+        <button type="submit"
+                class="w-full flex items-center gap-2 px-2 py-1.5 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors">
+          <span class="text-[10px] px-1 py-0.5 rounded uppercase font-bold
+            {% if c.collection_type == 'wishlist' %}bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400
+            {% elif c.collection_type == 'tradelist' %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400
+            {% elif c.collection_type == 'loanlist' %}bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400
+            {% else %}bg-void-100 text-void-700 dark:bg-void-900/30 dark:text-void-400{% endif %}">
+            {{ c.collection_type|slice:":3" }}
+          </span>
+          <span class="truncate">{{ c.name }}</span>
+        </button>
+      </form>
+      {% endfor %}
+    </div>
   </div>
-</a>
+  {% endif %}
+</div>
 {% endfor %}
 
 {% if page_obj.has_next %}
