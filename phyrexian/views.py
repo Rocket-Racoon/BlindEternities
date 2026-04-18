@@ -270,6 +270,58 @@ class CollectionStatsView(LoginRequiredMixin, TemplateView):
             "colors": [RARITY_HEX.get(r["rarity"], "#6B7280") for r in ctx["playset_by_rarity"]],
         })
 
+        # ── Format coverage ──
+        from multiverse.models import CardLegality
+        from core.constants import MagicFormat
+
+        # Map each format to a minimum deck size. Draft/Sealed skipped.
+        FORMAT_DECK_MIN = {
+            MagicFormat.STANDARD:    60,
+            MagicFormat.PIONEER:     60,
+            MagicFormat.MODERN:      60,
+            MagicFormat.LEGACY:      60,
+            MagicFormat.VINTAGE:     60,
+            MagicFormat.PAUPER:      60,
+            MagicFormat.COMMANDER:   100,
+            MagicFormat.OATHBREAKER: 60,
+            MagicFormat.BRAWL:       60,
+        }
+
+        owned_card_ids = list(card_totals.keys())
+        legalities = (
+            CardLegality.objects
+            .filter(card_id__in=owned_card_ids)
+            .values_list("card_id", "data")
+        )
+        legal_by_format = Counter()
+        for _cid, data in legalities:
+            if not isinstance(data, dict):
+                continue
+            for fmt_key in FORMAT_DECK_MIN.keys():
+                if data.get(fmt_key) == "legal":
+                    legal_by_format[fmt_key] += 1
+
+        format_coverage = []
+        for fmt_key, minimum in FORMAT_DECK_MIN.items():
+            legal_count = legal_by_format.get(fmt_key, 0)
+            pct = round(min(100, legal_count / minimum * 100), 1) if minimum else 0
+            status = (
+                "ready" if legal_count >= minimum * 1.5
+                else "buildable" if legal_count >= minimum
+                else "close" if legal_count >= minimum * 0.5
+                else "low"
+            )
+            format_coverage.append({
+                "format": fmt_key,
+                "display": dict(MagicFormat.choices).get(fmt_key, fmt_key),
+                "owned_legal": legal_count,
+                "minimum": minimum,
+                "pct": pct,
+                "status": status,
+            })
+        format_coverage.sort(key=lambda x: -x["owned_legal"])
+        ctx["format_coverage"] = format_coverage
+
         return ctx
 
 
