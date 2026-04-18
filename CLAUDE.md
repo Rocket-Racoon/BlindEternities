@@ -27,6 +27,12 @@ python manage.py sync_cards              # bulk, ~10 min
 python manage.py sync_cards --set znr    # single set
 python manage.py sync_prices             # daily price update
 python manage.py sync_rulings
+
+# Phyrexian data export / ELO / tournament stats
+python manage.py export_games --format csv --output games.csv
+python manage.py export_elo --history
+python manage.py recalculate_elo                   # replay all games, rebuild ratings
+python manage.py recalculate_tournament_stats     # rebuild per-user tournament aggregates
 ```
 
 No test suite or linter is configured yet.
@@ -37,11 +43,11 @@ No test suite or linter is configured yet.
 
 | App | URL prefix | Purpose |
 |---|---|---|
-| **nexus** | `/` | User profiles, OAuth (allauth with Google/GitHub), home page |
-| **multiverse** | `/cards/` | Card database: Card, CardSet, CardFace, CardPrint, CardLegality, Ruling. All synced from Scryfall API |
-| **tolarian** | `/collection/` | Collections (binder/wishlist/tradelist/loanlist) and Decks with zone support (main/sideboard/commander/companion/maybeboard) |
+| **nexus** | `/` | User profiles, OAuth (allauth with Google/GitHub), home page, friend system |
+| **multiverse** | `/cards/` | Card database: Card, CardSet, CardFace, CardPrint, CardLegality, Ruling. All synced from Scryfall API. Set detail shows per-user completion + quick-add to collection |
+| **tolarian** | `/collection/` | Collections (binder/wishlist/tradelist/loanlist) and Decks with zone support (main/sideboard/commander/companion/maybeboard). Deck compare with rich analytics |
 | **core** | — | Shared BaseModel (UUID PK, timestamps, soft-delete), constants (enums for formats, colors, rarities, layouts), template tags (mana symbol rendering), pagination utility |
-| **phyrexian** | `/stats/` | Stub — future game statistics |
+| **phyrexian** | `/stats/` | Game stats dashboard, game record CRUD, live multiplayer sessions (lifetap-style), win rate analytics, tournament brackets (Swiss / single-elim / Bo3), multiplayer ELO ratings, TournamentStats aggregates, collection+deck analytics, data export commands |
 | **omenpath** | `/market/` | Stub — future trading marketplace |
 
 ### Settings
@@ -76,3 +82,17 @@ Config in `base.py`: 100ms request delay, 500 batch size for bulk inserts, 15s/3
 ### Enums
 
 `core/constants.py` defines TextChoices enums used across the project: `MagicFormat`, `MagicColor`, `CardRarity`, `CardLayout`, `CardSetType`, `CollectionType`, `DeckZone`, `CardCondition`, `CardFinish`. Always use these instead of raw strings.
+
+App-local enums live next to their models:
+- `phyrexian/models.py` — `GameResult`, `EliminationCause` (life/poison/commander_damage/alt_wincon/forfeit/alt_losecon), `SessionStatus`, `BracketType` (swiss/single_elim), `TournamentStatus`
+
+### Phyrexian feature map
+
+- **Game records** (`/stats/games/`) — CRUD with opponents (`GamePlayer` inline), commanders, placement, elimination tracking (cause + turn + eliminator)
+- **Live sessions** (`/stats/session/new/`) — 2-6 player Lifetap-style tracker. `GameSession` + `PlayerSlot` + `LifeChange`. Session end auto-creates `GameRecord`s for each linked user and triggers ELO updates
+- **Win rate analytics** (`/stats/winrate/`) — trends (monthly/yearly), elimination cause pie, placement distribution, turn duration, commander performance, H2H, biggest-threats. Filter by format/deck/commander/color
+- **Collection stats** (`/stats/collection/`) — rarity/color/condition/top-valuable + playset completion (cross-collection aggregate, non-basic-land) + format coverage (legal cards per format vs deck minimum)
+- **Tournaments** (`/stats/tournaments/`) — Swiss pairing (avoids rematches, handles byes) or Single Elim, configurable pod size (1v1 / 3 / 4) and best_of (1 or 3). `tournament.py` has the engine (`generate_next_round`, `record_match_result`, `recompute_tournament_stats`). Rich add-player UI with user-search + deck-dropdown + commander autocomplete
+- **ELO** (`/stats/elo/`) — `elo.py` has the pairwise-comparison multiplayer ELO engine (K=32/24, default 1200, floor 100). `EloRating` per user+format, `EloHistory` for audit/chart. Auto-updates on session end
+- **Deck comparison** (`/collection/decks/compare/`) — side-by-side with overlap %, cost-to-transform, mana curve + type distribution grouped bars, color identity comparison
+- **Deck detail** (`/collection/decks/<pk>/`) — right sidebar shows Record panel (W/L/D, monthly + cumulative win rate trend chart, recent games) for decks with logged games
