@@ -193,6 +193,83 @@ class CollectionStatsView(LoginRequiredMixin, TemplateView):
                 type_counts[ct.name] += item.quantity
         ctx["creature_types"] = dict(type_counts.most_common(15))
 
+        # ── Playset completion ──
+        # Aggregate quantity per card across all collections.
+        # Skip basic lands (unlimited in decks).
+        card_totals = {}  # {card_id: {'card': Card, 'print': CardPrint, 'qty': int}}
+        for item in items:
+            if not item.card:
+                continue
+            type_line = (item.card.type_line or "").lower()
+            if "basic" in type_line and "land" in type_line:
+                continue
+            cid = item.card_id
+            if cid not in card_totals:
+                card_totals[cid] = {
+                    "card": item.card,
+                    "print": item.print,
+                    "qty": 0,
+                    "rarity": item.print.rarity if item.print else "",
+                    "price": float(item.print.price_usd or 0) if item.print else 0,
+                }
+            card_totals[cid]["qty"] += item.quantity
+
+        unique_cards = len(card_totals)
+        full_playsets = sum(1 for v in card_totals.values() if v["qty"] >= 4)
+
+        # Playsets by rarity
+        playsets_by_rarity = Counter()
+        unique_by_rarity = Counter()
+        for v in card_totals.values():
+            r = v["rarity"] or "common"
+            unique_by_rarity[r] += 1
+            if v["qty"] >= 4:
+                playsets_by_rarity[r] += 1
+
+        # Near-complete playsets (qty 1-3), sorted by (qty desc, price desc)
+        near_playsets = [
+            {
+                "card": v["card"],
+                "print": v["print"],
+                "qty": v["qty"],
+                "missing": 4 - v["qty"],
+                "rarity": v["rarity"],
+                "price": v["price"],
+                "cost_to_complete": v["price"] * (4 - v["qty"]),
+            }
+            for v in card_totals.values()
+            if 1 <= v["qty"] <= 3
+        ]
+        near_playsets.sort(key=lambda x: (-x["qty"], -x["price"]))
+
+        ctx["playset_unique_cards"] = unique_cards
+        ctx["playset_full_count"] = full_playsets
+        ctx["playset_completion_pct"] = (
+            round(full_playsets / unique_cards * 100, 1) if unique_cards else 0
+        )
+        ctx["playset_by_rarity"] = [
+            {
+                "rarity": r,
+                "full": playsets_by_rarity.get(r, 0),
+                "unique": unique_by_rarity[r],
+                "pct": round(playsets_by_rarity.get(r, 0) / unique_by_rarity[r] * 100, 1) if unique_by_rarity[r] else 0,
+            }
+            for r in ["common", "uncommon", "rare", "mythic"]
+            if unique_by_rarity[r] > 0
+        ]
+        ctx["near_playsets"] = near_playsets[:20]
+        ctx["near_playsets_total_cost"] = sum(
+            p["cost_to_complete"] for p in near_playsets
+        )
+
+        # Playset chart data
+        ctx["playset_chart_json"] = json.dumps({
+            "labels": [r["rarity"].title() for r in ctx["playset_by_rarity"]],
+            "full": [r["full"] for r in ctx["playset_by_rarity"]],
+            "remaining": [r["unique"] - r["full"] for r in ctx["playset_by_rarity"]],
+            "colors": [RARITY_HEX.get(r["rarity"], "#6B7280") for r in ctx["playset_by_rarity"]],
+        })
+
         return ctx
 
 
