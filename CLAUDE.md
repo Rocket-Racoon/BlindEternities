@@ -37,6 +37,24 @@ python manage.py recalculate_tournament_stats     # rebuild per-user tournament 
 
 No test suite or linter is configured yet.
 
+## Test Users
+
+Seeded via `python manage.py create_test_users` ([nexus/management/commands/create_test_users.py](nexus/management/commands/create_test_users.py)). Allauth is configured for email login (`ACCOUNT_LOGIN_METHODS = {"email"}`), so the command also creates a verified primary `EmailAddress` per user. All share the same password; re-running resets it.
+
+| Login Email | Username | Display Name | Password |
+|---|---|---|---|
+| `urza@blindeternities.test` | `urza` | Urza, Lord High Artificer | `testpass123` |
+| `karn@blindeternities.test` | `karn` | Karn, Silver Golem | `testpass123` |
+| `teferi@blindeternities.test` | `teferi` | Teferi, Temporal Archmage | `testpass123` |
+| `nicol.bolas@blindeternities.test` | `nicol_bolas` | Nicol Bolas, the Ravager | `testpass123` |
+| `freyalise@blindeternities.test` | `freyalise` | Freyalise, Llanowar's Fury | `testpass123` |
+| `nahiri@blindeternities.test` | `nahiri` | Nahiri, the Lithomancer | `testpass123` |
+| `sorin@blindeternities.test` | `sorin` | Sorin Markov | `testpass123` |
+| `ugin@blindeternities.test` | `ugin` | Ugin, the Spirit Dragon | `testpass123` |
+| `toshiro@blindeternities.test` | `toshiro` | Toshiro Umezawa | `testpass123` |
+
+Override the default with `--password <pw>`. These accounts are for local testing only — do not run this command in production.
+
 ## Architecture
 
 ### Django Apps (domain-driven)
