@@ -188,8 +188,14 @@
   </div>
   {% endif %}
 
-  <!-- Results (grid + table views, swapped via HTMX on sort/filter change) -->
-  <div id="collection-results">
+  <!-- Results (grid + table views, swapped via HTMX on sort/filter change
+       or by the `collection-refresh` event after a row-level move).
+       Refresh URL drops `page=` so a move can't leave you on an empty page. -->
+  <div id="collection-results"
+       hx-get="{% url 'tolarian:collection-detail' collection.pk %}{% if extra_qs %}?{{ extra_qs }}{% endif %}"
+       hx-trigger="collection-refresh from:body"
+       hx-target="this"
+       hx-swap="innerHTML">
     {% include "tolarian/partials/collection_results.html" %}
   </div>
 

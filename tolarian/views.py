@@ -84,7 +84,8 @@ class CollectionDetailView(LoginRequiredMixin, TemplateView):
 
     def get_template_names(self):
         if self.request.headers.get("HX-Request"):
-            if self.request.GET.get("page"):
+            trigger = self.request.headers.get("HX-Trigger", "")
+            if self.request.GET.get("page") and trigger == "collection-scroll-sentinel":
                 return ["tolarian/partials/collection_grid_items.html"]
             return ["tolarian/partials/collection_results.html"]
         return [self.template_name]
@@ -174,10 +175,27 @@ class CollectionDetailView(LoginRequiredMixin, TemplateView):
         header_params.pop("sort", None)
         header_qs = header_params.urlencode()
 
+        # Target collections for the row-level "Mover" dropdown
+        move_targets = []
+        is_owner = collection.user == self.request.user
+        if is_owner:
+            move_qs = (
+                Collection.objects
+                .filter(user=self.request.user, is_active=True)
+                .exclude(pk=collection.pk)
+                .order_by("collection_type", "name")
+            )
+            if collection.collection_type == CollectionType.WISHLIST:
+                move_qs = move_qs.exclude(collection_type=CollectionType.LOANLIST)
+            elif collection.collection_type == CollectionType.LOANLIST:
+                move_qs = move_qs.exclude(collection_type=CollectionType.WISHLIST)
+            move_targets = list(move_qs)
+
         ctx.update({
             "collection":         collection,
             "page_obj":           paginate_queryset(items, self.request.GET.get("page"), per_page=40),
-            "is_owner":           collection.user == self.request.user,
+            "is_owner":           is_owner,
+            "move_targets":       move_targets,
             "is_loan":            collection.collection_type == CollectionType.LOANLIST,
             "collection_add_url": reverse("tolarian:collection-add-card", kwargs={"pk": collection.pk}),
             "collection_bulk_add_url": reverse("tolarian:collection-bulk-add", kwargs={"pk": collection.pk}),
@@ -493,9 +511,13 @@ class CollectionItemMoveView(LoginRequiredMixin, View):
                     notes=item.notes,
                 )
 
-        messages.success(request, f"{move_qty}x {item.card.name} movida(s) a {target.name}.")
         if request.headers.get("HX-Request"):
-            return HttpResponse(status=204)
+            # Suppress session toast — the HX-Trigger refresh re-renders the
+            # results without a full page load, so the toast would pile up.
+            response = HttpResponse(status=204)
+            response["HX-Trigger"] = "collection-refresh"
+            return response
+        messages.success(request, f"{move_qty}x {item.card.name} movida(s) a {target.name}.")
         return redirect("tolarian:collection-detail", pk=source_pk)
 
 
