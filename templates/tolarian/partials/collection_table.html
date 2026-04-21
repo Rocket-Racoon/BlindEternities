@@ -1,52 +1,114 @@
-{% load core_tags %}
+{% load core_tags humanize %}
 
 {% if page_obj.object_list %}
 <div class="card overflow-hidden">
-  <table class="w-full text-sm">
+  <div class="overflow-x-auto">
+  <table class="w-full text-sm border-collapse">
     <thead>
-      <tr class="border-b border-gray-200 dark:border-void-700">
-        <th class="text-left py-3 px-4 text-xs font-medium
-                   text-gray-500 dark:text-gray-400">Carta</th>
-        <th class="text-left py-3 px-4 text-xs font-medium
-                   text-gray-500 dark:text-gray-400">Set</th>
-        <th class="text-center py-3 px-4 text-xs font-medium
-                   text-gray-500 dark:text-gray-400">Qty</th>
-        <th class="text-left py-3 px-4 text-xs font-medium
-                   text-gray-500 dark:text-gray-400">Condición</th>
-        <th class="text-left py-3 px-4 text-xs font-medium
-                   text-gray-500 dark:text-gray-400">Finish</th>
-        <th class="text-left py-3 px-4 text-xs font-medium
-                   text-gray-500 dark:text-gray-400">Idioma</th>
-        <th class="text-right py-3 px-4 text-xs font-medium
-                   text-gray-500 dark:text-gray-400">Precio compra</th>
-        <th class="text-right py-3 px-4 text-xs font-medium
-                   text-gray-500 dark:text-gray-400">Precio actual</th>
+      <tr class="border-b border-gray-200 dark:border-void-700/60 bg-gray-50/60 dark:bg-void-900/40">
+
+        {# Carta — sortable #}
+        <th class="text-left py-2.5 px-4 text-[11px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+          {% with asc="name_asc" desc="name_desc" %}
+          {% if sort == asc %}{% with next_sort=desc arrow="↑" active=True %}{% include "tolarian/partials/_th_sort_link.html" with label="Carta" %}{% endwith %}
+          {% elif sort == desc %}{% with next_sort=asc arrow="↓" active=True %}{% include "tolarian/partials/_th_sort_link.html" with label="Carta" %}{% endwith %}
+          {% else %}{% with next_sort=asc arrow="" active=False %}{% include "tolarian/partials/_th_sort_link.html" with label="Carta" %}{% endwith %}
+          {% endif %}
+          {% endwith %}
+        </th>
+
+        {# Set — sortable #}
+        <th class="text-left py-2.5 px-4 text-[11px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+          {% if sort == "set" %}{% with next_sort="set_desc" arrow="↑" active=True %}{% include "tolarian/partials/_th_sort_link.html" with label="Set" %}{% endwith %}
+          {% elif sort == "set_desc" %}{% with next_sort="set" arrow="↓" active=True %}{% include "tolarian/partials/_th_sort_link.html" with label="Set" %}{% endwith %}
+          {% else %}{% with next_sort="set" arrow="" active=False %}{% include "tolarian/partials/_th_sort_link.html" with label="Set" %}{% endwith %}
+          {% endif %}
+        </th>
+
+        {# Qty — sortable #}
+        <th class="text-center py-2.5 px-4 text-[11px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+          {% if sort == "qty_asc" %}{% with next_sort="qty_desc" arrow="↑" active=True %}{% include "tolarian/partials/_th_sort_link.html" with label="Qty" %}{% endwith %}
+          {% elif sort == "qty_desc" %}{% with next_sort="qty_asc" arrow="↓" active=True %}{% include "tolarian/partials/_th_sort_link.html" with label="Qty" %}{% endwith %}
+          {% else %}{% with next_sort="qty_desc" arrow="" active=False %}{% include "tolarian/partials/_th_sort_link.html" with label="Qty" %}{% endwith %}
+          {% endif %}
+        </th>
+
+        {# Rareza — sortable #}
+        <th class="text-left py-2.5 px-4 text-[11px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+          {% if sort == "rarity" %}{% with next_sort="rarity" arrow="↑" active=True %}{% include "tolarian/partials/_th_sort_link.html" with label="Rareza" %}{% endwith %}
+          {% else %}{% with next_sort="rarity" arrow="" active=False %}{% include "tolarian/partials/_th_sort_link.html" with label="Rareza" %}{% endwith %}
+          {% endif %}
+        </th>
+
+        {# Condición — sortable #}
+        <th class="text-left py-2.5 px-4 text-[11px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+          {% if sort == "condition_asc" %}{% with next_sort="condition_desc" arrow="↑" active=True %}{% include "tolarian/partials/_th_sort_link.html" with label="Cond." %}{% endwith %}
+          {% elif sort == "condition_desc" %}{% with next_sort="condition_asc" arrow="↓" active=True %}{% include "tolarian/partials/_th_sort_link.html" with label="Cond." %}{% endwith %}
+          {% else %}{% with next_sort="condition_asc" arrow="" active=False %}{% include "tolarian/partials/_th_sort_link.html" with label="Cond." %}{% endwith %}
+          {% endif %}
+        </th>
+
+        {# Finish — sortable #}
+        <th class="text-left py-2.5 px-4 text-[11px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+          {% if sort == "finish_asc" %}{% with next_sort="finish_desc" arrow="↑" active=True %}{% include "tolarian/partials/_th_sort_link.html" with label="Finish" %}{% endwith %}
+          {% elif sort == "finish_desc" %}{% with next_sort="finish_asc" arrow="↓" active=True %}{% include "tolarian/partials/_th_sort_link.html" with label="Finish" %}{% endwith %}
+          {% else %}{% with next_sort="finish_asc" arrow="" active=False %}{% include "tolarian/partials/_th_sort_link.html" with label="Finish" %}{% endwith %}
+          {% endif %}
+        </th>
+
+        {# Idioma — sortable #}
+        <th class="text-left py-2.5 px-4 text-[11px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+          {% if sort == "lang_asc" %}{% with next_sort="lang_desc" arrow="↑" active=True %}{% include "tolarian/partials/_th_sort_link.html" with label="Idioma" %}{% endwith %}
+          {% elif sort == "lang_desc" %}{% with next_sort="lang_asc" arrow="↓" active=True %}{% include "tolarian/partials/_th_sort_link.html" with label="Idioma" %}{% endwith %}
+          {% else %}{% with next_sort="lang_asc" arrow="" active=False %}{% include "tolarian/partials/_th_sort_link.html" with label="Idioma" %}{% endwith %}
+          {% endif %}
+        </th>
+
+        {# Precio compra — sortable #}
+        <th class="text-right py-2.5 px-4 text-[11px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+          {% if sort == "purchase_asc" %}{% with next_sort="purchase_desc" arrow="↑" active=True %}{% include "tolarian/partials/_th_sort_link.html" with label="Compra" %}{% endwith %}
+          {% elif sort == "purchase_desc" %}{% with next_sort="purchase_asc" arrow="↓" active=True %}{% include "tolarian/partials/_th_sort_link.html" with label="Compra" %}{% endwith %}
+          {% else %}{% with next_sort="purchase_desc" arrow="" active=False %}{% include "tolarian/partials/_th_sort_link.html" with label="Compra" %}{% endwith %}
+          {% endif %}
+        </th>
+
+        {# Precio actual — sortable #}
+        <th class="text-right py-2.5 px-4 text-[11px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+          {% if sort == "price_asc" %}{% with next_sort="price_desc" arrow="↑" active=True %}{% include "tolarian/partials/_th_sort_link.html" with label="Precio" %}{% endwith %}
+          {% elif sort == "price_desc" %}{% with next_sort="price_asc" arrow="↓" active=True %}{% include "tolarian/partials/_th_sort_link.html" with label="Precio" %}{% endwith %}
+          {% else %}{% with next_sort="price_desc" arrow="" active=False %}{% include "tolarian/partials/_th_sort_link.html" with label="Precio" %}{% endwith %}
+          {% endif %}
+        </th>
+
         {% if is_owner %}
-        <th class="py-3 px-4"></th>
+        <th class="py-2.5 px-4"></th>
         {% endif %}
       </tr>
     </thead>
-    <tbody class="divide-y divide-gray-100 dark:divide-void-800">
+    <tbody>
       {% for item in page_obj %}
-      <tr class="hover:bg-gray-50 dark:hover:bg-void-900 transition-colors">
+      <tr class="group border-b border-gray-100/80 dark:border-void-800/60
+                 hover:bg-void-50 dark:hover:bg-void-800/40 transition-colors">
 
         <!-- Carta -->
-        <td class="py-2.5 px-4">
+        <td class="py-2 px-4">
           <div class="flex items-center gap-3">
             {% with print=item.print %}
             {% if print and print.image_small %}
             <img src="{{ print.image_small }}"
                  alt="{{ item.card.name }}"
                  class="w-8 rounded shadow-sm shrink-0">
+            {% else %}
+            <div class="w-8 h-11 rounded bg-gray-200 dark:bg-void-800 shrink-0"></div>
             {% endif %}
             {% endwith %}
-            <div>
+            <div class="min-w-0">
               <a href="{% url 'multiverse:card-detail' item.card.oracle_id %}"
                  class="font-medium text-gray-900 dark:text-gray-100
-                        hover:text-void-600 dark:hover:text-void-400">
+                        hover:text-void-600 dark:hover:text-void-400 truncate block">
                 {{ item.card.name }}
               </a>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              <p class="text-xs text-gray-500 dark:text-gray-500 mt-0.5 truncate">
                 {{ item.card.type_line }}
               </p>
             </div>
@@ -54,86 +116,129 @@
         </td>
 
         <!-- Set -->
-        <td class="py-2.5 px-4 text-gray-500 dark:text-gray-400 text-xs">
+        <td class="py-2 px-4">
           {% if item.print %}
-          <div class="flex items-center gap-1.5">
+          <div class="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
             {% if item.print.cardset.icon_svg_uri %}
             <img src="{{ item.print.cardset.icon_svg_uri }}"
-                 class="w-3.5 h-3.5 opacity-60 dark:invert dark:opacity-40"
+                 class="w-3.5 h-3.5 opacity-60 dark:invert dark:opacity-50"
                  alt="">
             {% endif %}
-            {{ item.print.cardset.code|upper }}
+            <span class="font-mono font-medium">{{ item.print.cardset.code|upper }}</span>
           </div>
-          {% else %}—{% endif %}
+          {% else %}
+          <span class="text-gray-300 dark:text-gray-700">—</span>
+          {% endif %}
         </td>
 
         <!-- Qty -->
-        <td class="py-2.5 px-4 text-center font-medium
-                   text-gray-900 dark:text-gray-100">
+        <td class="py-2 px-4 text-center tabular-nums font-medium text-gray-800 dark:text-gray-200">
           {{ item.quantity }}
         </td>
 
+        <!-- Rareza -->
+        <td class="py-2 px-4">
+          {% if item.print and item.print.rarity %}
+          <span class="text-[11px] px-2 py-0.5 rounded capitalize font-medium
+            {% if item.print.rarity == 'mythic' %}bg-orange-500/15 text-orange-700 dark:text-orange-400
+            {% elif item.print.rarity == 'rare' %}bg-amber-500/15 text-amber-700 dark:text-amber-400
+            {% elif item.print.rarity == 'uncommon' %}bg-slate-400/20 text-slate-700 dark:text-slate-300
+            {% else %}bg-gray-400/15 text-gray-700 dark:text-gray-400{% endif %}">
+            {{ item.print.get_rarity_display|default:item.print.rarity }}
+          </span>
+          {% else %}
+          <span class="text-gray-300 dark:text-gray-700">—</span>
+          {% endif %}
+        </td>
+
         <!-- Condición -->
-        <td class="py-2.5 px-4">
-          <span class="text-xs px-2 py-0.5 rounded-full
-            {% if item.condition == 'NM' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
-            {% elif item.condition == 'LP' %}bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400
-            {% elif item.condition == 'MP' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
-            {% elif item.condition == 'HP' %}bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400
-            {% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400{% endif %}">
+        <td class="py-2 px-4">
+          <span class="text-[11px] px-2 py-0.5 rounded font-medium
+            {% if item.condition == 'NM' %}bg-emerald-500/15 text-emerald-700 dark:text-emerald-400
+            {% elif item.condition == 'LP' %}bg-sky-500/15 text-sky-700 dark:text-sky-400
+            {% elif item.condition == 'MP' %}bg-yellow-500/15 text-yellow-700 dark:text-yellow-500
+            {% elif item.condition == 'HP' %}bg-orange-500/15 text-orange-700 dark:text-orange-400
+            {% else %}bg-red-500/15 text-red-700 dark:text-red-400{% endif %}">
             {{ item.condition }}
           </span>
         </td>
 
         <!-- Finish -->
-        <td class="py-2.5 px-4 text-xs text-gray-500 dark:text-gray-400 capitalize">
+        <td class="py-2 px-4 text-xs text-gray-600 dark:text-gray-400 capitalize">
           {{ item.get_finish_display }}
         </td>
 
         <!-- Idioma -->
-        <td class="py-2.5 px-4 text-xs text-gray-500 dark:text-gray-400 uppercase">
+        <td class="py-2 px-4 text-xs text-gray-500 dark:text-gray-500 uppercase font-mono">
           {{ item.language }}
         </td>
 
         <!-- Precio compra -->
-        <td class="py-2.5 px-4 text-right text-gray-900 dark:text-gray-100">
+        <td class="py-2 px-4 text-right text-gray-700 dark:text-gray-300 tabular-nums">
           {% if item.purchase_price %}
-          ${{ item.purchase_price }}
+          ${{ item.purchase_price|floatformat:2|intcomma }}
           {% else %}
-          <span class="text-gray-300 dark:text-gray-600">—</span>
+          <span class="text-gray-300 dark:text-gray-700">—</span>
           {% endif %}
         </td>
 
         <!-- Precio actual -->
-        <td class="py-2.5 px-4 text-right text-gray-900 dark:text-gray-100">
-          {% if item.print and item.print.price_usd %}
-          ${{ item.print.price_usd }}
+        <td class="py-2 px-4 text-right font-medium text-gray-900 dark:text-gray-100 tabular-nums">
+          {% if item.unit_price is not None %}
+          ${{ item.unit_price|floatformat:2|intcomma }}
           {% else %}
-          <span class="text-gray-300 dark:text-gray-600">—</span>
+          <span class="text-gray-300 dark:text-gray-700">—</span>
           {% endif %}
         </td>
 
         <!-- Acciones -->
         {% if is_owner %}
-        <td class="py-2.5 px-4 text-right">
-          <form method="post"
-                action="{% url 'tolarian:collection-item-delete' item.pk %}"
-                class="inline">
-            {% csrf_token %}
-            <button type="submit"
-                    class="text-xs text-red-500 hover:text-red-700
-                           dark:text-red-400 dark:hover:text-red-300"
-                    onclick="return confirm('¿Eliminar?')">
-              Eliminar
+        <td class="py-2 px-4 text-right">
+          <div class="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button type="button"
+                    hx-get="{% url 'tolarian:collection-item-edit' item.pk %}"
+                    hx-target="#item-modal"
+                    hx-swap="innerHTML"
+                    class="text-xs text-void-600 dark:text-void-400 hover:underline">
+              Editar
             </button>
-          </form>
+            <form method="post"
+                  action="{% url 'tolarian:collection-item-delete' item.pk %}"
+                  class="inline">
+              {% csrf_token %}
+              <button type="submit"
+                      class="text-xs text-red-500 hover:text-red-700
+                             dark:text-red-400 dark:hover:text-red-300"
+                      onclick="return confirm('¿Eliminar?')">
+                Eliminar
+              </button>
+            </form>
+          </div>
         </td>
         {% endif %}
 
       </tr>
       {% endfor %}
     </tbody>
+    <tfoot>
+      <tr class="border-t border-gray-200 dark:border-void-700/60 bg-gray-50/40 dark:bg-void-900/30">
+        <td class="py-2.5 px-4 text-xs text-gray-500 dark:text-gray-400" colspan="7">
+          Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+          · {{ page_obj.paginator.count }} resultado{{ page_obj.paginator.count|pluralize:"s" }}
+        </td>
+        <td class="py-2.5 px-4 text-right text-xs text-gray-500 dark:text-gray-400">
+          Total:
+        </td>
+        <td class="py-2.5 px-4 text-right text-sm font-bold text-void-600 dark:text-void-400 tabular-nums">
+          ${{ collection.total_value|floatformat:2|intcomma }}
+        </td>
+        {% if is_owner %}
+        <td></td>
+        {% endif %}
+      </tr>
+    </tfoot>
   </table>
+  </div>
 </div>
 
 {% load core_tags %}

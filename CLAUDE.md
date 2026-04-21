@@ -33,6 +33,12 @@ python manage.py export_games --format csv --output games.csv
 python manage.py export_elo --history
 python manage.py recalculate_elo                   # replay all games, rebuild ratings
 python manage.py recalculate_tournament_stats     # rebuild per-user tournament aggregates
+
+# Omenpath market price sync (TCGPlayer / Cardmarket / Scryfall)
+python manage.py sync_market_prices                # refresh all sources, skip fresh <24h
+python manage.py sync_market_prices --source tcgplayer --set znr
+# Windows scheduled task — run scripts\sync_market_prices.bat daily via Task Scheduler
+# Requires TCGPLAYER_* and CARDMARKET_* credentials in .env to enable those sources.
 ```
 
 No test suite or linter is configured yet.

@@ -81,3 +81,24 @@ class Profile(BaseModel):
         for from_id, to_id in friend_ids:
             ids.add(from_id if from_id != self.user_id else to_id)
         return User.objects.filter(pk__in=ids)
+
+    def friendship_with(self, other):
+        """Return (state, friendship) for the pair (self.user, other).
+
+        state ∈ {"self", "none", "pending_sent", "pending_received", "friends"}.
+        """
+        if other is None or not other.is_authenticated:
+            return ("none", None)
+        if other == self.user:
+            return ("self", None)
+        from django.db.models import Q
+        fs = Friendship.objects.filter(
+            Q(from_user=self.user, to_user=other)
+            | Q(from_user=other, to_user=self.user)
+        ).first()
+        if fs is None:
+            return ("none", None)
+        if fs.accepted:
+            return ("friends", fs)
+        # Pending — direction is from the viewer's perspective (other).
+        return ("pending_sent" if fs.from_user == other else "pending_received", fs)

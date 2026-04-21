@@ -3,7 +3,22 @@
     "allow": [
       "Bash(find /c/Users/Hector/Documents/Personal/BlindEternities/multiverse/management -type f -name *.py)",
       "Bash(xargs grep:*)",
-      "WebFetch(domain:archidekt.com)"
+      "WebFetch(domain:archidekt.com)",
+      "Bash(python manage.py check)",
+      "Bash(python manage.py makemigrations omenpath tolarian)",
+      "Bash(python manage.py makemigrations)",
+      "Bash(curl -s -o /dev/null -w \"listing-list: %{http_code}\\\\n\" http://127.0.0.1:8765/market/)",
+      "Bash(curl -s -o /dev/null -w \"trade-new:    %{http_code}\\\\n\" http://127.0.0.1:8765/market/trades/new/)",
+      "Bash(curl -s -o /dev/null -w \"listing-new:  %{http_code}\\\\n\" http://127.0.0.1:8765/market/listings/new/)",
+      "Bash(curl -s -o /dev/null -w \"trade-inbox:  %{http_code}\\\\n\" http://127.0.0.1:8765/market/trades/)",
+      "Bash(curl -s -o /dev/null -w \"login redirect target: %{redirect_url}\\\\n\" http://127.0.0.1:8765/market/)",
+      "Bash(curl -s -o /dev/null -w \"home:         %{http_code}\\\\n\" http://127.0.0.1:8765/)",
+      "Bash(curl -s -o /dev/null -w \"card-list:    %{http_code}\\\\n\" http://127.0.0.1:8765/cards/)",
+      "Bash(python manage.py create_test_users)",
+      "Bash(cp CLAUDE.md /tmp/CLAUDE.md.working)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(cp /tmp/CLAUDE.md.working CLAUDE.md)"
     ]
   }
 }

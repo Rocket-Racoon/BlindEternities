@@ -1,0 +1,28 @@
+<div class="card p-3">
+  <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">{{ side_label }}</div>
+  {% if items %}
+    <ul class="divide-y divide-gray-100 dark:divide-void-800 text-sm">
+      {% for item in items %}
+        <li class="py-2 flex items-center gap-3">
+          {% if item.card_print.image_small %}
+            <img src="{{ item.card_print.image_small }}" class="w-10 rounded" alt="">
+          {% endif %}
+          <div class="flex-1 min-w-0">
+            <div class="font-medium truncate">{{ item.quantity }}× {{ item.card_print.card.name }}</div>
+            <div class="text-xs text-gray-500">
+              {{ item.card_print.cardset.code|upper }} · {{ item.get_condition_display }} · {{ item.get_finish_display }}
+            </div>
+          </div>
+          {% if item.unit_value %}
+            <div class="text-right text-xs text-gray-500">
+              <div>${{ item.unit_value }}</div>
+              <div class="text-gray-400">line ${{ item.line_value }}</div>
+            </div>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="text-xs text-gray-400 italic py-2">No cards on this side.</div>
+  {% endif %}
+</div>

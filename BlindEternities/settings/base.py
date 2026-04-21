@@ -30,6 +30,7 @@ DJANGO_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.sites',
+    'django.contrib.humanize',
 ]
 
 THIRD_PARTY_APPS = [
@@ -100,6 +101,8 @@ TEMPLATES = [
                 "core.context_processors.user_profile",
                 "core.context_processors.magic_formats",
                 "core.context_processors.site_settings",
+                # Omenpath context processors
+                "omenpath.context_processors.pending_trades",
             ],
         },
     },
@@ -184,3 +187,14 @@ SCRYFALL_REQUEST_DELAY = 0.1    # 100ms between requests (rate limit)
 SCRYFALL_TIMEOUT_SHORT  = 15    # para endpoints simples
 SCRYFALL_TIMEOUT_LONG   = 300   # para bulk data
 SCRYFALL_BATCH_SIZE     = 500   # registros por batch en sync
+
+
+# ──────────────────────────────────────────────
+# Market pricing (omenpath) — credentials optional; adapters disable when empty
+# ──────────────────────────────────────────────
+TCGPLAYER_PUBLIC_KEY  = env("TCGPLAYER_PUBLIC_KEY",  default="")
+TCGPLAYER_PRIVATE_KEY = env("TCGPLAYER_PRIVATE_KEY", default="")
+CARDMARKET_APP_TOKEN            = env("CARDMARKET_APP_TOKEN",            default="")
+CARDMARKET_APP_SECRET           = env("CARDMARKET_APP_SECRET",           default="")
+CARDMARKET_ACCESS_TOKEN         = env("CARDMARKET_ACCESS_TOKEN",         default="")
+CARDMARKET_ACCESS_TOKEN_SECRET  = env("CARDMARKET_ACCESS_TOKEN_SECRET",  default="")

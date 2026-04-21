@@ -279,6 +279,12 @@
             Cardmarket
           </a>
           {% endif %}
+          {% if request.user.is_authenticated %}
+          <a href="{% url 'omenpath:listing-create' %}?print={{ print.pk }}"
+             class="btn-secondary text-xs flex-1 justify-center">
+            Sell / Trade
+          </a>
+          {% endif %}
         </div>
         {% endif %}
         {% endwith %}

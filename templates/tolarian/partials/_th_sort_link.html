@@ -1,0 +1,15 @@
+{# Params: label (str), next_sort (str), arrow (str), active (bool). Needs header_qs + collection from ctx. #}
+<a href="?sort={{ next_sort }}{% if header_qs %}&{{ header_qs }}{% endif %}"
+   hx-get="{% url 'tolarian:collection-detail' collection.pk %}?sort={{ next_sort }}{% if header_qs %}&{{ header_qs }}{% endif %}"
+   hx-target="#collection-results"
+   hx-swap="innerHTML"
+   hx-push-url="true"
+   class="inline-flex items-center gap-1 group/sort cursor-pointer
+          {% if active %}text-void-700 dark:text-void-300{% else %}text-gray-500 dark:text-gray-400 hover:text-void-600 dark:hover:text-void-400{% endif %}">
+  <span>{{ label }}</span>
+  {% if arrow %}
+  <span class="text-[10px] font-bold">{{ arrow }}</span>
+  {% else %}
+  <span class="text-[10px] opacity-0 group-hover/sort:opacity-40 transition-opacity">↕</span>
+  {% endif %}
+</a>

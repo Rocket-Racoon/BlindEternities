@@ -29,8 +29,27 @@
         <a href="{% url 'phyrexian:elo-leaderboard' %}"
            class="nav-link {% active_url 'elo' %}">ELO</a>
         {% endif %}
-        <a href="#"
-           class="nav-link {% active_url 'marketplace' %}">Trades</a>
+        <a href="{% url 'omenpath:listing-list' %}"
+           class="nav-link {% active_url 'listing' %} relative">
+          Market
+          {% if pending_trade_count %}
+            <span class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center shadow"
+                  title="{{ pending_trade_count }} trade{{ pending_trade_count|pluralize }} waiting for your response">
+              {{ pending_trade_count }}
+            </span>
+          {% endif %}
+        </a>
+        {% if request.user.is_authenticated %}
+        <a href="{% url 'omenpath:transaction-inbox' %}"
+           class="nav-link {% active_url 'trade' %} relative">
+          My Trades
+          {% if pending_trade_count %}
+            <span class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center shadow">
+              {{ pending_trade_count }}
+            </span>
+          {% endif %}
+        </a>
+        {% endif %}
       </div>
 
       {# Right side #}
@@ -114,7 +133,20 @@
       <a href="{% url 'phyrexian:tournament-list' %}" class="block nav-link">Tournaments</a>
       <a href="{% url 'phyrexian:elo-leaderboard' %}" class="block nav-link">ELO</a>
       {% endif %}
-      <a href="#" class="block nav-link">Trades</a>
+      <a href="{% url 'omenpath:listing-list' %}" class="block nav-link">
+        Market
+        {% if pending_trade_count %}
+          <span class="inline-flex ml-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 items-center justify-center">{{ pending_trade_count }}</span>
+        {% endif %}
+      </a>
+      {% if request.user.is_authenticated %}
+      <a href="{% url 'omenpath:transaction-inbox' %}" class="block nav-link">
+        My Trades
+        {% if pending_trade_count %}
+          <span class="inline-flex ml-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 items-center justify-center">{{ pending_trade_count }}</span>
+        {% endif %}
+      </a>
+      {% endif %}
     </div>
   </div>
 </nav>

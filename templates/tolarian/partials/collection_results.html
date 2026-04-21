@@ -1,0 +1,10 @@
+{# Inner content of #collection-results. Swapped via HTMX on sort/filter change. #}
+<!-- Grid view -->
+<div x-show="view === 'grid'">
+  {% include "tolarian/partials/collection_grid.html" %}
+</div>
+
+<!-- Table view -->
+<div x-show="view === 'table'">
+  {% include "tolarian/partials/collection_table.html" %}
+</div>

@@ -1,0 +1,96 @@
+{% load core_tags %}
+<div id="friends-card" class="card p-6 mb-4">
+  <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Friends</h2>
+
+  <!-- Requests section -->
+  <section class="mb-5">
+    <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+      Requests
+      {% if incoming_requests %}
+      <span class="ml-1 inline-flex items-center justify-center px-1.5 py-0.5 text-xs rounded-full bg-void-600 text-white">
+        {{ incoming_requests|length }}
+      </span>
+      {% endif %}
+    </h3>
+
+    {% if incoming_requests %}
+    <ul class="divide-y divide-gray-200 dark:divide-void-700">
+      {% for req in incoming_requests %}
+      <li class="flex items-center gap-3 py-2">
+        <div class="shrink-0">
+          {% if req.from_user.profile.avatar %}
+          <img src="{{ req.from_user.profile.avatar.url }}"
+               class="w-8 h-8 rounded-full object-cover" alt="avatar">
+          {% else %}
+          <div class="w-8 h-8 rounded-full bg-void-600 flex items-center justify-center text-white text-sm">
+            {{ req.from_user.username|first|upper }}
+          </div>
+          {% endif %}
+        </div>
+        <div class="flex-1 min-w-0">
+          <a href="{% url 'nexus:profile-detail' req.from_user.username %}"
+             class="text-sm font-medium text-gray-900 dark:text-gray-100 hover:underline">
+            {{ req.from_user.profile.name }}
+          </a>
+          <p class="text-xs text-gray-500 dark:text-gray-400">@{{ req.from_user.username }}</p>
+        </div>
+        <form hx-post="{% url 'nexus:friend-action' req.from_user.username 'accept' %}"
+              hx-target="#friends-card"
+              hx-swap="outerHTML"
+              class="inline">
+          {% csrf_token %}
+          <input type="hidden" name="return" value="card">
+          <button type="submit" class="btn-primary text-xs">Accept</button>
+        </form>
+        <form hx-post="{% url 'nexus:friend-action' req.from_user.username 'reject' %}"
+              hx-target="#friends-card"
+              hx-swap="outerHTML"
+              class="inline">
+          {% csrf_token %}
+          <input type="hidden" name="return" value="card">
+          <button type="submit" class="btn-secondary text-xs">Reject</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-sm text-gray-500 dark:text-gray-400">No pending requests.</p>
+    {% endif %}
+  </section>
+
+  <!-- Friends section -->
+  <section>
+    <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+      Your friends
+      {% if friends_list %}
+      <span class="ml-1 text-xs text-gray-400 dark:text-gray-500">({{ friends_list|length }})</span>
+      {% endif %}
+    </h3>
+
+    {% if friends_list %}
+    <ul class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {% for friend in friends_list %}
+      <li>
+        <a href="{% url 'nexus:profile-detail' friend.username %}"
+           class="flex items-center gap-2 p-2 rounded hover:bg-gray-100 dark:hover:bg-void-700">
+          {% if friend.profile.avatar %}
+          <img src="{{ friend.profile.avatar.url }}"
+               class="w-7 h-7 rounded-full object-cover" alt="avatar">
+          {% else %}
+          <div class="w-7 h-7 rounded-full bg-void-600 flex items-center justify-center text-white text-xs">
+            {{ friend.username|first|upper }}
+          </div>
+          {% endif %}
+          <div class="min-w-0">
+            <p class="text-sm text-gray-900 dark:text-gray-100 truncate">{{ friend.profile.name }}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">@{{ friend.username }}</p>
+          </div>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-sm text-gray-500 dark:text-gray-400">No friends yet.</p>
+    {% endif %}
+  </section>
+</div>

@@ -1,0 +1,126 @@
+{% load core_tags humanize %}
+{% for item in page_obj %}
+<div class="group relative"
+     x-data="{ hover: false }"
+     @mouseenter="hover = true"
+     @mouseleave="hover = false">
+
+  {% if is_owner %}
+  <div class="card overflow-hidden cursor-pointer"
+       hx-get="{% url 'tolarian:collection-item-edit' item.pk %}"
+       hx-target="#item-modal"
+       hx-swap="innerHTML">
+  {% else %}
+  <a href="{% url 'multiverse:card-detail' item.card.oracle_id %}"
+     class="card overflow-hidden cursor-pointer block">
+  {% endif %}
+
+    {% with print=item.print faces=item.card.faces.all %}
+    {% if print and print.image_small %}
+    {% with img_sm=print.image_small img_md=print.image_normal img_lg=print.image_large card_name=item.card.name lazy="lazy" %}
+    {% if faces|length > 1 %}
+    {% with img_back_sm=faces.1.image_uris.small img_back_md=faces.1.image_uris.normal img_back_lg=faces.1.image_uris.large %}
+    {% include "multiverse/partials/_card_image.html" %}
+    {% endwith %}
+    {% else %}
+    {% include "multiverse/partials/_card_image.html" %}
+    {% endif %}
+    {% endwith %}
+    {% else %}
+    {% with fallback=item.card.primary_print %}
+    {% if fallback %}
+    {% with img_sm=fallback.image_small img_md=fallback.image_normal img_lg=fallback.image_large card_name=item.card.name lazy="lazy" %}
+    {% if faces|length > 1 %}
+    {% with img_back_sm=faces.1.image_uris.small img_back_md=faces.1.image_uris.normal img_back_lg=faces.1.image_uris.large %}
+    {% include "multiverse/partials/_card_image.html" %}
+    {% endwith %}
+    {% else %}
+    {% include "multiverse/partials/_card_image.html" %}
+    {% endif %}
+    {% endwith %}
+    {% else %}
+    <div class="aspect-[63/88] bg-gray-100 dark:bg-void-800 flex items-center justify-center p-2">
+      <span class="text-xs text-gray-400 text-center">{{ item.card.name }}</span>
+    </div>
+    {% endif %}
+    {% endwith %}
+    {% endif %}
+    {% endwith %}
+
+    <!-- Info overlay -->
+    <div class="p-2">
+      <p class="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">
+        {{ item.card.name }}
+      </p>
+      <div class="flex items-center justify-between mt-1">
+        <span class="text-xs text-gray-500 dark:text-gray-400">
+          {{ item.quantity }}x · {{ item.condition }}
+        </span>
+        {% if item.finish != "nonfoil" %}
+        <span class="text-xs px-1.5 py-0.5 rounded
+                     bg-amber-100 text-amber-700
+                     dark:bg-amber-900/30 dark:text-amber-400">
+          {{ item.get_finish_display }}
+        </span>
+        {% endif %}
+      </div>
+      <div class="flex items-center justify-between mt-1 text-xs tabular-nums">
+        {% if item.unit_price is not None %}
+        <span class="text-gray-500 dark:text-gray-400">
+          ~${{ item.unit_price|floatformat:2|intcomma }}
+        </span>
+        {% if item.quantity > 1 %}
+        <span class="text-void-600 dark:text-void-400 font-medium">
+          ${{ item.line_value|floatformat:2|intcomma }}
+        </span>
+        {% endif %}
+        {% else %}
+        <span class="text-gray-400 dark:text-gray-600">— sin precio</span>
+        {% endif %}
+      </div>
+    </div>
+  {% if is_owner %}</div>{% else %}</a>{% endif %}
+
+  <!-- Hover actions — solo owner -->
+  {% if is_owner %}
+  <div x-show="hover"
+       x-transition
+       class="absolute top-2 right-2 flex gap-1"
+       style="display:none">
+    <form method="post"
+          action="{% url 'tolarian:collection-item-delete' item.pk %}">
+      {% csrf_token %}
+      <button type="submit"
+              class="w-7 h-7 flex items-center justify-center rounded-full
+                     bg-red-600 text-white hover:bg-red-700 shadow"
+              onclick="return confirm('¿Eliminar {{ item.card.name }}?')">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </form>
+  </div>
+  {% endif %}
+
+</div>
+{% endfor %}
+
+{% if page_obj.has_next %}
+<div id="collection-scroll-sentinel"
+     hx-get="?page={{ page_obj.next_page_number }}{% if extra_qs %}&{{ extra_qs }}{% endif %}"
+     hx-trigger="intersect once"
+     hx-target="#collection-scroll-sentinel"
+     hx-swap="outerHTML"
+     class="col-span-full h-20 flex items-center justify-center">
+  <div class="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-600">
+    <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10"
+              stroke="currentColor" stroke-width="4"/>
+      <path class="opacity-75" fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+    </svg>
+    Cargando...
+  </div>
+</div>
+{% endif %}

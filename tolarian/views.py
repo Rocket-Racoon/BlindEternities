@@ -13,9 +13,12 @@ from django.views.generic import (
     TemplateView, ListView, DetailView,
     CreateView, UpdateView, DeleteView, View,
 )
-from core.constants import CardCondition, CardFinish, MagicFormat
+from core.constants import CardCondition, CardFinish, MagicFormat, CardRarity, MagicColor
 from core.mixins import OwnerRequiredMixin
 from core.utils import paginate_queryset
+from django.db.models import FloatField
+from django.db.models.fields.json import KeyTextTransform
+from django.db.models.functions import Cast
 from multiverse.models import Card, CardPrint
 from .mixins import CollectionOwnerMixin, DeckOwnerMixin
 from .models import (
@@ -79,18 +82,97 @@ class CollectionDetailView(LoginRequiredMixin, TemplateView):
             raise PermissionDenied
         return super().dispatch(request, *args, **kwargs)
 
+    def get_template_names(self):
+        if self.request.headers.get("HX-Request"):
+            if self.request.GET.get("page"):
+                return ["tolarian/partials/collection_grid_items.html"]
+            return ["tolarian/partials/collection_results.html"]
+        return [self.template_name]
+
+    SORT_CHOICES = [
+        ("name_asc",   "Nombre A-Z"),
+        ("name_desc",  "Nombre Z-A"),
+        ("price_desc", "Precio ↓"),
+        ("price_asc",  "Precio ↑"),
+        ("qty_desc",   "Cantidad ↓"),
+        ("recent",     "Más recientes"),
+        ("cmc_asc",    "CMC ↑"),
+        ("cmc_desc",   "CMC ↓"),
+        ("rarity",     "Rareza"),
+        ("set",        "Set"),
+    ]
+    SORT_ORDERINGS = {
+        "name_asc":           ["card__name"],
+        "name_desc":          ["-card__name"],
+        "price_desc":         ["-_price_usd", "card__name"],
+        "price_asc":          ["_price_usd", "card__name"],
+        "qty_desc":           ["-quantity", "card__name"],
+        "qty_asc":            ["quantity", "card__name"],
+        "recent":             ["-created_at"],
+        "cmc_asc":            ["card__cmc", "card__name"],
+        "cmc_desc":           ["-card__cmc", "card__name"],
+        "rarity":             ["print__rarity", "card__name"],
+        "set":                ["print__cardset__code", "card__name"],
+        "set_desc":           ["-print__cardset__code", "card__name"],
+        "condition_asc":      ["condition", "card__name"],
+        "condition_desc":     ["-condition", "card__name"],
+        "finish_asc":         ["finish", "card__name"],
+        "finish_desc":        ["-finish", "card__name"],
+        "lang_asc":           ["language", "card__name"],
+        "lang_desc":          ["-language", "card__name"],
+        "purchase_asc":       ["purchase_price", "card__name"],
+        "purchase_desc":      ["-purchase_price", "card__name"],
+    }
+
     def get_context_data(self, **kwargs):
+        from urllib.parse import urlencode
         ctx        = super().get_context_data(**kwargs)
         collection = get_object_or_404(Collection, pk=self.kwargs["pk"])
         items      = (
             collection.items
             .select_related("card", "print__cardset")
             .prefetch_related("card__faces")
-            .order_by("card__name")
         )
-        q = self.request.GET.get("q", "")
+
+        q         = self.request.GET.get("q", "")
+        sort      = self.request.GET.get("sort", "name_asc")
+        if sort not in self.SORT_ORDERINGS:
+            sort = "name_asc"
+        rarity    = self.request.GET.get("rarity", "")
+        color     = self.request.GET.get("color", "")
+        finish    = self.request.GET.get("finish", "")
+        condition = self.request.GET.get("condition", "")
+
         if q:
             items = items.filter(card__name__icontains=q)
+        if rarity:
+            items = items.filter(print__rarity=rarity)
+        if color:
+            if color == "C":
+                items = items.filter(card__color_identity=[])
+            else:
+                items = items.filter(card__color_identity__contains=[color])
+        if finish:
+            items = items.filter(finish=finish)
+        if condition:
+            items = items.filter(condition=condition)
+
+        # Annotate price (from JSON) for price-based sorting
+        items = items.annotate(
+            _price_usd=Cast(KeyTextTransform("usd", "print__prices"), FloatField())
+        )
+        items = items.order_by(*self.SORT_ORDERINGS[sort])
+
+        # Querystring to preserve filters across infinite-scroll pagination
+        params = self.request.GET.copy()
+        params.pop("page", None)
+        extra_qs = params.urlencode()
+
+        # Querystring for sortable column headers (without sort / page)
+        header_params = self.request.GET.copy()
+        header_params.pop("page", None)
+        header_params.pop("sort", None)
+        header_qs = header_params.urlencode()
 
         ctx.update({
             "collection":         collection,
@@ -101,7 +183,17 @@ class CollectionDetailView(LoginRequiredMixin, TemplateView):
             "collection_bulk_add_url": reverse("tolarian:collection-bulk-add", kwargs={"pk": collection.pk}),
             "condition_choices":  CardCondition.choices,
             "finish_choices":     CardFinish.choices,
+            "rarity_choices":     CardRarity.choices,
+            "color_choices":      MagicColor.choices,
+            "sort_choices":       self.SORT_CHOICES,
             "q":                  q,
+            "sort":               sort,
+            "rarity":             rarity,
+            "color":              color,
+            "finish":             finish,
+            "condition":          condition,
+            "extra_qs":           extra_qs,
+            "header_qs":          header_qs,
         })
         return ctx
 

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Counter-propose trade{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-semibold">Counter-propose</h1>
+    <a href="{{ tx.get_absolute_url }}" class="btn-secondary">Cancel</a>
+  </div>
+
+  <div class="card p-4 mb-4 text-sm">
+    Pick which of your cards you're willing to include. Unchecked items will be removed
+    and the updated proposal will be sent back to @{{ tx.party_a.username }} for final approval.
+  </div>
+
+  <!-- A's offer (read-only context) -->
+  <div class="card p-4 mb-4">
+    <h2 class="font-semibold mb-2">@{{ tx.party_a.username }} offers</h2>
+    {% if items_a %}
+      <ul class="divide-y divide-gray-100 dark:divide-void-800 text-sm">
+        {% for item in items_a %}
+          <li class="py-2 flex items-center gap-3">
+            {% if item.card_print.image_small %}
+              <img src="{{ item.card_print.image_small }}" class="w-10 rounded">
+            {% endif %}
+            <div class="flex-1 min-w-0">
+              <div class="font-medium truncate">{{ item.quantity }}× {{ item.card_print.card.name }}</div>
+              <div class="text-xs text-gray-500">
+                {{ item.card_print.cardset.code|upper }} · {{ item.get_condition_display }} · {{ item.get_finish_display }}
+              </div>
+            </div>
+            {% if item.unit_value %}
+              <div class="text-xs text-gray-500 text-right">
+                <div>${{ item.unit_value }}</div>
+                <div class="text-gray-400">line ${{ item.line_value }}</div>
+              </div>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="text-xs text-gray-400 italic">Nothing offered on their side.</div>
+    {% endif %}
+  </div>
+
+  <!-- B's side — editable -->
+  <form method="post" class="card p-4">
+    {% csrf_token %}
+    <h2 class="font-semibold mb-2">Your cards in this trade</h2>
+    <p class="text-xs text-gray-500 mb-3">Uncheck any card you'd rather keep.</p>
+
+    {% if items_b %}
+      <ul class="divide-y divide-gray-100 dark:divide-void-800 text-sm">
+        {% for item in items_b %}
+          <li class="py-2 flex items-center gap-3">
+            <input type="checkbox" name="keep_b" value="{{ item.pk }}" checked
+                   class="rounded w-5 h-5 text-emerald-600">
+            {% if item.card_print.image_small %}
+              <img src="{{ item.card_print.image_small }}" class="w-10 rounded">
+            {% endif %}
+            <div class="flex-1 min-w-0">
+              <div class="font-medium truncate">{{ item.quantity }}× {{ item.card_print.card.name }}</div>
+              <div class="text-xs text-gray-500">
+                {{ item.card_print.cardset.code|upper }} · {{ item.get_condition_display }} · {{ item.get_finish_display }}
+              </div>
+            </div>
+            {% if item.unit_value %}
+              <div class="text-xs text-gray-500 text-right">
+                <div>${{ item.unit_value }}</div>
+                <div class="text-gray-400">line ${{ item.line_value }}</div>
+              </div>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="text-xs text-gray-400 italic">Nothing requested from you.</div>
+    {% endif %}
+
+    <div class="flex justify-end gap-2 mt-4">
+      <a href="{{ tx.get_absolute_url }}" class="btn-secondary">Cancel</a>
+      <button class="btn-primary">Send counter-proposal</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

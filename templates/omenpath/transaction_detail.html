@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Transaction {{ tx.pk }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-semibold">
+      {{ tx.get_kind_display }}
+      <span class="text-sm text-gray-500 font-normal ml-2">{{ tx.get_status_display }}</span>
+    </h1>
+    <a href="{% url 'omenpath:transaction-inbox' %}" class="btn-secondary">Back to inbox</a>
+  </div>
+
+  <div class="card p-4 mb-4 text-sm">
+    <div class="flex justify-between flex-wrap gap-2">
+      <div>
+        <div class="text-gray-500">Initiator</div>
+        <div class="font-medium">@{{ tx.party_a.username }}</div>
+      </div>
+      <div>
+        <div class="text-gray-500">Recipient</div>
+        <div class="font-medium">@{{ tx.party_b.username }}</div>
+      </div>
+      <div>
+        <div class="text-gray-500">Created</div>
+        <div>{{ tx.created_at|date:"Y-m-d H:i" }}</div>
+      </div>
+      {% if tx.price_agreed %}
+      <div>
+        <div class="text-gray-500">Price</div>
+        <div class="font-mono font-semibold">${{ tx.price_agreed }}</div>
+      </div>
+      {% endif %}
+    </div>
+    {% if tx.note %}
+      <div class="mt-3 pt-3 border-t border-gray-200 dark:border-void-700 whitespace-pre-line">{{ tx.note }}</div>
+    {% endif %}
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+    {% include "omenpath/partials/transaction_side.html" with side_label="@"|add:tx.party_a.username|add:" offers" items=tx.items_from_a %}
+    {% include "omenpath/partials/transaction_side.html" with side_label="@"|add:tx.party_b.username|add:" offers" items=tx.items_from_b %}
+  </div>
+
+  <div class="card p-4">
+    {% if tx.status == 'proposed' and request.user == tx.party_b %}
+      <div class="flex gap-2 justify-end flex-wrap">
+        <form method="post" action="{% url 'omenpath:transaction-action' tx.pk 'reject' %}">
+          {% csrf_token %}
+          <button class="btn-secondary">Reject</button>
+        </form>
+        {% if tx.kind == 'trade' and tx.items_from_b.exists %}
+          <a href="{% url 'omenpath:trade-counter' tx.pk %}" class="btn-secondary">Counter-propose</a>
+        {% endif %}
+        <form method="post" action="{% url 'omenpath:transaction-action' tx.pk 'accept' %}">
+          {% csrf_token %}
+          <button class="btn-primary">Accept</button>
+        </form>
+      </div>
+    {% elif tx.status == 'proposed' and request.user == tx.party_a %}
+      <div class="flex gap-2 justify-end">
+        <form method="post" action="{% url 'omenpath:transaction-action' tx.pk 'cancel' %}">
+          {% csrf_token %}
+          <button class="btn-secondary">Cancel proposal</button>
+        </form>
+      </div>
+    {% elif tx.status == 'counter_proposed' and request.user == tx.party_a %}
+      <div class="text-sm text-amber-700 dark:text-amber-400 mb-3">
+        @{{ tx.party_b.username }} counter-proposed. Accept to lock this in, or reject.
+      </div>
+      <div class="flex gap-2 justify-end">
+        <form method="post" action="{% url 'omenpath:transaction-action' tx.pk 'reject' %}">
+          {% csrf_token %}
+          <button class="btn-secondary">Reject</button>
+        </form>
+        <form method="post" action="{% url 'omenpath:transaction-action' tx.pk 'accept' %}">
+          {% csrf_token %}
+          <button class="btn-primary">Accept counter</button>
+        </form>
+      </div>
+    {% elif tx.status == 'counter_proposed' and request.user == tx.party_b %}
+      <div class="flex gap-2 justify-end">
+        <div class="text-sm text-gray-500 mr-auto">Waiting for @{{ tx.party_a.username }} to accept your counter.</div>
+        <form method="post" action="{% url 'omenpath:transaction-action' tx.pk 'cancel' %}">
+          {% csrf_token %}
+          <button class="btn-secondary">Withdraw counter</button>
+        </form>
+      </div>
+    {% elif tx.status == 'accepted' %}
+      <div class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+        Both parties must confirm once the exchange happens IRL. Cards will move to each side's <strong>Recolect</strong> collection on completion.
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="flex items-center justify-between p-3 border rounded border-gray-200 dark:border-void-700">
+          <div>
+            <div class="text-xs text-gray-500">@{{ tx.party_a.username }}</div>
+            <div class="font-medium">
+              {% if tx.confirmed_by_a %}Confirmed ✓{% else %}Pending{% endif %}
+            </div>
+          </div>
+          {% if request.user == tx.party_a %}
+            {% if tx.confirmed_by_a %}
+              <form method="post" action="{% url 'omenpath:transaction-action' tx.pk 'unconfirm' %}">
+                {% csrf_token %}<button class="btn-secondary text-xs">Undo</button>
+              </form>
+            {% else %}
+              <form method="post" action="{% url 'omenpath:transaction-action' tx.pk 'confirm' %}">
+                {% csrf_token %}<button class="btn-primary text-xs">Confirm</button>
+              </form>
+            {% endif %}
+          {% endif %}
+        </div>
+        <div class="flex items-center justify-between p-3 border rounded border-gray-200 dark:border-void-700">
+          <div>
+            <div class="text-xs text-gray-500">@{{ tx.party_b.username }}</div>
+            <div class="font-medium">
+              {% if tx.confirmed_by_b %}Confirmed ✓{% else %}Pending{% endif %}
+            </div>
+          </div>
+          {% if request.user == tx.party_b %}
+            {% if tx.confirmed_by_b %}
+              <form method="post" action="{% url 'omenpath:transaction-action' tx.pk 'unconfirm' %}">
+                {% csrf_token %}<button class="btn-secondary text-xs">Undo</button>
+              </form>
+            {% else %}
+              <form method="post" action="{% url 'omenpath:transaction-action' tx.pk 'confirm' %}">
+                {% csrf_token %}<button class="btn-primary text-xs">Confirm</button>
+              </form>
+            {% endif %}
+          {% endif %}
+        </div>
+      </div>
+    {% elif tx.status == 'completed' %}
+      <div class="text-sm text-emerald-700 dark:text-emerald-400">
+        Completed {{ tx.completed_at|date:"Y-m-d" }}. Cards moved to Recolect collections.
+      </div>
+    {% else %}
+      <div class="text-sm text-gray-500">This transaction is {{ tx.get_status_display|lower }}.</div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

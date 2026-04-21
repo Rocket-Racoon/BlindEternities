@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}My trades{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-semibold">My trades &amp; sales</h1>
+    <div class="flex gap-2">
+      <a href="{% url 'omenpath:listing-list' %}" class="btn-secondary">Marketplace</a>
+      <a href="{% url 'omenpath:trade-propose' %}" class="btn-primary">Propose trade</a>
+    </div>
+  </div>
+
+  {% include "omenpath/partials/transaction_section.html" with title="Incoming proposals" txs=incoming show_actions=True %}
+  {% include "omenpath/partials/transaction_section.html" with title="Counter-proposals waiting for you" txs=countered_for_me %}
+  {% include "omenpath/partials/transaction_section.html" with title="My outgoing proposals" txs=outgoing %}
+  {% include "omenpath/partials/transaction_section.html" with title="My counter-proposals (awaiting response)" txs=my_counters %}
+  {% include "omenpath/partials/transaction_section.html" with title="Accepted — awaiting confirmation" txs=active %}
+  {% include "omenpath/partials/transaction_section.html" with title="Recently completed" txs=completed %}
+  {% include "omenpath/partials/transaction_section.html" with title="Rejected / Cancelled" txs=rejected %}
+
+</div>
+{% endblock %}

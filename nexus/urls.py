@@ -11,6 +11,7 @@ urlpatterns = [
     path("u/<str:username>/collection/",    views.UserCollectionView.as_view(),     name="user-collection"),
     path("settings/profile/",               views.ProfileEditView.as_view(),        name="profile-edit"),
     path("settings/avatar/",                views.AvatarUploadView.as_view(),       name="avatar-upload"),
+    path("u/<str:username>/friend/<str:action>/", views.friend_action,              name="friend-action"),
     # API JSON
     path("api/friend-search/",                     views.FriendSearchJSON.as_view(),        name="friend-search"),
     path("api/user-decks/<int:user_id>/",          views.UserDecksJSON.as_view(),           name="user-decks-json"),

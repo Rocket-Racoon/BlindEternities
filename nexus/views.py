@@ -1,14 +1,16 @@
 # nexus/views.py
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.db import models
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.http import HttpResponseBadRequest, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 from django.views.generic import TemplateView, UpdateView, View
-from django.urls import reverse_lazy
-from .models import Profile
+from django.urls import reverse, reverse_lazy
+from .models import Friendship, Profile
 from .forms import ProfileForm
 
 
@@ -18,11 +20,22 @@ def _get_profile_context(request, username):
     profile = get_object_or_404(Profile, user=user)
     if not profile.is_public and request.user != user:
         raise PermissionDenied
-    return {
+    state, friendship = profile.friendship_with(request.user)
+    ctx = {
         "profile":      profile,
         "profile_user": user,
         "is_owner":     request.user == user,
+        "friend_state": state,
+        "friendship":   friendship,
     }
+    if request.user == user:
+        ctx["incoming_requests"] = (
+            Friendship.objects.filter(to_user=user, accepted=False)
+            .select_related("from_user__profile")
+            .order_by("-created_at")
+        )
+        ctx["friends_list"] = profile.friends().select_related("profile")
+    return ctx
 
 
 class HomeView(TemplateView):
@@ -34,17 +47,7 @@ class ProfileDetailView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        user = get_object_or_404(User, username=self.kwargs["username"])
-        profile = get_object_or_404(Profile, user=user)
-
-        # Bloquea perfiles privados a visitantes
-        if not profile.is_public and self.request.user != user:
-            from django.core.exceptions import PermissionDenied
-            raise PermissionDenied
-
-        ctx["profile"] = profile
-        ctx["profile_user"] = user
-        ctx["is_owner"] = self.request.user == user
+        ctx.update(_get_profile_context(self.request, self.kwargs["username"]))
         return ctx
 
 
@@ -102,6 +105,82 @@ class UserCollectionView(TemplateView):
         ctx["profile_user"] = user
         ctx["is_owner"] = self.request.user == user
         return ctx
+
+
+# --- Friend actions ---
+@login_required
+@require_POST
+def friend_action(request, username, action):
+    target = get_object_or_404(User, username=username)
+    if target == request.user:
+        return HttpResponseBadRequest("Cannot befriend yourself.")
+
+    profile = get_object_or_404(Profile, user=target)
+    state, friendship = profile.friendship_with(request.user)
+
+    if action == "send":
+        if state != "none":
+            return HttpResponseBadRequest("Friendship already exists.")
+        Friendship.objects.create(from_user=request.user, to_user=target)
+        messages.success(request, f"Friend request sent to {profile.name}.")
+
+    elif action == "cancel":
+        if state != "pending_sent":
+            return HttpResponseBadRequest("No pending request to cancel.")
+        friendship.delete()
+        messages.info(request, "Request cancelled.")
+
+    elif action == "accept":
+        if state != "pending_received":
+            return HttpResponseBadRequest("No pending request to accept.")
+        friendship.accepted = True
+        friendship.save(update_fields=["accepted", "updated_at"])
+        messages.success(request, f"You and {profile.name} are now friends.")
+
+    elif action == "reject":
+        if state != "pending_received":
+            return HttpResponseBadRequest("No pending request to reject.")
+        friendship.delete()
+        messages.info(request, "Request rejected.")
+
+    elif action == "remove":
+        if state != "friends":
+            return HttpResponseBadRequest("Not friends.")
+        friendship.delete()
+        messages.info(request, f"Removed {profile.name} from friends.")
+
+    else:
+        return HttpResponseBadRequest("Unknown action.")
+
+    if request.headers.get("HX-Request"):
+        # Re-render the Friends card (used on the viewer's own profile) or the
+        # single button partial (used on the target's profile header).
+        if request.POST.get("return") == "card":
+            return render(
+                request,
+                "nexus/partials/friends_card.html",
+                {
+                    "profile_user": request.user,
+                    "incoming_requests": (
+                        Friendship.objects.filter(to_user=request.user, accepted=False)
+                        .select_related("from_user__profile")
+                        .order_by("-created_at")
+                    ),
+                    "friends_list": request.user.profile.friends().select_related("profile"),
+                },
+            )
+        new_state, new_fs = profile.friendship_with(request.user)
+        return render(
+            request,
+            "nexus/partials/friend_action.html",
+            {
+                "profile": profile,
+                "profile_user": target,
+                "friend_state": new_state,
+                "friendship": new_fs,
+            },
+        )
+    return redirect("nexus:profile-detail", username=target.username)
 
 
 # --- API JSON ---

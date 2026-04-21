@@ -113,6 +113,19 @@ class CollectionItem(BaseModel):
         max_length=100, blank=True,
         verbose_name="Prestado a (nombre)",
     )
+    acquired_from = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="cards_given",
+        verbose_name="Adquirida de (usuario)",
+    )
+    acquired_via = models.ForeignKey(
+        "omenpath.Transaction",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="acquired_items",
+    )
     notes        = models.TextField(blank=True)
 
     class Meta:
@@ -128,6 +141,28 @@ class CollectionItem(BaseModel):
 
     def __str__(self):
         return f"{self.quantity}x {self.card.name} [{self.condition}]"
+
+    @property
+    def unit_price(self):
+        """USD price per copy, picking the right variant based on finish."""
+        if not self.print:
+            return None
+        if self.finish == CardFinish.FOIL:
+            raw = self.print.price_usd_foil or self.print.price_usd
+        elif self.finish == CardFinish.ETCHED:
+            raw = self.print.price_usd_etched or self.print.price_usd_foil or self.print.price_usd
+        else:
+            raw = self.print.price_usd
+        try:
+            return float(raw) if raw is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    @property
+    def line_value(self):
+        """unit_price * quantity, or None if unknown."""
+        up = self.unit_price
+        return up * self.quantity if up is not None else None
 
 
 class Deck(BaseModel):

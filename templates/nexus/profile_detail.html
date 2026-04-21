@@ -36,6 +36,8 @@
           <a href="{% url 'nexus:profile-edit' %}" class="btn-secondary text-sm shrink-0">
             Edit Profile
           </a>
+          {% else %}
+          {% include "nexus/partials/friend_action.html" %}
           {% endif %}
         </div>
 

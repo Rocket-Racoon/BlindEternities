@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load core_tags %}
+
+{% block title %}Marketplace — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Marketplace</h1>
+    <div class="flex gap-2">
+      <a href="{% url 'omenpath:trade-propose' %}" class="btn-secondary">Propose trade</a>
+      <a href="{% url 'omenpath:transaction-inbox' %}" class="btn-secondary">My trades</a>
+      <a href="{% url 'omenpath:listing-create' %}" class="btn-primary">New listing</a>
+    </div>
+  </div>
+
+  <form method="get" class="card p-3 mb-6 flex gap-2 flex-wrap items-center">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search card name…" class="input flex-1 min-w-[200px]">
+    <select name="type" class="input">
+      <option value="">All listings</option>
+      {% for val, label in ListingType.choices %}
+        <option value="{{ val }}" {% if listing_type == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn-primary">Filter</button>
+  </form>
+
+  {% if not listings %}
+    <div class="card p-16 text-center text-gray-400 dark:text-gray-600">
+      <p class="text-sm">No listings match your filters.</p>
+    </div>
+  {% else %}
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for l in listings %}
+        {% include "omenpath/partials/listing_card.html" with l=l %}
+      {% endfor %}
+    </div>
+
+    {% paginator listings %}
+  {% endif %}
+
+</div>
+{% endblock %}

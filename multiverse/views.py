@@ -366,7 +366,8 @@ class QuickAddToCollectionView(TemplateView):
 
     def post(self, request, *args, **kwargs):
         from django.shortcuts import redirect
-        from django.contrib.auth.mixins import LoginRequiredMixin  # noqa
+        from django.http import HttpResponse
+        from django.template.loader import render_to_string
         from django.contrib import messages
         from tolarian.models import Collection, CollectionItem
 
@@ -381,7 +382,12 @@ class QuickAddToCollectionView(TemplateView):
             Collection, pk=collection_id, user=request.user, is_active=True,
         )
         card = get_object_or_404(Card, pk=card_id)
-        print_obj = CardPrint.objects.filter(pk=print_id).first()
+        print_obj = (
+            CardPrint.objects.filter(pk=print_id)
+            .select_related("card", "cardset")
+            .prefetch_related("card__faces")
+            .first()
+        )
 
         # Create or increment
         existing = CollectionItem.objects.filter(
@@ -395,7 +401,7 @@ class QuickAddToCollectionView(TemplateView):
         if existing:
             existing.quantity += 1
             existing.save(update_fields=["quantity", "updated_at"])
-            messages.success(request, f"{card.name} → {collection.name} (x{existing.quantity})")
+            success_msg = f"{card.name} → {collection.name} (x{existing.quantity})"
         else:
             CollectionItem.objects.create(
                 collection=collection,
@@ -406,9 +412,53 @@ class QuickAddToCollectionView(TemplateView):
                 finish="nonfoil",
                 language="en",
             )
-            messages.success(request, f"Added {card.name} to {collection.name}")
+            success_msg = f"Added {card.name} to {collection.name}"
 
-        # Redirect back
+        # Only enqueue a session message for non-HTMX paths — HTMX swaps the
+        # card partial inline, so session toasts would pile up unseen until
+        # the next full page load.
+        is_htmx = request.headers.get("HX-Request")
+        if not is_htmx:
+            messages.success(request, success_msg)
+
+        if is_htmx and print_obj:
+            cardset = print_obj.cardset
+            owned_card_ids = set(
+                CollectionItem.objects.filter(
+                    collection__user=request.user,
+                    collection__is_active=True,
+                    is_active=True,
+                    print__cardset=cardset,
+                ).values_list("card_id", flat=True).distinct()
+            )
+            user_collections = list(
+                Collection.objects.filter(user=request.user, is_active=True)
+                .order_by("collection_type", "name")
+            )
+            total_owned = len(owned_card_ids)
+            completion_pct = (
+                round(total_owned / cardset.card_count * 100, 1)
+                if cardset.card_count else 0
+            )
+            ctx = {
+                "print": print_obj,
+                "owned_card_ids": owned_card_ids,
+                "user_collections": user_collections,
+                "request": request,
+                "cardset": cardset,
+                "total_owned_in_set": total_owned,
+                "completion_pct": completion_pct,
+                "hx_oob": True,
+            }
+            card_html = render_to_string(
+                "multiverse/partials/_print_card.html", ctx, request=request,
+            )
+            progress_html = render_to_string(
+                "multiverse/partials/_set_progress.html", ctx, request=request,
+            )
+            return HttpResponse(card_html + progress_html)
+
+        # Redirect back (non-HTMX fallback)
         back = request.META.get("HTTP_REFERER") or "/"
         return redirect(back)
 

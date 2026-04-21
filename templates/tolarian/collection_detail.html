@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static core_tags %}
+{% load static core_tags humanize %}
 
 {% block title %}{{ collection.name }} — {{ site_name }}{% endblock %}
 
@@ -26,7 +26,7 @@
         <span>{{ collection.get_collection_type_display }}</span>
         <span>{{ collection.card_count }} cartas</span>
         {% if collection.total_value %}
-        <span>${{ collection.total_value }} USD</span>
+        <span>${{ collection.total_value|floatformat:2|intcomma }} USD</span>
         {% endif %}
         {% if collection.is_public %}
         <span class="text-green-600 dark:text-green-400">Pública</span>
@@ -79,17 +79,79 @@
     {% endif %}
   </div>
 
-  <!-- Búsqueda -->
-  <form method="get" class="mb-6">
-    <div class="flex gap-3">
+  <!-- Búsqueda + Filtros -->
+  <form method="get" class="mb-6"
+        hx-get="{% url 'tolarian:collection-detail' collection.pk %}"
+        hx-target="#collection-results"
+        hx-swap="innerHTML"
+        hx-push-url="true"
+        hx-trigger="change, submit"
+        x-data="{ showFilters: {% if rarity or color or finish or condition %}true{% else %}false{% endif %} }">
+    <div class="flex gap-3 mb-3">
       <input type="text" name="q" value="{{ q }}"
              placeholder="Buscar en la colección..."
              class="input flex-1">
+      <button type="button" @click="showFilters = !showFilters"
+              class="btn-secondary flex items-center gap-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+        </svg>
+        Filtros
+      </button>
       <button type="submit" class="btn-primary">Buscar</button>
-      {% if q %}
+      {% if q or rarity or color or finish or condition or sort != "name_asc" %}
       <a href="{% url 'tolarian:collection-detail' collection.pk %}"
          class="btn-secondary">Limpiar</a>
       {% endif %}
+    </div>
+
+    <!-- Sort + Filters row -->
+    <div x-show="showFilters" x-transition class="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <label class="flex flex-col gap-1">
+        <span class="text-xs text-gray-500 dark:text-gray-400">Ordenar por</span>
+        <select name="sort" class="input">
+          {% for val, label in sort_choices %}
+          <option value="{{ val }}" {% if sort == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-xs text-gray-500 dark:text-gray-400">Rareza</span>
+        <select name="rarity" class="input">
+          <option value="">Todas</option>
+          {% for val, label in rarity_choices %}
+          <option value="{{ val }}" {% if rarity == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-xs text-gray-500 dark:text-gray-400">Color</span>
+        <select name="color" class="input">
+          <option value="">Todos</option>
+          {% for val, label in color_choices %}
+          <option value="{{ val }}" {% if color == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-xs text-gray-500 dark:text-gray-400">Finish</span>
+        <select name="finish" class="input">
+          <option value="">Todos</option>
+          {% for val, label in finish_choices %}
+          <option value="{{ val }}" {% if finish == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-xs text-gray-500 dark:text-gray-400">Condición</span>
+        <select name="condition" class="input">
+          <option value="">Todas</option>
+          {% for val, label in condition_choices %}
+          <option value="{{ val }}" {% if condition == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
     </div>
   </form>
 
@@ -126,14 +188,9 @@
   </div>
   {% endif %}
 
-  <!-- Grid view -->
-  <div x-show="view === 'grid'">
-    {% include "tolarian/partials/collection_grid.html" %}
-  </div>
-
-  <!-- Table view -->
-  <div x-show="view === 'table'">
-    {% include "tolarian/partials/collection_table.html" %}
+  <!-- Results (grid + table views, swapped via HTMX on sort/filter change) -->
+  <div id="collection-results">
+    {% include "tolarian/partials/collection_results.html" %}
   </div>
 
 </div>

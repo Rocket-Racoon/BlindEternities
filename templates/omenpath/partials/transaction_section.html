@@ -1,0 +1,25 @@
+{% if txs %}
+<section class="mb-8">
+  <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-2">{{ title }}</h2>
+  <div class="space-y-2">
+    {% for tx in txs %}
+      <a href="{{ tx.get_absolute_url }}"
+         class="card p-3 flex items-center justify-between hover:border-void-500 transition-colors">
+        <div>
+          <div class="text-sm font-medium">
+            {{ tx.get_kind_display }}
+            <span class="text-gray-400">·</span>
+            @{{ tx.party_a.username }} ↔ @{{ tx.party_b.username }}
+          </div>
+          <div class="text-xs text-gray-500 mt-1">
+            {{ tx.items.count }} items
+            {% if tx.price_agreed %}<span class="text-gray-400">·</span> ${{ tx.price_agreed }}{% endif %}
+            <span class="text-gray-400">·</span> {{ tx.created_at|date:"Y-m-d" }}
+          </div>
+        </div>
+        <span class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-void-800">{{ tx.get_status_display }}</span>
+      </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}

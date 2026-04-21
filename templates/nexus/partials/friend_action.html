@@ -1,0 +1,45 @@
+{% load core_tags %}
+<div id="friend-action" class="shrink-0 flex items-center gap-2">
+  {% if user.is_authenticated and friend_state != "self" %}
+    {% if friend_state == "none" %}
+      <form hx-post="{% url 'nexus:friend-action' profile_user.username 'send' %}"
+            hx-target="#friend-action"
+            hx-swap="outerHTML">
+        {% csrf_token %}
+        <button type="submit" class="btn-primary text-sm">Send friend request</button>
+      </form>
+    {% elif friend_state == "pending_sent" %}
+      <span class="text-sm text-gray-500 dark:text-gray-400">Request sent</span>
+      <form hx-post="{% url 'nexus:friend-action' profile_user.username 'cancel' %}"
+            hx-target="#friend-action"
+            hx-swap="outerHTML">
+        {% csrf_token %}
+        <button type="submit" class="btn-secondary text-sm">Cancel</button>
+      </form>
+    {% elif friend_state == "pending_received" %}
+      <form hx-post="{% url 'nexus:friend-action' profile_user.username 'accept' %}"
+            hx-target="#friend-action"
+            hx-swap="outerHTML"
+            class="inline">
+        {% csrf_token %}
+        <button type="submit" class="btn-primary text-sm">Accept request</button>
+      </form>
+      <form hx-post="{% url 'nexus:friend-action' profile_user.username 'reject' %}"
+            hx-target="#friend-action"
+            hx-swap="outerHTML"
+            class="inline">
+        {% csrf_token %}
+        <button type="submit" class="btn-secondary text-sm">Reject</button>
+      </form>
+    {% elif friend_state == "friends" %}
+      <span class="text-sm text-emerald-600 dark:text-emerald-400">✓ Friends</span>
+      <form hx-post="{% url 'nexus:friend-action' profile_user.username 'remove' %}"
+            hx-target="#friend-action"
+            hx-swap="outerHTML"
+            hx-confirm="Remove this friend?">
+        {% csrf_token %}
+        <button type="submit" class="btn-secondary text-sm">Unfriend</button>
+      </form>
+    {% endif %}
+  {% endif %}
+</div>
