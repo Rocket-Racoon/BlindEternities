@@ -234,10 +234,12 @@ class CardDetailView(TemplateView):
         return ctx
 
 
-def _user_owned_card_ids_by_set(user, set_ids):
+def _user_owned_print_ids_by_set(user, set_ids):
     """
-    Return {set_id: set_of_card_ids} for cards the user owns
+    Return {set_id: set_of_print_ids} for CardPrints the user owns
     (from any of their collections) within the given set IDs.
+    Tracks distinct prints so different printings of the same card
+    count separately toward set completion.
     """
     if not user.is_authenticated or not set_ids:
         return {}
@@ -250,12 +252,12 @@ def _user_owned_card_ids_by_set(user, set_ids):
             is_active=True,
             print__cardset_id__in=set_ids,
         )
-        .values_list("print__cardset_id", "card_id")
+        .values_list("print__cardset_id", "print_id")
         .distinct()
     )
     result = {}
-    for set_id, card_id in items:
-        result.setdefault(set_id, set()).add(card_id)
+    for set_id, print_id in items:
+        result.setdefault(set_id, set()).add(print_id)
     return result
 
 
@@ -276,7 +278,7 @@ class SetListView(TemplateView):
         user = self.request.user
         if user.is_authenticated:
             set_ids = [s.pk for s in page_obj.object_list]
-            owned_map = _user_owned_card_ids_by_set(user, set_ids)
+            owned_map = _user_owned_print_ids_by_set(user, set_ids)
             for s in page_obj.object_list:
                 owned = len(owned_map.get(s.pk, set()))
                 s.owned_count = owned
@@ -310,14 +312,15 @@ class SetDetailView(TemplateView):
 
         page_obj = paginate_queryset(prints, self.request.GET.get("page"), per_page=40)
 
-        # Per-user ownership data
+        # Per-user ownership data — tracked per CardPrint so different
+        # printings of the same card count separately.
         user = self.request.user
-        owned_card_ids = set()
+        owned_print_ids = set()
         total_owned = 0
         user_collections = []
         if user.is_authenticated:
             from tolarian.models import CollectionItem, Collection
-            # All owned card IDs in this set (for the whole set — used for header)
+            # All owned prints in this set (used for the header / progress bar)
             total_owned = (
                 CollectionItem.objects
                 .filter(
@@ -326,18 +329,18 @@ class SetDetailView(TemplateView):
                     is_active=True,
                     print__cardset=cardset,
                 )
-                .values("card_id").distinct().count()
+                .values("print_id").distinct().count()
             )
-            # Just the IDs on this page — for grey-out styling
-            owned_card_ids = set(
+            # Print IDs on this page — for grey-out / ✓ Owned styling
+            owned_print_ids = set(
                 CollectionItem.objects
                 .filter(
                     collection__user=user,
                     collection__is_active=True,
                     is_active=True,
-                    card_id__in=[p.card_id for p in page_obj.object_list],
+                    print_id__in=[p.pk for p in page_obj.object_list],
                 )
-                .values_list("card_id", flat=True)
+                .values_list("print_id", flat=True)
                 .distinct()
             )
             # User's collections for the quick-add dropdown
@@ -350,7 +353,7 @@ class SetDetailView(TemplateView):
             "cardset":  cardset,
             "page_obj": page_obj,
             "rarities": CardRarity.choices,
-            "owned_card_ids": owned_card_ids,
+            "owned_print_ids": owned_print_ids,
             "total_owned_in_set": total_owned,
             "completion_pct": round(total_owned / cardset.card_count * 100, 1) if cardset.card_count else 0,
             "user_collections": user_collections,
@@ -423,26 +426,26 @@ class QuickAddToCollectionView(TemplateView):
 
         if is_htmx and print_obj:
             cardset = print_obj.cardset
-            owned_card_ids = set(
+            owned_print_ids = set(
                 CollectionItem.objects.filter(
                     collection__user=request.user,
                     collection__is_active=True,
                     is_active=True,
                     print__cardset=cardset,
-                ).values_list("card_id", flat=True).distinct()
+                ).values_list("print_id", flat=True).distinct()
             )
             user_collections = list(
                 Collection.objects.filter(user=request.user, is_active=True)
                 .order_by("collection_type", "name")
             )
-            total_owned = len(owned_card_ids)
+            total_owned = len(owned_print_ids)
             completion_pct = (
                 round(total_owned / cardset.card_count * 100, 1)
                 if cardset.card_count else 0
             )
             ctx = {
                 "print": print_obj,
-                "owned_card_ids": owned_card_ids,
+                "owned_print_ids": owned_print_ids,
                 "user_collections": user_collections,
                 "request": request,
                 "cardset": cardset,
@@ -459,6 +462,103 @@ class QuickAddToCollectionView(TemplateView):
             return HttpResponse(card_html + progress_html)
 
         # Redirect back (non-HTMX fallback)
+        back = request.META.get("HTTP_REFERER") or "/"
+        return redirect(back)
+
+
+class QuickRemoveFromCollectionView(TemplateView):
+    """
+    Quick-remove endpoint used from the Set Detail page.
+    POST: collection_id, card_id, print_id
+    Decrements the matching CollectionItem by 1 and deletes it at zero.
+    """
+
+    def post(self, request, *args, **kwargs):
+        from django.shortcuts import redirect
+        from django.http import HttpResponse
+        from django.template.loader import render_to_string
+        from django.contrib import messages
+        from tolarian.models import Collection, CollectionItem
+
+        if not request.user.is_authenticated:
+            return redirect("account_login")
+
+        collection_id = request.POST.get("collection_id")
+        card_id = request.POST.get("card_id")
+        print_id = request.POST.get("print_id")
+
+        collection = get_object_or_404(
+            Collection, pk=collection_id, user=request.user, is_active=True,
+        )
+        card = get_object_or_404(Card, pk=card_id)
+        print_obj = (
+            CardPrint.objects.filter(pk=print_id)
+            .select_related("card", "cardset")
+            .prefetch_related("card__faces")
+            .first()
+        )
+
+        existing = CollectionItem.objects.filter(
+            collection=collection,
+            card=card,
+            print=print_obj,
+            condition="NM",
+            finish="nonfoil",
+            language="en",
+        ).first()
+
+        if existing:
+            if existing.quantity > 1:
+                existing.quantity -= 1
+                existing.save(update_fields=["quantity", "updated_at"])
+                success_msg = f"{card.name} ← {collection.name} (x{existing.quantity})"
+            else:
+                existing.delete()
+                success_msg = f"Removed {card.name} from {collection.name}"
+        else:
+            success_msg = f"{card.name} is not in {collection.name}"
+
+        is_htmx = request.headers.get("HX-Request")
+        if not is_htmx:
+            messages.info(request, success_msg)
+
+        if is_htmx and print_obj:
+            cardset = print_obj.cardset
+            owned_print_ids = set(
+                CollectionItem.objects.filter(
+                    collection__user=request.user,
+                    collection__is_active=True,
+                    is_active=True,
+                    print__cardset=cardset,
+                ).values_list("print_id", flat=True).distinct()
+            )
+            user_collections = list(
+                Collection.objects.filter(user=request.user, is_active=True)
+                .order_by("collection_type", "name")
+            )
+            total_owned = len(owned_print_ids)
+            completion_pct = (
+                round(total_owned / cardset.card_count * 100, 1)
+                if cardset.card_count else 0
+            )
+            ctx = {
+                "print": print_obj,
+                "owned_print_ids": owned_print_ids,
+                "user_collections": user_collections,
+                "request": request,
+                "cardset": cardset,
+                "total_owned_in_set": total_owned,
+                "completion_pct": completion_pct,
+                "hx_oob": True,
+            }
+            card_html = render_to_string(
+                "multiverse/partials/_print_card.html", ctx, request=request,
+            )
+            progress_html = render_to_string(
+                "multiverse/partials/_set_progress.html", ctx, request=request,
+            )
+            return HttpResponse(card_html + progress_html)
+
         back = request.META.get("HTTP_REFERER") or "/"
         return redirect(back)
 

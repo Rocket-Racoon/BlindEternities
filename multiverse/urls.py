@@ -8,8 +8,9 @@ urlpatterns = [
     path("<uuid:oracle_id>/",           views.CardDetailView.as_view(),  name="card-detail"),
     path("sets/",                       views.SetListView.as_view(),     name="set-list"),
     path("sets/<str:code>/",            views.SetDetailView.as_view(),   name="set-detail"),
-    # Quick-add from Set Detail → Collection
+    # Quick-add / quick-remove from Set Detail → Collection
     path("quick-add/",                  views.QuickAddToCollectionView.as_view(), name="quick-add-to-collection"),
+    path("quick-remove/",               views.QuickRemoveFromCollectionView.as_view(), name="quick-remove-from-collection"),
     # Parciales HTMX
     path("<uuid:oracle_id>/rulings/",   views.CardRulingsPartialView.as_view(),   name="partial-rulings"),
     path("<uuid:oracle_id>/prints/",    views.CardPrintsPartialView.as_view(),    name="partial-prints"),
