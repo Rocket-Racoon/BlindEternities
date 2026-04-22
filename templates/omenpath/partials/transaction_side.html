@@ -1,5 +1,12 @@
 <div class="card p-3">
-  <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">{{ side_label }}</div>
+  <div class="flex items-center justify-between mb-2 gap-2">
+    <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ side_label }}</div>
+    {% if side_total is not None %}
+      <div class="text-sm font-mono font-semibold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+        ${{ side_total|floatformat:2 }}
+      </div>
+    {% endif %}
+  </div>
   {% if items %}
     <ul class="divide-y divide-gray-100 dark:divide-void-800 text-sm">
       {% for item in items %}

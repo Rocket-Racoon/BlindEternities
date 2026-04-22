@@ -40,9 +40,25 @@
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-    {% include "omenpath/partials/transaction_side.html" with side_label="@"|add:tx.party_a.username|add:" offers" items=tx.items_from_a %}
-    {% include "omenpath/partials/transaction_side.html" with side_label="@"|add:tx.party_b.username|add:" offers" items=tx.items_from_b %}
+    {% include "omenpath/partials/transaction_side.html" with side_label="@"|add:tx.party_a.username|add:" offers" items=tx.items_from_a side_total=tx.total_from_a %}
+    {% include "omenpath/partials/transaction_side.html" with side_label="@"|add:tx.party_b.username|add:" offers" items=tx.items_from_b side_total=tx.total_from_b %}
   </div>
+
+  {% with diff=tx.value_difference %}
+  {% if diff is not None %}
+    <div class="card p-3 mb-4 flex items-center justify-between flex-wrap gap-2 text-sm">
+      <div class="text-gray-500">
+        Value difference <span class="text-xs">(@{{ tx.party_a.username }} − @{{ tx.party_b.username }})</span>
+      </div>
+      <div class="font-mono font-semibold
+        {% if diff > 0 %}text-emerald-700 dark:text-emerald-400
+        {% elif diff < 0 %}text-rose-700 dark:text-rose-400
+        {% else %}text-gray-600 dark:text-gray-300{% endif %}">
+        {% if diff > 0 %}+{% endif %}${{ diff|floatformat:2 }}
+      </div>
+    </div>
+  {% endif %}
+  {% endwith %}
 
   <div class="card p-4">
     {% if tx.status == 'proposed' and request.user == tx.party_b %}

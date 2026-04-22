@@ -120,6 +120,29 @@ class Transaction(BaseModel):
     def items_from_b(self):
         return self.items.filter(side=TransactionSide.FROM_B)
 
+    @staticmethod
+    def _sum_line_values(items):
+        total = Decimal("0")
+        has_any = False
+        for item in items:
+            if item.unit_value is None:
+                continue
+            has_any = True
+            total += item.unit_value * item.quantity
+        return total if has_any else None
+
+    def total_from_a(self):
+        return self._sum_line_values(self.items_from_a())
+
+    def total_from_b(self):
+        return self._sum_line_values(self.items_from_b())
+
+    def value_difference(self):
+        a, b = self.total_from_a(), self.total_from_b()
+        if a is None or b is None:
+            return None
+        return a - b
+
     def other_party(self, user):
         return self.party_b if user == self.party_a else self.party_a
 
