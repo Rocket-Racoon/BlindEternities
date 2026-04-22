@@ -109,8 +109,12 @@
 
   <!-- Grid de prints -->
   {% if page_obj.object_list %}
-  <div class="grid gap-4"
+  <div class="grid gap-4 mx-auto"
+       {% if cardset.set_type == 'scene_box' %}
+       :style="'grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: ' + (cardSize === 'sm' ? '55%' : cardSize === 'lg' ? '100%' : '78%')"
+       {% else %}
        :style="'grid-template-columns: repeat(' + (cardSize === 'sm' ? 6 : cardSize === 'lg' ? 4 : 5) + ', minmax(0, 1fr))'"
+       {% endif %}
        id="prints-grid">
     {% include "multiverse/partials/prints_grid.html" %}
   </div>
