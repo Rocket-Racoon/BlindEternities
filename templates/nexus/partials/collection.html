@@ -1,8 +1,25 @@
-<div class="flex items-center justify-between mb-4">
+{% if is_owner %}
+<div class="flex items-center justify-end mb-4">
+  <a href="{% url 'tolarian:collection-create' %}" class="btn-primary text-sm">Nueva colección</a>
+</div>
+{% endif %}
+
+{% if collections %}
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  {% for collection in collections %}
+    {% include "tolarian/partials/collection_card.html" with collection=collection %}
+  {% endfor %}
+</div>
+{% else %}
+<div class="card p-12 text-center text-gray-400 dark:text-gray-600">
   {% if is_owner %}
-  <a href="{% url 'tolarian:collection-create' %}" class="btn-primary text-sm">Add Cards</a>
+    <p class="text-sm">No tienes colecciones todavía.</p>
+    <a href="{% url 'tolarian:collection-create' %}"
+       class="mt-4 inline-block text-sm text-void-600 dark:text-void-400 hover:underline">
+      Crear tu primera colección
+    </a>
+  {% else %}
+    <p class="text-sm">{{ profile.name }} no tiene colecciones públicas.</p>
   {% endif %}
 </div>
-<div class="card p-12 text-center text-gray-400 dark:text-gray-600">
-  <p class="text-sm">La colección estará disponible cuando Tolarian esté listo.</p>
-</div>
+{% endif %}

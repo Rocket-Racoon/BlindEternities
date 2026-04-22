@@ -18,16 +18,10 @@
         <a href="{% url 'multiverse:set-list' %}"
            class="nav-link {% active_url 'set-list' %}">Sets</a>
         {% if request.user.is_authenticated %}
-        <a href="{% url 'tolarian:collection-list' %}"
-           class="nav-link {% active_url 'collection' %}">Collection</a>
         <a href="{% url 'tolarian:deck-list' %}"
            class="nav-link {% active_url 'deck-list' %}">Decks</a>
-        <a href="{% url 'phyrexian:dashboard' %}"
-           class="nav-link {% active_url 'stats' %}">Stats</a>
         <a href="{% url 'phyrexian:tournament-list' %}"
            class="nav-link {% active_url 'tournament' %}">Tournaments</a>
-        <a href="{% url 'phyrexian:elo-leaderboard' %}"
-           class="nav-link {% active_url 'elo' %}">ELO</a>
         {% endif %}
         <a href="{% url 'omenpath:listing-list' %}"
            class="nav-link {% active_url 'listing' %} relative">
@@ -39,17 +33,6 @@
             </span>
           {% endif %}
         </a>
-        {% if request.user.is_authenticated %}
-        <a href="{% url 'omenpath:transaction-inbox' %}"
-           class="nav-link {% active_url 'trade' %} relative">
-          My Trades
-          {% if pending_trade_count %}
-            <span class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center shadow">
-              {{ pending_trade_count }}
-            </span>
-          {% endif %}
-        </a>
-        {% endif %}
       </div>
 
       {# Right side #}
@@ -95,6 +78,29 @@
                class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-void-800">
               Mi perfil
             </a>
+            <hr class="my-1 border-gray-200 dark:border-void-700">
+            <a href="{% url 'phyrexian:dashboard' %}"
+               class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-void-800">
+              Stats
+            </a>
+            <a href="{% url 'phyrexian:elo-leaderboard' %}"
+               class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-void-800">
+              ELO
+            </a>
+            <a href="{% url 'tolarian:collection-list' %}"
+               class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-void-800">
+              Collection
+            </a>
+            <a href="{% url 'omenpath:transaction-inbox' %}"
+               class="flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-void-800">
+              <span>My Trades</span>
+              {% if pending_trade_count %}
+                <span class="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">
+                  {{ pending_trade_count }}
+                </span>
+              {% endif %}
+            </a>
+            <hr class="my-1 border-gray-200 dark:border-void-700">
             <a href="{% url 'nexus:profile-edit' %}"
                class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-void-800">
               Configuración
@@ -127,11 +133,8 @@
       <a href="{% url 'multiverse:card-list' %}" class="block nav-link">Search</a>
       <a href="{% url 'multiverse:set-list' %}" class="block nav-link">Sets</a>
       {% if request.user.is_authenticated %}
-      <a href="{% url 'tolarian:collection-list' %}" class="block nav-link">Collection</a>
       <a href="{% url 'tolarian:deck-list' %}" class="block nav-link">Decks</a>
-      <a href="{% url 'phyrexian:dashboard' %}" class="block nav-link">Stats</a>
       <a href="{% url 'phyrexian:tournament-list' %}" class="block nav-link">Tournaments</a>
-      <a href="{% url 'phyrexian:elo-leaderboard' %}" class="block nav-link">ELO</a>
       {% endif %}
       <a href="{% url 'omenpath:listing-list' %}" class="block nav-link">
         Market
@@ -140,12 +143,17 @@
         {% endif %}
       </a>
       {% if request.user.is_authenticated %}
-      <a href="{% url 'omenpath:transaction-inbox' %}" class="block nav-link">
-        My Trades
-        {% if pending_trade_count %}
-          <span class="inline-flex ml-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 items-center justify-center">{{ pending_trade_count }}</span>
-        {% endif %}
-      </a>
+      <div class="pt-2 mt-2 border-t border-gray-200 dark:border-void-700 space-y-1">
+        <a href="{% url 'phyrexian:dashboard' %}" class="block nav-link">Stats</a>
+        <a href="{% url 'phyrexian:elo-leaderboard' %}" class="block nav-link">ELO</a>
+        <a href="{% url 'tolarian:collection-list' %}" class="block nav-link">Collection</a>
+        <a href="{% url 'omenpath:transaction-inbox' %}" class="block nav-link">
+          My Trades
+          {% if pending_trade_count %}
+            <span class="inline-flex ml-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 items-center justify-center">{{ pending_trade_count }}</span>
+          {% endif %}
+        </a>
+      </div>
       {% endif %}
     </div>
   </div>

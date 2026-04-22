@@ -1,7 +1,87 @@
+{# Bio / Overview tab content #}
+
+{# Stats overview — visible to everyone who can see the profile #}
+<div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+  {% if is_owner %}
+  <a href="{% url 'tolarian:deck-list' %}"
+     class="card p-4 hover:border-void-400 dark:hover:border-void-500 transition-colors">
+    <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Decks</p>
+    <p class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">{{ deck_count|default:"0" }}</p>
+  </a>
+  <a href="{% url 'tolarian:collection-list' %}"
+     class="card p-4 hover:border-void-400 dark:hover:border-void-500 transition-colors">
+    <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Collections</p>
+    <p class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">{{ collection_count|default:"0" }}</p>
+  </a>
+  {% else %}
+  <div class="card p-4">
+    <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Public decks</p>
+    <p class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">{{ deck_count|default:"0" }}</p>
+  </div>
+  <div class="card p-4">
+    <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Public collections</p>
+    <p class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">{{ collection_count|default:"0" }}</p>
+  </div>
+  {% endif %}
+  <div class="card p-4">
+    <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Preferred format</p>
+    <p class="text-lg font-medium text-gray-900 dark:text-gray-100 mt-1 capitalize">
+      {% if profile.preferred_format %}{{ profile.get_preferred_format_display }}{% else %}—{% endif %}
+    </p>
+  </div>
+</div>
+
+{# Owner-only quick links — moved here from the nav bar #}
+{% if is_owner %}
+<div class="card p-4 mb-4">
+  <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Mi actividad</h3>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+    <a href="{% url 'phyrexian:dashboard' %}"
+       class="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-void-700
+              hover:border-void-500 hover:bg-void-50 dark:hover:bg-void-800 transition-colors">
+      <svg class="w-5 h-5 mb-1 text-void-600 dark:text-void-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+      </svg>
+      <span class="text-xs font-medium text-gray-700 dark:text-gray-300">Stats</span>
+    </a>
+    <a href="{% url 'phyrexian:elo-leaderboard' %}"
+       class="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-void-700
+              hover:border-void-500 hover:bg-void-50 dark:hover:bg-void-800 transition-colors">
+      <svg class="w-5 h-5 mb-1 text-void-600 dark:text-void-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
+      </svg>
+      <span class="text-xs font-medium text-gray-700 dark:text-gray-300">ELO</span>
+    </a>
+    <a href="{% url 'tolarian:collection-list' %}"
+       class="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-void-700
+              hover:border-void-500 hover:bg-void-50 dark:hover:bg-void-800 transition-colors">
+      <svg class="w-5 h-5 mb-1 text-void-600 dark:text-void-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+      </svg>
+      <span class="text-xs font-medium text-gray-700 dark:text-gray-300">Collection</span>
+    </a>
+    <a href="{% url 'omenpath:transaction-inbox' %}"
+       class="relative flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-void-700
+              hover:border-void-500 hover:bg-void-50 dark:hover:bg-void-800 transition-colors">
+      <svg class="w-5 h-5 mb-1 text-void-600 dark:text-void-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+      </svg>
+      <span class="text-xs font-medium text-gray-700 dark:text-gray-300">My Trades</span>
+      {% if pending_trade_count %}
+        <span class="absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">
+          {{ pending_trade_count }}
+        </span>
+      {% endif %}
+    </a>
+  </div>
+</div>
+{% endif %}
+
+{# Friends card — owner only #}
 {% if is_owner %}
   {% include "nexus/partials/friends_card.html" %}
 {% endif %}
-
-<div class="card p-12 text-center text-gray-400 dark:text-gray-600">
-  <p class="text-sm">Resumen disponible próximamente.</p>
-</div>

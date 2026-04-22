@@ -5,13 +5,44 @@ from django.contrib.auth.models import User
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.db import models
+from django.db.models import Count, Sum, Q
 from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from django.views.generic import TemplateView, UpdateView, View
 from django.urls import reverse, reverse_lazy
+from tolarian.models import Collection, Deck, DeckZone
 from .models import Friendship, Profile
 from .forms import ProfileForm
+
+
+def _visible_decks(profile_user, viewer):
+    qs = (
+        Deck.objects
+        .filter(user=profile_user, is_active=True)
+        .annotate(card_count=Sum("cards__quantity", filter=~Q(cards__zone=DeckZone.EXTRAS)))
+        .select_related("cover_card__cardset", "cover_card__card")
+        .order_by("-updated_at")
+    )
+    if viewer != profile_user:
+        qs = qs.filter(is_public=True)
+    return qs
+
+
+def _visible_collections(profile_user, viewer):
+    qs = (
+        Collection.objects
+        .filter(user=profile_user, is_active=True)
+        .annotate(
+            item_count=Count("items"),
+            total_qty=Sum("items__quantity"),
+        )
+        .select_related("cover_card__cardset", "cover_card__card")
+        .order_by("collection_type", "name")
+    )
+    if viewer != profile_user:
+        qs = qs.filter(is_public=True)
+    return qs
 
 
 def _get_profile_context(request, username):
@@ -239,6 +270,10 @@ class UserOverviewPartialView(TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx.update(_get_profile_context(self.request, self.kwargs["username"]))
+        profile_user = ctx["profile_user"]
+        viewer = self.request.user
+        ctx["deck_count"] = _visible_decks(profile_user, viewer).count()
+        ctx["collection_count"] = _visible_collections(profile_user, viewer).count()
         return ctx
 
 
@@ -248,6 +283,7 @@ class UserDecksPartialView(TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx.update(_get_profile_context(self.request, self.kwargs["username"]))
+        ctx["decks"] = _visible_decks(ctx["profile_user"], self.request.user)
         return ctx
 
 
@@ -257,4 +293,5 @@ class UserCollectionPartialView(TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx.update(_get_profile_context(self.request, self.kwargs["username"]))
+        ctx["collections"] = _visible_collections(ctx["profile_user"], self.request.user)
         return ctx

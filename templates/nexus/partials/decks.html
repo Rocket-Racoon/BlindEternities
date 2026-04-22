@@ -1,8 +1,25 @@
-<div class="flex items-center justify-between mb-4">
-  {% if is_owner %}
+{% if is_owner %}
+<div class="flex items-center justify-end mb-4">
   <a href="{% url 'tolarian:deck-create' %}" class="btn-primary text-sm">New Deck</a>
+</div>
+{% endif %}
+
+{% if decks %}
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  {% for deck in decks %}
+    {% include "tolarian/partials/deck_card.html" with deck=deck %}
+  {% endfor %}
+</div>
+{% else %}
+<div class="card p-12 text-center text-gray-400 dark:text-gray-600">
+  {% if is_owner %}
+    <p class="text-sm">No tienes decks todavía.</p>
+    <a href="{% url 'tolarian:deck-create' %}"
+       class="mt-4 inline-block text-sm text-void-600 dark:text-void-400 hover:underline">
+      Crear tu primer deck
+    </a>
+  {% else %}
+    <p class="text-sm">{{ profile.name }} no tiene decks públicos.</p>
   {% endif %}
 </div>
-<div class="card p-12 text-center text-gray-400 dark:text-gray-600">
-  <p class="text-sm">Los decks estarán disponibles cuando Tolarian esté listo.</p>
-</div>
+{% endif %}
