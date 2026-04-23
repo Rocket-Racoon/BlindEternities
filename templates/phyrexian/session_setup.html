@@ -80,11 +80,11 @@
         <template x-for="(player, i) in players" :key="i">
           <div class="rounded-xl border border-gray-200 dark:border-void-700">
             <!-- Player header with bg preview -->
-            <div class="relative h-56 flex items-end p-3 rounded-t-xl overflow-hidden"
+            <div class="relative h-56 flex items-end p-3 rounded-t-xl"
                  :style="player.bg
                    ? `background-image: url(${player.bg}); background-size: cover; background-position: center;`
                    : `background-color: ${player.color}22;`">
-              <div class="absolute inset-0" :class="player.bg ? 'bg-black/30' : ''"></div>
+              <div class="absolute inset-0 rounded-t-xl" :class="player.bg ? 'bg-black/30' : ''"></div>
               <div class="relative flex items-center gap-2 w-full">
                 <div class="w-7 h-7 rounded-full border-2 border-white/80 flex items-center justify-center text-white text-xs font-bold"
                      :style="`background-color: ${player.color}`"
