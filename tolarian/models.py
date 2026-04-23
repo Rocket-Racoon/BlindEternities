@@ -249,10 +249,10 @@ class Deck(BaseModel):
         total = 0
         for entry in self.cards.exclude(
             zone__in=[DeckZone.MAYBEBOARD, DeckZone.RESERVE, DeckZone.EXTRAS]
-        ).select_related("card").prefetch_related("card__prints"):
-            print = entry.card.primary_print
-            if print and print.price_usd:
-                total += float(print.price_usd) * entry.quantity
+        ).select_related("card", "print"):
+            card_print = entry.print or entry.card.primary_print
+            if card_print and card_print.price_usd:
+                total += float(card_print.price_usd) * entry.quantity
         return round(total, 2)
 
     @property
