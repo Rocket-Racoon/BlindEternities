@@ -52,6 +52,7 @@ class ManaSymbol:
         "2/B": ("2b", True, "2/Black hybrid"),
         "2/R": ("2r", True, "2/Red hybrid"),
         "2/G": ("2g", True, "2/Green hybrid"),
+        "2/C": ("2c", True, "2/Colorless hybrid"),
     }
 
     # --- Maná Phyrexian (color/P) ---
