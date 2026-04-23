@@ -1526,16 +1526,23 @@ class UserSearchJSON(LoginRequiredMixin, View):
 
 
 class UserDecksJSON(LoginRequiredMixin, View):
-    """Return decks for a specific user (with commanders)."""
+    """Return decks for a specific user (with commanders).
+
+    Own decks always; friend's decks in full; otherwise public only.
+    """
 
     def get(self, request, user_pk):
         from django.http import JsonResponse
+        from django.contrib.auth.models import User as AuthUser
         decks = (
             Deck.objects.filter(user_id=user_pk, is_active=True)
             .order_by("name")
         )
         if int(user_pk) != request.user.pk:
-            decks = decks.filter(is_public=True)
+            target = get_object_or_404(AuthUser, pk=user_pk)
+            state, _ = request.user.profile.friendship_with(target)
+            if state != "friends":
+                decks = decks.filter(is_public=True)
         results = []
         for d in decks:
             cmdr_cards = d.commander_cards.select_related("card")

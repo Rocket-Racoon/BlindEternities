@@ -242,7 +242,7 @@ class FriendSearchJSON(LoginRequiredMixin, View):
 
 
 class UserDecksJSON(LoginRequiredMixin, View):
-    """Return active decks for a user. Own decks always; friend's public decks only."""
+    """Return active decks for a user. Own decks always; friend's decks in full; otherwise public only."""
 
     def get(self, request, user_id):
         from tolarian.models import Deck
@@ -250,7 +250,9 @@ class UserDecksJSON(LoginRequiredMixin, View):
         target = get_object_or_404(User, pk=user_id)
         qs = Deck.objects.filter(user=target, is_active=True).order_by("name")
         if target != request.user:
-            qs = qs.filter(is_public=True)
+            state, _ = request.user.profile.friendship_with(target)
+            if state != "friends":
+                qs = qs.filter(is_public=True)
 
         results = [
             {
