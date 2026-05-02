@@ -16,5 +16,6 @@ urlpatterns = [
     path("trades/search-tradable/",       views.tradable_search_json,           name="tradable-search"),
     path("trades/<uuid:pk>/",             views.TransactionDetailView.as_view(), name="transaction-detail"),
     path("trades/<uuid:pk>/counter/",     views.TradeCounterView.as_view(),      name="trade-counter"),
+    path("trades/<uuid:pk>/messages/",     views.transaction_message,             name="transaction-message"),
     path("trades/<uuid:pk>/<str:action>/", views.transaction_action,             name="transaction-action"),
 ]

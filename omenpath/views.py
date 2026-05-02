@@ -22,11 +22,11 @@ from core.mixins import OwnerRequiredMixin
 from core.utils import paginate_queryset
 from multiverse.models import CardPrint
 
-from .forms import ListingForm, TradeProposeForm, SaleProposeForm
+from .forms import ListingForm, SaleProposeForm, TradeProposeForm, TransactionMessageForm
 from .inventory import InsufficientInventoryError
 from .models import (
     Listing, ListingStatus, ListingType, ListingVisibility,
-    Transaction, TransactionEventType, TransactionStatus,
+    Transaction, TransactionEventType, TransactionMessage, TransactionStatus,
 )
 from . import services, notifications
 
@@ -304,7 +304,7 @@ class TransactionDetailView(LoginRequiredMixin, DetailView):
             "party_a", "party_b", "listing__card_print__card"
         ).prefetch_related(
             "items__card_print__card", "items__card_print__cardset",
-            "events__actor",
+            "events__actor", "messages__author",
         )
 
     def dispatch(self, request, *args, **kwargs):
@@ -315,7 +315,11 @@ class TransactionDetailView(LoginRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["events"] = list(self.object.events.all())
+        events = [("event", e) for e in self.object.events.all()]
+        msgs   = [("message", m) for m in self.object.messages.all()]
+        timeline = sorted(events + msgs, key=lambda pair: pair[1].created_at)
+        ctx["timeline"] = timeline
+        ctx["message_form"] = TransactionMessageForm()
         return ctx
 
 
@@ -585,6 +589,24 @@ def sale_propose(request, listing_pk):
         return redirect(listing.get_absolute_url())
     messages.success(request, "Offer sent.")
     return redirect(tx.get_absolute_url())
+
+
+@login_required
+@require_POST
+def transaction_message(request, pk):
+    tx = get_object_or_404(Transaction, pk=pk)
+    if not tx.is_party(request.user):
+        raise PermissionDenied
+    form = TransactionMessageForm(request.POST)
+    if not form.is_valid():
+        for err in form.errors.get("body", []):
+            messages.error(request, err)
+        return redirect(tx.get_absolute_url())
+    TransactionMessage.objects.create(
+        transaction=tx, author=request.user, body=form.cleaned_data["body"],
+    )
+    notifications.notify_message(tx, request.user)
+    return redirect(tx.get_absolute_url() + "#timeline")
 
 
 @login_required

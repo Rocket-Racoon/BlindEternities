@@ -139,6 +139,23 @@ class TradeProposeForm(forms.Form):
             )
 
 
+class TransactionMessageForm(forms.Form):
+    body = forms.CharField(
+        label="",
+        widget=forms.Textarea(attrs={
+            "class": "input w-full", "rows": 2,
+            "placeholder": "Write a message…",
+        }),
+        max_length=4000,
+    )
+
+    def clean_body(self):
+        body = (self.cleaned_data.get("body") or "").strip()
+        if not body:
+            raise forms.ValidationError("Message can't be empty.")
+        return body
+
+
 class SaleProposeForm(forms.Form):
     """Buyer-initiated from a Listing(type=SELL), or seller-initiated from Listing(type=BUY_WANTED)."""
     quantity = forms.IntegerField(min_value=1, initial=1,

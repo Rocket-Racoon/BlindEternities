@@ -240,6 +240,27 @@ class TransactionEvent(BaseModel):
         return f"{self.transaction_id} {self.event_type} by {self.actor_id}"
 
 
+class TransactionMessage(BaseModel):
+    """
+    A free-text message exchanged between parties on a transaction.
+    Allowed on any status — parties can chat before, during, or after a trade.
+    """
+    transaction = models.ForeignKey(Transaction, on_delete=models.CASCADE, related_name="messages")
+    author      = models.ForeignKey(User, on_delete=models.PROTECT, related_name="omenpath_messages")
+    body        = models.TextField()
+
+    class Meta:
+        ordering            = ["created_at"]
+        verbose_name        = "transaction message"
+        verbose_name_plural = "transaction messages"
+        indexes = [
+            models.Index(fields=["transaction", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.transaction_id} message by {self.author_id}"
+
+
 class PriceQuote(BaseModel):
     """
     Cached price fetched from an external source for a specific print+finish.

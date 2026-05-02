@@ -120,6 +120,19 @@ def notify_completed(tx):
     _safe_send(tx.party_b.email, subject, body)
 
 
+def notify_message(tx, author):
+    other = tx.other_party(author)
+    url = _tx_link(tx)
+    _safe_send(
+        other.email,
+        subject=f"[Blind Eternities] @{author.username} sent you a message about your {tx.get_kind_display().lower()}",
+        body=(
+            f"@{author.username} posted a new message on your transaction.\n\n"
+            f"Reply here: {url}\n"
+        ),
+    )
+
+
 def notify_confirmed_one_side(tx, confirmer):
     other = tx.other_party(confirmer)
     url = _tx_link(tx)
