@@ -115,7 +115,11 @@ function tradeBuilder() {
     bucket(side) {
       return side === "offered" ? this.offered : this.requested;
     },
-    keyFor(item) { return item.print_id + "|" + (item.finish || "nonfoil"); },
+    keyFor(item) {
+      return item.print_id + "|" + (item.finish || "nonfoil")
+                          + "|" + (item.condition || "NM")
+                          + "|" + (item.language || "en");
+    },
 
     isSelected(side, item) {
       return this.keyFor(item) in this.bucket(side);
@@ -134,6 +138,8 @@ function tradeBuilder() {
         bucket[key] = {
           print_id:   item.print_id,
           finish:     item.finish,
+          condition:  item.condition,
+          language:   item.language,
           card_name:  item.card_name,
           set_code:   item.set_code,
           image:      item.image,
@@ -170,6 +176,7 @@ function tradeBuilder() {
     serialize() {
       const pack = (bucket) => Object.values(bucket).map(e => ({
         print_id: e.print_id, finish: e.finish, qty: e.qty,
+        condition: e.condition, language: e.language,
       }));
       const form = this.$refs.tradeForm || document.querySelector('form[method="post"]');
       if (!form) return;

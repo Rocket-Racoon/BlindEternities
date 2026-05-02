@@ -22,6 +22,7 @@ from core.utils import paginate_queryset
 from multiverse.models import CardPrint
 
 from .forms import ListingForm, TradeProposeForm, SaleProposeForm
+from .inventory import InsufficientInventoryError
 from .models import (
     Listing, ListingStatus, ListingType, ListingVisibility,
     Transaction, TransactionStatus,
@@ -121,6 +122,11 @@ class ListingCreateView(LoginRequiredMixin, CreateView):
         ctx["card_print"] = self.card_print
         return ctx
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
+
     def form_valid(self, form):
         form.instance.owner = self.request.user
         messages.success(self.request, "Listing published.")
@@ -132,6 +138,11 @@ class ListingUpdateView(OwnerRequiredMixin, UpdateView):
     form_class = ListingForm
     template_name = "omenpath/listing_form.html"
     owner_field = "owner"
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -247,6 +258,7 @@ def _serialize_items(items):
             "quantity":   i.quantity,
             "finish":     i.finish,
             "condition":  i.condition,
+            "language":   i.language,
             "collection": i.collection.name,
             "unit_value": float(value) if value is not None else None,
         })
@@ -305,6 +317,7 @@ class TradeProposeView(LoginRequiredMixin, TemplateView):
             return rows, ["Invalid selection payload."]
         if not isinstance(data, list):
             return rows, ["Invalid selection payload."]
+        from core.constants import CardCondition
         for entry in data:
             pid = entry.get("print_id")
             qty = int(entry.get("qty", 1) or 1)
@@ -317,7 +330,17 @@ class TradeProposeView(LoginRequiredMixin, TemplateView):
             finish = entry.get("finish") or "nonfoil"
             if finish not in (cp.finishes or ["nonfoil"]):
                 finish = (cp.finishes or ["nonfoil"])[0]
-            rows.append({"card_print": cp, "quantity": qty, "finish": finish})
+            condition = entry.get("condition") or CardCondition.NEAR_MINT
+            if condition not in dict(CardCondition.choices):
+                condition = CardCondition.NEAR_MINT
+            language = (entry.get("language") or "en").strip() or "en"
+            rows.append({
+                "card_print": cp,
+                "quantity":   qty,
+                "finish":     finish,
+                "condition":  condition,
+                "language":   language,
+            })
         return rows, errors
 
     def post(self, request, *args, **kwargs):
@@ -340,13 +363,16 @@ class TradeProposeView(LoginRequiredMixin, TemplateView):
                 errors.append("Add at least one card to either side.")
             return self.render_to_response(self.get_context_data(form=form, parse_errors=errors))
 
-        tx = services.propose_trade(
-            initiator=request.user,
-            recipient=form.cleaned_data["recipient"],
-            offered_rows=offered_rows,
-            requested_rows=requested_rows,
-            note=form.cleaned_data.get("note", ""),
-        )
+        try:
+            tx = services.propose_trade(
+                initiator=request.user,
+                recipient=form.cleaned_data["recipient"],
+                offered_rows=offered_rows,
+                requested_rows=requested_rows,
+                note=form.cleaned_data.get("note", ""),
+            )
+        except InsufficientInventoryError as exc:
+            return self.render_to_response(self.get_context_data(form=form, parse_errors=exc.errors))
         messages.success(request, "Trade proposed.")
         return redirect(tx.get_absolute_url())
 
@@ -381,6 +407,10 @@ class TradeCounterView(LoginRequiredMixin, TemplateView):
         keep_ids = request.POST.getlist("keep_b")
         try:
             services.counter_propose(tx=tx, actor=request.user, keep_from_b_ids=keep_ids)
+        except InsufficientInventoryError as exc:
+            for err in exc.errors:
+                messages.error(request, err)
+            return redirect("omenpath:trade-counter", pk=tx.pk)
         except ValueError as exc:
             messages.error(request, str(exc))
             return redirect("omenpath:trade-counter", pk=tx.pk)
@@ -400,13 +430,18 @@ def sale_propose(request, listing_pk):
     if not form.is_valid():
         messages.error(request, "Invalid input.")
         return redirect(listing.get_absolute_url())
-    tx = services.propose_sale_from_listing(
-        buyer=request.user,
-        listing=listing,
-        quantity=form.cleaned_data["quantity"],
-        price_agreed=form.cleaned_data.get("price_agreed"),
-        note=form.cleaned_data.get("note", ""),
-    )
+    try:
+        tx = services.propose_sale_from_listing(
+            buyer=request.user,
+            listing=listing,
+            quantity=form.cleaned_data["quantity"],
+            price_agreed=form.cleaned_data.get("price_agreed"),
+            note=form.cleaned_data.get("note", ""),
+        )
+    except InsufficientInventoryError as exc:
+        for err in exc.errors:
+            messages.error(request, err)
+        return redirect(listing.get_absolute_url())
     messages.success(request, "Offer sent.")
     return redirect(tx.get_absolute_url())
 
@@ -463,7 +498,21 @@ def transaction_action(request, pk, action):
             tx.confirmed_by_b = True
         tx.save(update_fields=["confirmed_by_a", "confirmed_by_b", "updated_at"])
         if tx.confirmed_by_a and tx.confirmed_by_b:
-            services.finalize_transaction(tx)
+            try:
+                services.finalize_transaction(tx)
+            except InsufficientInventoryError as exc:
+                # Roll confirmations back so parties can cancel or re-propose.
+                tx.confirmed_by_a = False
+                tx.confirmed_by_b = False
+                tx.save(update_fields=["confirmed_by_a", "confirmed_by_b", "updated_at"])
+                for err in exc.errors:
+                    messages.error(request, err)
+                messages.error(
+                    request,
+                    "Inventory shifted since this trade was accepted. "
+                    "Confirmations have been reset — cancel or adjust before retrying.",
+                )
+                return redirect(tx.get_absolute_url())
             messages.success(request, "Transaction complete — cards moved to your Recolect collection.")
         else:
             notifications.notify_confirmed_one_side(tx, request.user)

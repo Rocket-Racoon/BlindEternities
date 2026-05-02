@@ -2,6 +2,7 @@ from django import forms
 from django.contrib.auth.models import User
 
 from core.constants import CardCondition, CardFinish
+from .inventory import available_quantity
 from .models import Listing, ListingType, ListingVisibility
 
 
@@ -23,6 +24,42 @@ class ListingForm(forms.ModelForm):
             "visibility":   forms.Select(attrs={"class": "input"}),
             "notes":        forms.Textarea(attrs={"class": "input", "rows": 3}),
         }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+
+    def clean(self):
+        cleaned = super().clean()
+        # Skip for BUY_WANTED — it's a request, not an offer.
+        if cleaned.get("listing_type") != ListingType.SELL:
+            return cleaned
+
+        owner = self.instance.owner_id and self.instance.owner or self.user
+        card_print = cleaned.get("card_print")
+        quantity   = cleaned.get("quantity")
+        finish     = cleaned.get("finish")
+        condition  = cleaned.get("condition")
+        language   = (cleaned.get("language") or "en").strip() or "en"
+        if not (owner and card_print and quantity):
+            return cleaned
+
+        # When editing, exclude this listing's own reservation so the user
+        # isn't blocked by their own current value.
+        exclude_listing = self.instance if self.instance.pk else None
+        avail = available_quantity(
+            user=owner, card_print=card_print, finish=finish,
+            condition=condition, language=language,
+            exclude_listing=exclude_listing,
+        )
+        if avail < quantity:
+            raise forms.ValidationError(
+                f"You have {avail} available of {card_print.card.name} "
+                f"({finish}, {condition}, {language}) after pending listings and trades; "
+                f"this listing requires {quantity}. "
+                f"Add the cards to a Binder or Trade List collection, or reduce the quantity."
+            )
+        return cleaned
 
 
 class TradeProposeForm(forms.Form):

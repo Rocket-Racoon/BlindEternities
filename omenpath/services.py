@@ -20,6 +20,7 @@ from .models import (
     Listing, ListingStatus,
 )
 from .pricing import market_value_for
+from .inventory import InsufficientInventoryError, validate_inventory
 from . import notifications
 
 
@@ -92,6 +93,7 @@ def build_items_from_text(text: str):
 
 
 def _create_items(tx: Transaction, rows: Iterable[dict], side: str) -> None:
+    from core.constants import CardCondition
     for row in rows:
         cp = row["card_print"]
         TransactionItem.objects.create(
@@ -100,12 +102,18 @@ def _create_items(tx: Transaction, rows: Iterable[dict], side: str) -> None:
             card_print=cp,
             quantity=row["quantity"],
             finish=row["finish"],
+            condition=row.get("condition") or CardCondition.NEAR_MINT,
+            language=(row.get("language") or "en"),
             unit_value=market_value_for(cp, finish=row["finish"], currency="USD"),
         )
 
 
 @db_transaction.atomic
 def propose_trade(*, initiator: User, recipient: User, offered_rows, requested_rows, note: str = "") -> Transaction:
+    if offered_rows:
+        validate_inventory(giver=initiator, rows=offered_rows)
+    if requested_rows:
+        validate_inventory(giver=recipient, rows=requested_rows)
     tx = Transaction.objects.create(
         kind="trade",
         party_a=initiator,
@@ -130,6 +138,14 @@ def propose_sale_from_listing(*, buyer: User, listing: Listing, quantity: int, p
         seller, buying = listing.owner, buyer
     else:
         seller, buying = buyer, listing.owner
+    seller_row = {
+        "card_print": listing.card_print,
+        "quantity":   min(quantity, listing.quantity),
+        "finish":     listing.finish,
+        "condition":  listing.condition,
+        "language":   listing.language,
+    }
+    validate_inventory(giver=seller, rows=[seller_row])
     tx = Transaction.objects.create(
         kind="sale",
         party_a=buying,
@@ -146,7 +162,7 @@ def propose_sale_from_listing(*, buyer: User, listing: Listing, quantity: int, p
         condition=listing.condition,
         finish=listing.finish,
         language=listing.language,
-        quantity=min(quantity, listing.quantity),
+        quantity=seller_row["quantity"],
         unit_value=market_value_for(listing.card_print, finish=listing.finish, currency="USD"),
     )
     db_transaction.on_commit(lambda: notifications.notify_proposed(tx))
@@ -175,6 +191,9 @@ def counter_propose(*, tx: Transaction, actor: User, keep_from_b_ids) -> Transac
     # Don't let the counter empty both sides — that's just a rejection.
     if not kept and not tx.items_from_a().exists():
         raise ValueError("Counter would leave nothing on the table; reject instead.")
+
+    if kept:
+        validate_inventory(giver=tx.party_b, rows=kept, exclude_tx=tx)
 
     for it in to_remove:
         it.delete()
@@ -221,7 +240,12 @@ def _deposit_items(tx: Transaction, items, giver: User, receiver: User) -> None:
 
 
 def _withdraw_items(items, giver: User) -> None:
-    """Best-effort: decrement any matching collection entries owned by the giver."""
+    """Decrement matching collection entries owned by the giver.
+
+    Pre-validated by `validate_inventory` at finalize time, so a remaining
+    shortfall after the loop indicates a race or a data-integrity bug — raise.
+    """
+    shortfalls = []
     for item in items:
         qs = CollectionItem.objects.filter(
             collection__user=giver,
@@ -246,6 +270,13 @@ def _withdraw_items(items, giver: User) -> None:
                 entry.delete()
             else:
                 entry.save(update_fields=["quantity", "updated_at"])
+        if remaining > 0:
+            shortfalls.append(
+                f"@{giver.username} short {remaining} of {item.card_print.card.name} "
+                f"({item.finish}, {item.condition}, {item.language})."
+            )
+    if shortfalls:
+        raise InsufficientInventoryError(shortfalls)
 
 
 @db_transaction.atomic
@@ -256,8 +287,13 @@ def finalize_transaction(tx: Transaction) -> None:
     if not (tx.confirmed_by_a and tx.confirmed_by_b):
         raise ValueError("Both parties must confirm before finalizing.")
 
-    items_a = list(tx.items_from_a().select_related("card_print__card"))
-    items_b = list(tx.items_from_b().select_related("card_print__card"))
+    items_a = list(tx.items_from_a().select_related("card_print__card", "card_print__cardset"))
+    items_b = list(tx.items_from_b().select_related("card_print__card", "card_print__cardset"))
+
+    if items_a:
+        validate_inventory(giver=tx.party_a, rows=items_a, exclude_tx=tx)
+    if items_b:
+        validate_inventory(giver=tx.party_b, rows=items_b, exclude_tx=tx)
 
     _withdraw_items(items_a, tx.party_a)
     _withdraw_items(items_b, tx.party_b)
