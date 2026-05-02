@@ -20,10 +20,11 @@ from django.db.models import FloatField
 from django.db.models.fields.json import KeyTextTransform
 from django.db.models.functions import Cast
 from multiverse.models import Card, CardPrint
+from core.constants import CollectionType, DeckZone
 from .mixins import CollectionOwnerMixin, DeckOwnerMixin
 from .models import (
-    Collection, CollectionItem, CollectionType,
-    Deck, DeckCard, DeckCategory, DeckVersion, DeckZone,
+    Collection, CollectionItem,
+    Deck, DeckCard, DeckCategory, DeckVersion,
 )
 from .forms import (
     CollectionForm, CollectionItemForm,

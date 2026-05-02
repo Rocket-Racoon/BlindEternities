@@ -12,7 +12,8 @@ from django.db import transaction as db_transaction
 from django.utils import timezone
 
 from multiverse.models import Card, CardPrint
-from tolarian.models import Collection, CollectionItem, CollectionType
+from core.constants import CollectionType
+from tolarian.models import Collection, CollectionItem
 
 from .models import (
     Transaction, TransactionItem, TransactionSide, TransactionStatus,

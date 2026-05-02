@@ -1,11 +1,11 @@
 # tolarian/forms.py
 from django import forms
 from core.constants import (
-    MagicFormat, CardCondition, CardFinish
+    MagicFormat, CardCondition, CardFinish, CollectionType, DeckZone,
 )
 from .models import (
-    Collection, CollectionItem, CollectionType,
-    Deck, DeckCard, DeckZone 
+    Collection, CollectionItem,
+    Deck, DeckCard,
 )
 
 

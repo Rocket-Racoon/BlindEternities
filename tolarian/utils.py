@@ -4,8 +4,8 @@ import io
 import re
 from django.db import transaction
 from multiverse.models import Card, CardPrint
-from .models import (CollectionItem, DeckCard, DeckZone)
-from core.constants import (CardCondition, CardFinish)
+from .models import (CollectionItem, DeckCard)
+from core.constants import (CardCondition, CardFinish, DeckZone)
 
 
 # ---------------------------------------------------------------------------

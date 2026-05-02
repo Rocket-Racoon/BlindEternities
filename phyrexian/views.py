@@ -1,6 +1,7 @@
 # phyrexian/views.py
 import json
 from collections import Counter
+from datetime import timedelta
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Sum, Count, Q, F, Avg
 from django.shortcuts import get_object_or_404
@@ -12,11 +13,15 @@ from django.views.generic import (
 )
 
 from core.mixins import OwnerRequiredMixin
-from tolarian.models import Collection, CollectionItem, Deck, DeckCard, DeckZone
+from core.constants import (
+    DeckZone, MagicFormat, FORMAT_STARTING_LIFE,
+    COLOR_LABELS, COLOR_HEX, RARITY_HEX,
+)
+from tolarian.models import Collection, CollectionItem, Deck, DeckCard
 from multiverse.models import Card, CardPrint
 from .models import (
     GameRecord, GameResult, GamePlayer, GameSession, PlayerSlot, LifeChange,
-    SessionStatus, EliminationCause, FORMAT_STARTING_LIFE,
+    SessionStatus, EliminationCause,
     Tournament, TournamentParticipant, TournamentRound,
     TournamentMatch, TournamentMatchPlayer, TournamentStatus, BracketType,
     TournamentStats,
@@ -24,13 +29,9 @@ from .models import (
 )
 from .forms import GameRecordForm, SessionSetupForm, TournamentForm, PLAYER_COLORS
 
-# Color config shared by all chart views
-COLOR_LABELS = {"W": "White", "U": "Blue", "B": "Black", "R": "Red", "G": "Green", "C": "Colorless"}
-COLOR_HEX = {"W": "#F9E076", "U": "#0E68AB", "B": "#150B00", "R": "#D3202A", "G": "#00733E", "C": "#CBC2BF"}
-RARITY_HEX = {
-    "common": "#6B7280", "uncommon": "#9CA3AF", "rare": "#EAB308",
-    "mythic": "#F97316", "special": "#8B5CF6", "bonus": "#A855F7",
-}
+# Period filter buckets used by analytics views. Keys must match the values in
+# the template's `period` <select> (see templates/phyrexian/dashboard.html).
+PERIOD_DAYS = {"30d": 30, "90d": 90, "1y": 365}
 
 
 # ---------------------------------------------------------------------------
@@ -50,7 +51,6 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         ctx["filter_format"] = filter_format
         ctx["filter_deck"] = filter_deck
         ctx["filter_period"] = filter_period
-        from core.constants import MagicFormat
         ctx["format_choices"] = MagicFormat.choices
         ctx["user_decks"] = Deck.objects.filter(user=user, is_active=True).order_by("name")
 
@@ -69,13 +69,10 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             games = games.filter(format=filter_format)
         if filter_deck:
             games = games.filter(deck_id=filter_deck)
-        if filter_period != "all":
-            from datetime import timedelta
-            days_map = {"30d": 30, "90d": 90, "1y": 365}
-            days = days_map.get(filter_period)
-            if days:
-                cutoff = timezone.now().date() - timedelta(days=days)
-                games = games.filter(date_played__gte=cutoff)
+        days = PERIOD_DAYS.get(filter_period)
+        if days:
+            cutoff = timezone.now().date() - timedelta(days=days)
+            games = games.filter(date_played__gte=cutoff)
 
         total = games.count()
         if total:

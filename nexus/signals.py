@@ -9,7 +9,8 @@ def create_user_profile(sender, instance, created, **kwargs):
     if created:
         Profile.objects.create(user=instance)
 
-        from tolarian.models import Collection, CollectionType
+        from core.constants import CollectionType
+        from tolarian.models import Collection
         defaults = [
             (CollectionType.BINDER,    "Mi Binder"),
             (CollectionType.WISHLIST,  "Mi Wishlist"),

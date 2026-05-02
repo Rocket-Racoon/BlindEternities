@@ -161,22 +161,6 @@ class GamePlayer(BaseModel):
 # ---------------------------------------------------------------------------
 # Live Game Session (Lifetap-style)
 # ---------------------------------------------------------------------------
-FORMAT_STARTING_LIFE = {
-    MagicFormat.STANDARD:  20,
-    MagicFormat.PIONEER:   20,
-    MagicFormat.MODERN:    20,
-    MagicFormat.LEGACY:    20,
-    MagicFormat.VINTAGE:   20,
-    MagicFormat.PAUPER:    20,
-    MagicFormat.DRAFT:     20,
-    MagicFormat.SEALED:    20,
-    MagicFormat.COMMANDER: 40,
-    MagicFormat.OATHBREAKER: 20,
-    MagicFormat.BRAWL:     25,
-    MagicFormat.OTHER:     20,
-}
-
-
 class SessionStatus(models.TextChoices):
     ACTIVE   = "active",   "Active"
     FINISHED = "finished", "Finished"

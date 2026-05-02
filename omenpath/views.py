@@ -14,7 +14,8 @@ from django.views.generic import (
     TemplateView, ListView, DetailView, CreateView, UpdateView, DeleteView,
 )
 
-from tolarian.models import CollectionItem, CollectionType
+from core.constants import CollectionType
+from tolarian.models import CollectionItem
 
 from core.mixins import OwnerRequiredMixin
 from core.utils import paginate_queryset

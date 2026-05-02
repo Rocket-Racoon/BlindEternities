@@ -1,11 +1,11 @@
 # phyrexian/forms.py
 from django import forms
 from django.utils import timezone
-from core.constants import MagicFormat
+from core.constants import MagicFormat, FORMAT_STARTING_LIFE
 from tolarian.models import Deck
 from .models import (
     GameRecord, GameSession, Tournament, BracketType,
-    EliminationCause, FORMAT_STARTING_LIFE,
+    EliminationCause,
 )
 
 

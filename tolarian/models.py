@@ -4,24 +4,7 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 from core.models import BaseModel
 from multiverse.models import Card, CardPrint
-from core.constants import CardCondition, CardFinish, MagicFormat
-
-
-class CollectionType(models.TextChoices):
-    BINDER    = "binder",    "Binder"
-    WISHLIST  = "wishlist",  "Wishlist"
-    TRADELIST = "tradelist", "Trade List"
-    LOANLIST  = "loanlist",  "Loan List"
-
-
-class DeckZone(models.TextChoices):
-    MAIN        = "main",       "Maindeck"
-    SIDEBOARD   = "sideboard",  "Sideboard"
-    COMMANDER   = "commander",  "Commander"
-    COMPANION   = "companion",  "Companion"
-    MAYBEBOARD  = "maybeboard", "Maybeboard"
-    RESERVE     = "reserve",    "Reserve"
-    EXTRAS      = "extras",     "Tokens & More"
+from core.constants import CardCondition, CardFinish, CollectionType, DeckZone, MagicFormat
 
 
 class Collection(BaseModel):

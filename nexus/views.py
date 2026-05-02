@@ -11,7 +11,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from django.views.generic import TemplateView, UpdateView, View
 from django.urls import reverse, reverse_lazy
-from tolarian.models import Collection, Deck, DeckZone
+from core.constants import DeckZone
+from tolarian.models import Collection, Deck
 from .models import Friendship, Profile
 from .forms import ProfileForm
 

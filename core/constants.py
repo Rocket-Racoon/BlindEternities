@@ -18,6 +18,22 @@ class MagicFormat(models.TextChoices):
     OTHER     = "other",     "Other"
 
 
+FORMAT_STARTING_LIFE = {
+    MagicFormat.STANDARD:    20,
+    MagicFormat.PIONEER:     20,
+    MagicFormat.MODERN:      20,
+    MagicFormat.LEGACY:      20,
+    MagicFormat.VINTAGE:     20,
+    MagicFormat.PAUPER:      20,
+    MagicFormat.DRAFT:       20,
+    MagicFormat.SEALED:      20,
+    MagicFormat.COMMANDER:   40,
+    MagicFormat.OATHBREAKER: 20,
+    MagicFormat.BRAWL:       25,
+    MagicFormat.OTHER:       20,
+}
+
+
 # --- Colors ---
 class MagicColor(models.TextChoices):
     WHITE     = "W", "Blanco"
@@ -26,6 +42,26 @@ class MagicColor(models.TextChoices):
     RED       = "R", "Rojo"
     GREEN     = "G", "Verde"
     COLORLESS = "C", "Colorless"
+
+
+# Display labels and hex swatches keyed by MagicColor value, for charts and UI.
+COLOR_LABELS = {
+    MagicColor.WHITE:     "White",
+    MagicColor.BLUE:      "Blue",
+    MagicColor.BLACK:     "Black",
+    MagicColor.RED:       "Red",
+    MagicColor.GREEN:     "Green",
+    MagicColor.COLORLESS: "Colorless",
+}
+
+COLOR_HEX = {
+    MagicColor.WHITE:     "#F9E076",
+    MagicColor.BLUE:      "#0E68AB",
+    MagicColor.BLACK:     "#150B00",
+    MagicColor.RED:       "#D3202A",
+    MagicColor.GREEN:     "#00733E",
+    MagicColor.COLORLESS: "#CBC2BF",
+}
 
 
 # --- Rarities ---
@@ -37,6 +73,17 @@ class CardRarity(models.TextChoices):
     SPECIAL   = "special",  "Special"
     BONUS     = "bonus",    "Bonus"
     TIMESHIFTED = "timeshifted", "Timeshifted"
+
+
+# Hex swatches keyed by CardRarity value, for charts and UI.
+RARITY_HEX = {
+    CardRarity.COMMON:   "#6B7280",
+    CardRarity.UNCOMMON: "#9CA3AF",
+    CardRarity.RARE:     "#EAB308",
+    CardRarity.MYTHIC:   "#F97316",
+    CardRarity.SPECIAL:  "#8B5CF6",
+    CardRarity.BONUS:    "#A855F7",
+}
 
 
 # --- Parts & Layouts ---
@@ -595,6 +642,24 @@ class CardCondition(models.TextChoices):
     MODERATE    = 'MP',  'Moderately Played'
     HEAVILY     = 'HP',  'Heavily Played'
     DAMAGED     = 'DMG', 'Damaged'
+
+
+class CollectionType(models.TextChoices):
+    BINDER    = "binder",    "Binder"
+    WISHLIST  = "wishlist",  "Wishlist"
+    TRADELIST = "tradelist", "Trade List"
+    LOANLIST  = "loanlist",  "Loan List"
+
+
+# --- Deck ---
+class DeckZone(models.TextChoices):
+    MAIN        = "main",       "Maindeck"
+    SIDEBOARD   = "sideboard",  "Sideboard"
+    COMMANDER   = "commander",  "Commander"
+    COMPANION   = "companion",  "Companion"
+    MAYBEBOARD  = "maybeboard", "Maybeboard"
+    RESERVE     = "reserve",    "Reserve"
+    EXTRAS      = "extras",     "Tokens & More"
 
 
 # --- Classification
