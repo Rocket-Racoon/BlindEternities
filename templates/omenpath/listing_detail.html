@@ -48,7 +48,10 @@
 
     <dl class="grid grid-cols-2 gap-y-2 gap-x-6 text-sm my-4">
       <dt class="text-gray-500">Seller</dt>
-      <dd>@{{ listing.owner.username }}</dd>
+      <dd class="flex items-center gap-2">
+        @{{ listing.owner.username }}
+        {% include "omenpath/partials/trade_badge.html" with stats=owner_stats size="sm" %}
+      </dd>
       <dt class="text-gray-500">Condition</dt>
       <dd>{{ listing.get_condition_display }}</dd>
       <dt class="text-gray-500">Finish</dt>

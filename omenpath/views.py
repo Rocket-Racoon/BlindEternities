@@ -31,6 +31,7 @@ from .models import (
     Listing, ListingStatus, ListingType, ListingVisibility,
     Transaction, TransactionEventType, TransactionMessage, TransactionStatus,
 )
+from .stats import trade_stats_for, trade_stats_for_users
 from . import services, notifications
 
 
@@ -165,8 +166,12 @@ class ListingListView(LoginRequiredMixin, TemplateView):
             price_min, price_max,
         ] if v not in (None, "", 0))
 
+        page = paginate_queryset(visible, params.get("page"), 24)
+        owner_stats = trade_stats_for_users([l.owner_id for l in page.object_list])
+
         ctx.update({
-            "listings":             paginate_queryset(visible, params.get("page"), 24),
+            "listings":             page,
+            "owner_stats":          owner_stats,
             "listing_type":         listing_type,
             "q":                    search,
             "condition":            condition,
@@ -211,6 +216,7 @@ class ListingDetailView(LoginRequiredMixin, DetailView):
         ctx["market_value"] = market_value_for(cp, finish=self.object.finish, currency="USD")
         ctx["is_expired"]   = self.object.is_expired()
         ctx["is_offerable"] = self.object.is_offerable()
+        ctx["owner_stats"]  = trade_stats_for(self.object.owner)
         ctx["sale_form"] = SaleProposeForm(initial={
             "quantity": 1,
             "price_agreed": self.object.asking_price,
@@ -323,6 +329,7 @@ class TransactionDetailView(LoginRequiredMixin, DetailView):
         timeline = sorted(events + msgs, key=lambda pair: pair[1].created_at)
         ctx["timeline"] = timeline
         ctx["message_form"] = TransactionMessageForm()
+        ctx["party_stats"] = trade_stats_for_users([self.object.party_a_id, self.object.party_b_id])
         return ctx
 
 

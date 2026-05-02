@@ -23,9 +23,12 @@
         <span class="ss ss-{{ l.card_print.cardset.code }} ss-{{ l.card_print.rarity }}"></span>
         {{ l.card_print.cardset.code|upper }} · {{ l.get_condition_display }} · {{ l.get_finish_display }}
       </div>
-      <div class="text-xs text-gray-500 dark:text-gray-400 mt-2 flex justify-between">
+      <div class="text-xs text-gray-500 dark:text-gray-400 mt-2 flex justify-between items-center">
         <span>Qty {{ l.quantity }}</span>
-        <span>@{{ l.owner.username }}</span>
+        <span class="flex items-center gap-1">
+          @{{ l.owner.username }}
+          {% include "omenpath/partials/trade_badge.html" with stats=owner_stats|get_item:l.owner_id %}
+        </span>
       </div>
       {% if l.expires_at %}
         <div class="text-[10px] text-gray-400 dark:text-gray-500 mt-1 italic">

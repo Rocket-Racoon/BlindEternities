@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load omenpath_tags %}
 
 {% block title %}{{ profile.name }} — {{ site_name }}{% endblock %}
 
@@ -45,7 +46,7 @@
         <p class="mt-3 text-gray-700 dark:text-gray-300">{{ profile.bio }}</p>
         {% endif %}
 
-        <div class="mt-3 flex flex-wrap gap-4 text-sm text-gray-500 dark:text-gray-400">
+        <div class="mt-3 flex flex-wrap gap-4 items-center text-sm text-gray-500 dark:text-gray-400">
           {% if profile.location %}
           <span>{{ profile.location }}</span>
           {% endif %}
@@ -53,6 +54,8 @@
           <span class="capitalize">{{ profile.get_preferred_format_display }}</span>
           {% endif %}
           <span>Since {{ profile_user.date_joined|date:"M Y" }}</span>
+          {% trade_stats profile_user as om_stats %}
+          {% include "omenpath/partials/trade_badge.html" with stats=om_stats size="sm" %}
         </div>
       </div>
     </div>

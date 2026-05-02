@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load core_tags %}
 
 {% block title %}Transaction {{ tx.pk }}{% endblock %}
 
@@ -17,11 +18,17 @@
     <div class="flex justify-between flex-wrap gap-2">
       <div>
         <div class="text-gray-500">Initiator</div>
-        <div class="font-medium">@{{ tx.party_a.username }}</div>
+        <div class="font-medium flex items-center gap-2">
+          @{{ tx.party_a.username }}
+          {% include "omenpath/partials/trade_badge.html" with stats=party_stats|get_item:tx.party_a_id %}
+        </div>
       </div>
       <div>
         <div class="text-gray-500">Recipient</div>
-        <div class="font-medium">@{{ tx.party_b.username }}</div>
+        <div class="font-medium flex items-center gap-2">
+          @{{ tx.party_b.username }}
+          {% include "omenpath/partials/trade_badge.html" with stats=party_stats|get_item:tx.party_b_id %}
+        </div>
       </div>
       <div>
         <div class="text-gray-500">Created</div>
