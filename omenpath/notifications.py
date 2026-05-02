@@ -72,14 +72,25 @@ def notify_rejected(tx):
     )
 
 
-def notify_countered(tx):
+def notify_countered(tx, actor=None):
+    """Notify whichever party now has to respond.
+
+    The post-counter status determines the responder:
+      - COUNTER_PROPOSED → party_a responds (B just countered)
+      - PROPOSED         → party_b responds (A just countered back)
+    """
+    from .models import TransactionStatus
+    if tx.status == TransactionStatus.COUNTER_PROPOSED:
+        responder, mover = tx.party_a, tx.party_b
+    else:
+        responder, mover = tx.party_b, tx.party_a
     url = _tx_link(tx)
     _safe_send(
-        tx.party_a.email,
-        subject=f"[Blind Eternities] @{tx.party_b.username} countered your {tx.get_kind_display().lower()} proposal",
+        responder.email,
+        subject=f"[Blind Eternities] @{mover.username} countered your {tx.get_kind_display().lower()} proposal",
         body=(
-            f"@{tx.party_b.username} adjusted which of their cards they'll include.\n"
-            f"Review the updated proposal and accept or reject it.\n\n"
+            f"@{mover.username} adjusted which of their cards they'll include.\n"
+            f"Review the updated proposal and accept, reject, or counter back.\n\n"
             f"Details: {url}\n"
         ),
     )

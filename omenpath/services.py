@@ -16,12 +16,39 @@ from core.constants import CollectionType
 from tolarian.models import Collection, CollectionItem
 
 from .models import (
-    Transaction, TransactionItem, TransactionSide, TransactionStatus,
-    Listing, ListingStatus,
+    Transaction, TransactionItem, TransactionEvent, TransactionEventType,
+    TransactionSide, TransactionStatus, Listing, ListingStatus,
 )
 from .pricing import market_value_for
 from .inventory import InsufficientInventoryError, validate_inventory
 from . import notifications
+
+
+def record_event(*, tx: Transaction, actor: User, event_type: str, metadata=None, note: str = "") -> TransactionEvent:
+    return TransactionEvent.objects.create(
+        transaction=tx,
+        actor=actor,
+        event_type=event_type,
+        metadata=metadata or {},
+        note=note,
+    )
+
+
+def _summarize_items(items) -> list:
+    """Compact JSON-safe shape for event metadata."""
+    out = []
+    for it in items:
+        cp = it.card_print
+        out.append({
+            "name":    cp.card.name,
+            "set":     cp.cardset.code.upper() if cp.cardset else "",
+            "cn":      cp.collector_number,
+            "qty":     it.quantity,
+            "finish":  it.finish,
+            "condition": it.condition,
+            "side":    it.side,
+        })
+    return out
 
 
 RECOLECT_NAME = "Recolect"
@@ -123,6 +150,14 @@ def propose_trade(*, initiator: User, recipient: User, offered_rows, requested_r
     )
     _create_items(tx, offered_rows, TransactionSide.FROM_A)
     _create_items(tx, requested_rows, TransactionSide.FROM_B)
+    record_event(
+        tx=tx, actor=initiator, event_type=TransactionEventType.PROPOSED,
+        metadata={
+            "offered":   _summarize_items(tx.items_from_a()),
+            "requested": _summarize_items(tx.items_from_b()),
+        },
+        note=note,
+    )
     db_transaction.on_commit(lambda: notifications.notify_proposed(tx))
     return tx
 
@@ -167,42 +202,80 @@ def propose_sale_from_listing(*, buyer: User, listing: Listing, quantity: int, p
         quantity=seller_row["quantity"],
         unit_value=market_value_for(listing.card_print, finish=listing.finish, currency="USD"),
     )
+    record_event(
+        tx=tx, actor=buyer, event_type=TransactionEventType.PROPOSED,
+        metadata={
+            "listing_id":   str(listing.pk),
+            "listing_type": listing.listing_type,
+            "price_agreed": str(tx.price_agreed) if tx.price_agreed is not None else None,
+            "items":        _summarize_items(tx.items_from_b()),
+        },
+        note=note,
+    )
     db_transaction.on_commit(lambda: notifications.notify_proposed(tx))
     return tx
 
 
 @db_transaction.atomic
-def counter_propose(*, tx: Transaction, actor: User, keep_from_b_ids) -> Transaction:
+def counter_propose(*, tx: Transaction, actor: User, keep_ids) -> Transaction:
     """
-    User B narrows their own side of a PROPOSED trade by removing items.
-    `keep_from_b_ids` is the set of TransactionItem IDs (side=FROM_B) B wants to keep.
-    Transitions the tx to COUNTER_PROPOSED; party_a then gets to accept or reject.
-    """
-    if tx.status != TransactionStatus.PROPOSED:
-        raise ValueError("Only proposed transactions can be countered.")
-    if actor != tx.party_b:
-        raise ValueError("Only the recipient can counter.")
+    Counter a trade by narrowing the actor's own side. Symmetric:
 
-    keep_ids = {str(i) for i in (keep_from_b_ids or [])}
-    existing_b = list(tx.items_from_b())
-    if not existing_b:
-        raise ValueError("No items to counter.")
-    to_remove = [it for it in existing_b if str(it.id) not in keep_ids]
-    kept = [it for it in existing_b if str(it.id) in keep_ids]
+    - status PROPOSED          → only party_b may counter, narrows FROM_B,
+                                 status flips to COUNTER_PROPOSED.
+    - status COUNTER_PROPOSED  → only party_a may counter back, narrows FROM_A,
+                                 status flips back to PROPOSED.
+
+    `keep_ids` is the set of TransactionItem IDs on the actor's side that they
+    want to keep. Items not listed are removed.
+    """
+    if tx.status == TransactionStatus.PROPOSED:
+        if actor != tx.party_b:
+            raise ValueError("Only the recipient can counter at this stage.")
+        actor_side = TransactionSide.FROM_B
+        new_status = TransactionStatus.COUNTER_PROPOSED
+        existing_actor_items = list(tx.items_from_b())
+        other_side_has_items = tx.items_from_a().exists()
+    elif tx.status == TransactionStatus.COUNTER_PROPOSED:
+        if actor != tx.party_a:
+            raise ValueError("Only the initiator can counter back at this stage.")
+        actor_side = TransactionSide.FROM_A
+        new_status = TransactionStatus.PROPOSED
+        existing_actor_items = list(tx.items_from_a())
+        other_side_has_items = tx.items_from_b().exists()
+    else:
+        raise ValueError("Only proposed or counter-proposed trades can be countered.")
+
+    keep_set = {str(i) for i in (keep_ids or [])}
+    if not existing_actor_items:
+        raise ValueError("No items on your side to counter.")
+    to_remove = [it for it in existing_actor_items if str(it.id) not in keep_set]
+    kept = [it for it in existing_actor_items if str(it.id) in keep_set]
 
     # Don't let the counter empty both sides — that's just a rejection.
-    if not kept and not tx.items_from_a().exists():
+    if not kept and not other_side_has_items:
         raise ValueError("Counter would leave nothing on the table; reject instead.")
 
     if kept:
-        validate_inventory(giver=tx.party_b, rows=kept, exclude_tx=tx)
+        validate_inventory(giver=actor, rows=kept, exclude_tx=tx)
+
+    removed_summary = _summarize_items(to_remove)
+    kept_summary    = _summarize_items(kept)
 
     for it in to_remove:
         it.delete()
 
-    tx.status = TransactionStatus.COUNTER_PROPOSED
+    tx.status = new_status
     tx.save(update_fields=["status", "updated_at"])
-    db_transaction.on_commit(lambda: notifications.notify_countered(tx))
+    record_event(
+        tx=tx, actor=actor, event_type=TransactionEventType.COUNTERED,
+        metadata={
+            "side":    actor_side,
+            "removed": removed_summary,
+            "kept":    kept_summary,
+        },
+    )
+    db_transaction.on_commit(lambda: notifications.notify_countered(tx, actor=actor))
     return tx
 
 
@@ -305,6 +378,13 @@ def finalize_transaction(tx: Transaction) -> None:
     tx.status = TransactionStatus.COMPLETED
     tx.completed_at = timezone.now()
     tx.save(update_fields=["status", "completed_at", "updated_at"])
+    record_event(
+        tx=tx, actor=tx.party_a, event_type=TransactionEventType.COMPLETED,
+        metadata={
+            "items_from_a": _summarize_items(items_a),
+            "items_from_b": _summarize_items(items_b),
+        },
+    )
     db_transaction.on_commit(lambda: notifications.notify_completed(tx))
 
     if tx.listing:

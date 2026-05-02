@@ -11,15 +11,15 @@
 
   <div class="card p-4 mb-4 text-sm">
     Pick which of your cards you're willing to include. Unchecked items will be removed
-    and the updated proposal will be sent back to @{{ tx.party_a.username }} for final approval.
+    and the updated proposal will be sent back to @{{ other_party.username }} for their response.
   </div>
 
-  <!-- A's offer (read-only context) -->
+  <!-- Other party's side — read-only context -->
   <div class="card p-4 mb-4">
-    <h2 class="font-semibold mb-2">@{{ tx.party_a.username }} offers</h2>
-    {% if items_a %}
+    <h2 class="font-semibold mb-2">@{{ other_party.username }} offers</h2>
+    {% if other_items %}
       <ul class="divide-y divide-gray-100 dark:divide-void-800 text-sm">
-        {% for item in items_a %}
+        {% for item in other_items %}
           <li class="py-2 flex items-center gap-3">
             {% if item.card_print.image_small %}
               <img src="{{ item.card_print.image_small }}" class="w-10 rounded">
@@ -44,17 +44,17 @@
     {% endif %}
   </div>
 
-  <!-- B's side — editable -->
+  <!-- Actor's side — editable -->
   <form method="post" class="card p-4">
     {% csrf_token %}
     <h2 class="font-semibold mb-2">Your cards in this trade</h2>
     <p class="text-xs text-gray-500 mb-3">Uncheck any card you'd rather keep.</p>
 
-    {% if items_b %}
+    {% if editable_items %}
       <ul class="divide-y divide-gray-100 dark:divide-void-800 text-sm">
-        {% for item in items_b %}
+        {% for item in editable_items %}
           <li class="py-2 flex items-center gap-3">
-            <input type="checkbox" name="keep_b" value="{{ item.pk }}" checked
+            <input type="checkbox" name="keep" value="{{ item.pk }}" checked
                    class="rounded w-5 h-5 text-emerald-600">
             {% if item.card_print.image_small %}
               <img src="{{ item.card_print.image_small }}" class="w-10 rounded">
@@ -75,7 +75,7 @@
         {% endfor %}
       </ul>
     {% else %}
-      <div class="text-xs text-gray-400 italic">Nothing requested from you.</div>
+      <div class="text-xs text-gray-400 italic">Nothing on your side to adjust.</div>
     {% endif %}
 
     <div class="flex justify-end gap-2 mt-4">

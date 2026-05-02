@@ -26,7 +26,7 @@ from .forms import ListingForm, TradeProposeForm, SaleProposeForm
 from .inventory import InsufficientInventoryError
 from .models import (
     Listing, ListingStatus, ListingType, ListingVisibility,
-    Transaction, TransactionStatus,
+    Transaction, TransactionEventType, TransactionStatus,
 )
 from . import services, notifications
 
@@ -302,13 +302,21 @@ class TransactionDetailView(LoginRequiredMixin, DetailView):
     def get_queryset(self):
         return Transaction.objects.select_related(
             "party_a", "party_b", "listing__card_print__card"
-        ).prefetch_related("items__card_print__card", "items__card_print__cardset")
+        ).prefetch_related(
+            "items__card_print__card", "items__card_print__cardset",
+            "events__actor",
+        )
 
     def dispatch(self, request, *args, **kwargs):
         tx = self.get_object()
         if not tx.is_party(request.user):
             raise PermissionDenied
         return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["events"] = list(self.object.events.all())
+        return ctx
 
 
 def _tradable_items_for(user):
@@ -502,27 +510,38 @@ class TradeCounterView(LoginRequiredMixin, TemplateView):
             .prefetch_related("items__card_print__card", "items__card_print__cardset"),
             pk=pk,
         )
-        if user != tx.party_b:
+        if not tx.is_party(user):
             raise PermissionDenied
-        if tx.status != TransactionStatus.PROPOSED:
-            raise PermissionDenied
-        return tx
+        if tx.status == TransactionStatus.PROPOSED and user == tx.party_b:
+            return tx
+        if tx.status == TransactionStatus.COUNTER_PROPOSED and user == tx.party_a:
+            return tx
+        raise PermissionDenied
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         tx = self._get_tx(kwargs["pk"], self.request.user)
+        if self.request.user == tx.party_a:
+            editable_items = tx.items_from_a()
+            other_items    = tx.items_from_b()
+            other_party    = tx.party_b
+        else:
+            editable_items = tx.items_from_b()
+            other_items    = tx.items_from_a()
+            other_party    = tx.party_a
         ctx.update({
-            "tx":          tx,
-            "items_a":     tx.items_from_a(),
-            "items_b":     tx.items_from_b(),
+            "tx":             tx,
+            "editable_items": editable_items,
+            "other_items":    other_items,
+            "other_party":    other_party,
         })
         return ctx
 
     def post(self, request, *args, **kwargs):
         tx = self._get_tx(kwargs["pk"], request.user)
-        keep_ids = request.POST.getlist("keep_b")
+        keep_ids = request.POST.getlist("keep")
         try:
-            services.counter_propose(tx=tx, actor=request.user, keep_from_b_ids=keep_ids)
+            services.counter_propose(tx=tx, actor=request.user, keep_ids=keep_ids)
         except InsufficientInventoryError as exc:
             for err in exc.errors:
                 messages.error(request, err)
@@ -585,16 +604,26 @@ def transaction_action(request, pk, action):
     if action == "accept":
         if request.user != expected_responder:
             return HttpResponseBadRequest("Cannot accept.")
+        prev_status = tx.status
         tx.status = TransactionStatus.ACCEPTED
         tx.save(update_fields=["status", "updated_at"])
+        services.record_event(
+            tx=tx, actor=request.user, event_type=TransactionEventType.ACCEPTED,
+            metadata={"from_status": prev_status},
+        )
         notifications.notify_accepted(tx)
         messages.success(request, "Accepted.")
 
     elif action == "reject":
         if request.user != expected_responder:
             return HttpResponseBadRequest("Cannot reject.")
+        prev_status = tx.status
         tx.status = TransactionStatus.REJECTED
         tx.save(update_fields=["status", "updated_at"])
+        services.record_event(
+            tx=tx, actor=request.user, event_type=TransactionEventType.REJECTED,
+            metadata={"from_status": prev_status},
+        )
         notifications.notify_rejected(tx)
         messages.info(request, "Rejected.")
 
@@ -606,8 +635,13 @@ def transaction_action(request, pk, action):
         )
         if not can_cancel:
             return HttpResponseBadRequest("Cannot cancel.")
+        prev_status = tx.status
         tx.status = TransactionStatus.CANCELLED
         tx.save(update_fields=["status", "updated_at"])
+        services.record_event(
+            tx=tx, actor=request.user, event_type=TransactionEventType.CANCELLED,
+            metadata={"from_status": prev_status},
+        )
         notifications.notify_cancelled(tx)
         messages.info(request, "Cancelled.")
 
@@ -619,6 +653,9 @@ def transaction_action(request, pk, action):
         else:
             tx.confirmed_by_b = True
         tx.save(update_fields=["confirmed_by_a", "confirmed_by_b", "updated_at"])
+        services.record_event(
+            tx=tx, actor=request.user, event_type=TransactionEventType.CONFIRMED,
+        )
         if tx.confirmed_by_a and tx.confirmed_by_b:
             try:
                 services.finalize_transaction(tx)
@@ -648,6 +685,9 @@ def transaction_action(request, pk, action):
         else:
             tx.confirmed_by_b = False
         tx.save(update_fields=["confirmed_by_a", "confirmed_by_b", "updated_at"])
+        services.record_event(
+            tx=tx, actor=request.user, event_type=TransactionEventType.UNCONFIRMED,
+        )
 
     else:
         return HttpResponseBadRequest("Unknown action.")

@@ -45,6 +45,17 @@ class TransactionSide(models.TextChoices):
     FROM_B = "from_b", "From recipient"
 
 
+class TransactionEventType(models.TextChoices):
+    PROPOSED    = "proposed",    "Proposed"
+    COUNTERED   = "countered",   "Countered"
+    ACCEPTED    = "accepted",    "Accepted"
+    REJECTED    = "rejected",    "Rejected"
+    CANCELLED   = "cancelled",   "Cancelled"
+    CONFIRMED   = "confirmed",   "Confirmed"
+    UNCONFIRMED = "unconfirmed", "Unconfirmed"
+    COMPLETED   = "completed",   "Completed"
+
+
 class PriceSource(models.TextChoices):
     SCRYFALL   = "scryfall",   "Scryfall"
     TCGPLAYER  = "tcgplayer",  "TCGPlayer"
@@ -204,6 +215,29 @@ class TransactionItem(BaseModel):
         if self.unit_value is None:
             return None
         return self.unit_value * self.quantity
+
+
+class TransactionEvent(BaseModel):
+    """
+    Immutable audit-log row for state transitions on a Transaction.
+    Renders as the negotiation timeline on the transaction detail view.
+    """
+    transaction = models.ForeignKey(Transaction, on_delete=models.CASCADE, related_name="events")
+    actor       = models.ForeignKey(User, on_delete=models.PROTECT, related_name="omenpath_events")
+    event_type  = models.CharField(max_length=15, choices=TransactionEventType.choices)
+    metadata    = models.JSONField(default=dict, blank=True)
+    note        = models.TextField(blank=True)
+
+    class Meta:
+        ordering            = ["created_at"]
+        verbose_name        = "transaction event"
+        verbose_name_plural = "transaction events"
+        indexes = [
+            models.Index(fields=["transaction", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.transaction_id} {self.event_type} by {self.actor_id}"
 
 
 class PriceQuote(BaseModel):
