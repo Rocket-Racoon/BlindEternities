@@ -31,6 +31,21 @@
       </span>
     </div>
 
+    {% if is_expired %}
+      <div class="rounded-md border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40
+                  text-red-700 dark:text-red-300 text-sm px-3 py-2 mb-4">
+        This listing expired{% if listing.expires_at %} on {{ listing.expires_at|date:"M j, Y" }}{% endif %}.
+        {% if listing.owner == request.user %}
+          <a href="{% url 'omenpath:listing-update' listing.pk %}" class="underline font-medium">Extend it</a>
+          to reopen the listing.
+        {% endif %}
+      </div>
+    {% elif listing.expires_at %}
+      <div class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+        Expires {{ listing.expires_at|timeuntil }} from now ({{ listing.expires_at|date:"M j, Y" }}).
+      </div>
+    {% endif %}
+
     <dl class="grid grid-cols-2 gap-y-2 gap-x-6 text-sm my-4">
       <dt class="text-gray-500">Seller</dt>
       <dd>@{{ listing.owner.username }}</dd>
@@ -56,6 +71,8 @@
       {% if listing.owner == request.user %}
         <a href="{% url 'omenpath:listing-update' listing.pk %}" class="btn-secondary">Edit</a>
         <a href="{% url 'omenpath:listing-delete' listing.pk %}" class="btn-secondary text-red-600">Delete</a>
+      {% elif not is_offerable %}
+        <p class="text-sm text-gray-500 italic">No new offers can be made — this listing has expired.</p>
       {% else %}
         <form method="post" action="{% url 'omenpath:sale-propose' listing.pk %}"
               class="card p-4 w-full grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">

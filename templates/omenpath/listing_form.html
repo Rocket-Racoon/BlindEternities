@@ -60,6 +60,19 @@
       {{ form.asking_price }}
     </label>
     <label class="block text-sm sm:col-span-2">
+      <span class="text-gray-500">Expires in</span>
+      {{ form.expires_in_days }}
+      {% if object and object.expires_at %}
+        <span class="block text-xs text-gray-400 mt-1">
+          Currently expires on {{ object.expires_at|date:"M j, Y" }}.
+        </span>
+      {% elif object %}
+        <span class="block text-xs text-gray-400 mt-1">
+          Currently set to never expire.
+        </span>
+      {% endif %}
+    </label>
+    <label class="block text-sm sm:col-span-2">
       <span class="text-gray-500">Notes</span>
       {{ form.notes }}
     </label>

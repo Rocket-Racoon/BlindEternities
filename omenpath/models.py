@@ -2,6 +2,7 @@ from decimal import Decimal
 from django.db import models
 from django.contrib.auth.models import User
 from django.urls import reverse
+from django.utils import timezone
 
 from core.models import BaseModel
 from core.constants import CardCondition, CardFinish
@@ -20,6 +21,7 @@ class ListingVisibility(models.TextChoices):
 
 class ListingStatus(models.TextChoices):
     OPEN      = "open",      "Open"
+    EXPIRED   = "expired",   "Expired"
     CLOSED    = "closed",    "Closed"
     COMPLETED = "completed", "Completed"
 
@@ -65,6 +67,10 @@ class Listing(BaseModel):
     notes        = models.TextField(blank=True)
     visibility   = models.CharField(max_length=10, choices=ListingVisibility.choices, default=ListingVisibility.PUBLIC)
     status       = models.CharField(max_length=15, choices=ListingStatus.choices, default=ListingStatus.OPEN)
+    expires_at   = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Auto-close moment. Null means it never expires.",
+    )
 
     class Meta:
         ordering            = ["-created_at"]
@@ -73,6 +79,7 @@ class Listing(BaseModel):
         indexes = [
             models.Index(fields=["status", "listing_type"]),
             models.Index(fields=["visibility", "status"]),
+            models.Index(fields=["status", "expires_at"]),
         ]
 
     def __str__(self):
@@ -80,6 +87,17 @@ class Listing(BaseModel):
 
     def get_absolute_url(self):
         return reverse("omenpath:listing-detail", kwargs={"pk": self.pk})
+
+    def is_expired(self, now=None) -> bool:
+        if self.status == ListingStatus.EXPIRED:
+            return True
+        if self.expires_at is None:
+            return False
+        return self.expires_at <= (now or timezone.now())
+
+    def is_offerable(self, now=None) -> bool:
+        """Can a sale offer be made against this listing right now?"""
+        return self.status == ListingStatus.OPEN and not self.is_expired(now)
 
 
 class Transaction(BaseModel):

@@ -74,6 +74,8 @@ def reserved_quantity(*, user: User, card_print: CardPrint, finish: str,
     Sale-tx items tied to one of the user's own SELL listings are excluded from
     (2) so they don't double-count with (1). The listing already reserves them.
     """
+    from django.utils import timezone
+    now = timezone.now()
     listings_qs = Listing.objects.filter(
         owner=user,
         is_active=True,
@@ -83,7 +85,7 @@ def reserved_quantity(*, user: User, card_print: CardPrint, finish: str,
         finish=finish,
         condition=condition,
         language=language,
-    )
+    ).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
     if exclude_listing is not None:
         listings_qs = listings_qs.exclude(pk=exclude_listing.pk)
     listed_total = listings_qs.aggregate(total=Sum("quantity"))["total"] or 0

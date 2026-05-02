@@ -27,6 +27,11 @@
         <span>Qty {{ l.quantity }}</span>
         <span>@{{ l.owner.username }}</span>
       </div>
+      {% if l.expires_at %}
+        <div class="text-[10px] text-gray-400 dark:text-gray-500 mt-1 italic">
+          Expires {{ l.expires_at|timeuntil }} from now
+        </div>
+      {% endif %}
     </div>
   </div>
 </a>

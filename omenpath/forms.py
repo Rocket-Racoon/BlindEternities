@@ -1,12 +1,32 @@
+from datetime import timedelta
+
 from django import forms
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 from core.constants import CardCondition, CardFinish
 from .inventory import available_quantity
-from .models import Listing, ListingType, ListingVisibility
+from .models import Listing, ListingStatus, ListingType, ListingVisibility
+
+
+EXPIRES_IN_CHOICES = [
+    ("keep",  "Keep current expiration"),
+    ("never", "Never expire"),
+    ("7",     "7 days"),
+    ("30",    "30 days"),
+    ("60",    "60 days"),
+    ("90",    "90 days"),
+]
 
 
 class ListingForm(forms.ModelForm):
+    expires_in_days = forms.ChoiceField(
+        choices=EXPIRES_IN_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={"class": "input"}),
+        help_text="When should this listing auto-close?",
+    )
+
     class Meta:
         model  = Listing
         fields = [
@@ -28,6 +48,11 @@ class ListingForm(forms.ModelForm):
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.user = user
+        # Default: 30 days for new listings, "keep" for edits.
+        if not self.instance.pk:
+            self.fields["expires_in_days"].initial = "30"
+        else:
+            self.fields["expires_in_days"].initial = "keep"
 
     def clean(self):
         cleaned = super().clean()
@@ -60,6 +85,25 @@ class ListingForm(forms.ModelForm):
                 f"Add the cards to a Binder or Trade List collection, or reduce the quantity."
             )
         return cleaned
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        choice = self.cleaned_data.get("expires_in_days") or "keep"
+        if choice == "never":
+            instance.expires_at = None
+        elif choice != "keep":
+            try:
+                days = int(choice)
+                instance.expires_at = timezone.now() + timedelta(days=days)
+            except ValueError:
+                pass
+        # Re-extending an expired listing should reopen it.
+        if instance.status == ListingStatus.EXPIRED and not instance.is_expired():
+            instance.status = ListingStatus.OPEN
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
 
 class TradeProposeForm(forms.Form):

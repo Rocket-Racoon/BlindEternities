@@ -73,9 +73,12 @@ class ListingListView(LoginRequiredMixin, TemplateView):
         user = self.request.user
         params = self.request.GET
 
+        from django.utils import timezone
+        now = timezone.now()
         qs = (
             Listing.objects
             .filter(is_active=True, status=ListingStatus.OPEN)
+            .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
             .select_related("owner", "card_print__card", "card_print__cardset")
         )
 
@@ -203,6 +206,8 @@ class ListingDetailView(LoginRequiredMixin, DetailView):
         from .pricing import market_value_for
         cp = self.object.card_print
         ctx["market_value"] = market_value_for(cp, finish=self.object.finish, currency="USD")
+        ctx["is_expired"]   = self.object.is_expired()
+        ctx["is_offerable"] = self.object.is_offerable()
         ctx["sale_form"] = SaleProposeForm(initial={
             "quantity": 1,
             "price_agreed": self.object.asking_price,
@@ -537,6 +542,9 @@ def sale_propose(request, listing_pk):
         return HttpResponseBadRequest("Cannot transact with your own listing.")
     if listing.visibility == ListingVisibility.FRIENDS and listing.owner_id not in _friend_ids(request.user):
         raise PermissionDenied
+    if not listing.is_offerable():
+        messages.error(request, "This listing has expired.")
+        return redirect(listing.get_absolute_url())
     form = SaleProposeForm(request.POST)
     if not form.is_valid():
         messages.error(request, "Invalid input.")
@@ -552,6 +560,9 @@ def sale_propose(request, listing_pk):
     except InsufficientInventoryError as exc:
         for err in exc.errors:
             messages.error(request, err)
+        return redirect(listing.get_absolute_url())
+    except ValueError as exc:
+        messages.error(request, str(exc))
         return redirect(listing.get_absolute_url())
     messages.success(request, "Offer sent.")
     return redirect(tx.get_absolute_url())

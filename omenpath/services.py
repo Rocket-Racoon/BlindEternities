@@ -134,6 +134,8 @@ def propose_sale_from_listing(*, buyer: User, listing: Listing, quantity: int, p
     - If listing is type SELL: seller = listing.owner, buyer = buyer, items flow from seller.
     - If listing is type BUY_WANTED: buyer = listing.owner (wants), seller = `buyer` arg (fulfills), items flow from seller.
     """
+    if not listing.is_offerable():
+        raise ValueError("This listing has expired or is no longer open to offers.")
     if listing.listing_type == "sell":
         seller, buying = listing.owner, buyer
     else:
