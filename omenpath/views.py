@@ -14,8 +14,9 @@ from django.views.generic import (
     TemplateView, ListView, DetailView, CreateView, UpdateView, DeleteView,
 )
 
-from core.constants import CollectionType
+from core.constants import CardCondition, CardFinish, CollectionType
 from tolarian.models import CollectionItem
+from multiverse.models import CardSet
 
 from core.mixins import OwnerRequiredMixin
 from core.utils import paginate_queryset
@@ -36,36 +37,146 @@ def _friend_ids(user):
     return []
 
 
+SCOPE_CHOICES = [
+    ("all",     "All visible"),
+    ("public",  "Public only"),
+    ("friends", "Friends only"),
+    ("mine",    "My listings"),
+]
+
+SORT_CHOICES = [
+    ("newest",     "Newest"),
+    ("oldest",     "Oldest"),
+    ("price_asc",  "Price: low to high"),
+    ("price_desc", "Price: high to low"),
+    ("name",       "Card name (A–Z)"),
+]
+
+
+def _decimal_param(raw):
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    try:
+        from decimal import Decimal, InvalidOperation
+        val = Decimal(raw)
+        return val if val >= 0 else None
+    except Exception:
+        return None
+
+
 class ListingListView(LoginRequiredMixin, TemplateView):
     template_name = "omenpath/listing_list.html"
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         user = self.request.user
+        params = self.request.GET
+
         qs = (
             Listing.objects
             .filter(is_active=True, status=ListingStatus.OPEN)
             .select_related("owner", "card_print__card", "card_print__cardset")
         )
-        listing_type = self.request.GET.get("type")
+
+        listing_type = params.get("type")
         if listing_type in dict(ListingType.choices):
             qs = qs.filter(listing_type=listing_type)
+        else:
+            listing_type = ""
 
-        search = self.request.GET.get("q", "").strip()
+        search = params.get("q", "").strip()
         if search:
             qs = qs.filter(card_print__card__name__icontains=search)
 
+        condition = params.get("condition")
+        if condition in dict(CardCondition.choices):
+            qs = qs.filter(condition=condition)
+        else:
+            condition = ""
+
+        finish = params.get("finish")
+        if finish in dict(CardFinish.choices):
+            qs = qs.filter(finish=finish)
+        else:
+            finish = ""
+
+        set_code = (params.get("set") or "").strip().lower()
+        if set_code:
+            qs = qs.filter(card_print__cardset__code__iexact=set_code)
+
+        price_min = _decimal_param(params.get("price_min"))
+        price_max = _decimal_param(params.get("price_max"))
+        if price_min is not None or price_max is not None:
+            qs = qs.exclude(asking_price__isnull=True)
+            if price_min is not None:
+                qs = qs.filter(asking_price__gte=price_min)
+            if price_max is not None:
+                qs = qs.filter(asking_price__lte=price_max)
+
         friend_ids = _friend_ids(user)
-        visible = qs.filter(
-            Q(visibility=ListingVisibility.PUBLIC) |
-            Q(owner=user) |
-            Q(visibility=ListingVisibility.FRIENDS, owner_id__in=friend_ids)
+        scope = params.get("scope") or "all"
+        if scope == "mine":
+            visible = qs.filter(owner=user)
+        elif scope == "public":
+            visible = qs.filter(visibility=ListingVisibility.PUBLIC).exclude(owner=user)
+        elif scope == "friends":
+            visible = qs.filter(
+                visibility=ListingVisibility.FRIENDS, owner_id__in=friend_ids,
+            ).exclude(owner=user)
+        else:
+            scope = "all"
+            visible = qs.filter(
+                Q(visibility=ListingVisibility.PUBLIC)
+                | Q(owner=user)
+                | Q(visibility=ListingVisibility.FRIENDS, owner_id__in=friend_ids)
+            )
+
+        sort = params.get("sort") or "newest"
+        if sort == "oldest":
+            visible = visible.order_by("created_at")
+        elif sort == "price_asc":
+            visible = visible.exclude(asking_price__isnull=True).order_by("asking_price", "-created_at")
+        elif sort == "price_desc":
+            visible = visible.exclude(asking_price__isnull=True).order_by("-asking_price", "-created_at")
+        elif sort == "name":
+            visible = visible.order_by("card_print__card__name", "-created_at")
+        else:
+            sort = "newest"
+            visible = visible.order_by("-created_at")
+
+        # Sets that currently have at least one open listing — keeps the dropdown short and useful.
+        active_sets = (
+            CardSet.objects
+            .filter(prints__listings__is_active=True,
+                    prints__listings__status=ListingStatus.OPEN)
+            .distinct()
+            .order_by("name")
         )
+
+        active_filters_count = sum(1 for v in [
+            condition, finish, set_code,
+            price_min, price_max,
+        ] if v not in (None, "", 0))
+
         ctx.update({
-            "listings":      paginate_queryset(visible, self.request.GET.get("page"), 24),
-            "listing_type":  listing_type,
-            "q":             search,
-            "ListingType":   ListingType,
+            "listings":             paginate_queryset(visible, params.get("page"), 24),
+            "listing_type":         listing_type,
+            "q":                    search,
+            "condition":            condition,
+            "finish":               finish,
+            "set_code":             set_code,
+            "price_min":            params.get("price_min", "") if price_min is not None else "",
+            "price_max":            params.get("price_max", "") if price_max is not None else "",
+            "scope":                scope,
+            "sort":                 sort,
+            "active_filters_count": active_filters_count,
+            "active_sets":          active_sets,
+            "ListingType":          ListingType,
+            "CardCondition":        CardCondition,
+            "CardFinish":           CardFinish,
+            "SCOPE_CHOICES":        SCOPE_CHOICES,
+            "SORT_CHOICES":         SORT_CHOICES,
         })
         return ctx
 

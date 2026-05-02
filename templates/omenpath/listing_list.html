@@ -15,15 +15,87 @@
     </div>
   </div>
 
-  <form method="get" class="card p-3 mb-6 flex gap-2 flex-wrap items-center">
-    <input type="search" name="q" value="{{ q }}" placeholder="Search card name…" class="input flex-1 min-w-[200px]">
-    <select name="type" class="input">
-      <option value="">All listings</option>
-      {% for val, label in ListingType.choices %}
-        <option value="{{ val }}" {% if listing_type == val %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-    <button type="submit" class="btn-primary">Filter</button>
+  <form method="get" x-data="{ advanced: {{ active_filters_count|yesno:'true,false' }} }"
+        class="card p-3 mb-6 space-y-3">
+    <div class="flex gap-2 flex-wrap items-center">
+      <input type="search" name="q" value="{{ q }}" placeholder="Search card name…"
+             class="input flex-1 min-w-[200px]">
+      <select name="type" class="input">
+        <option value="">All listings</option>
+        {% for val, label in ListingType.choices %}
+          <option value="{{ val }}" {% if listing_type == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select name="scope" class="input">
+        {% for val, label in SCOPE_CHOICES %}
+          <option value="{{ val }}" {% if scope == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select name="sort" class="input">
+        {% for val, label in SORT_CHOICES %}
+          <option value="{{ val }}" {% if sort == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <button type="button" @click="advanced = !advanced"
+              class="btn-secondary text-sm flex items-center gap-1">
+        <span x-text="advanced ? 'Hide filters' : 'More filters'"></span>
+        {% if active_filters_count %}
+          <span class="bg-void-600 text-white text-[10px] px-1.5 py-0.5 rounded-full">{{ active_filters_count }}</span>
+        {% endif %}
+      </button>
+      <button type="submit" class="btn-primary">Apply</button>
+    </div>
+
+    <div x-show="advanced" x-cloak class="border-t border-gray-200 dark:border-void-700 pt-3
+                                          grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+      <label class="text-xs">
+        <span class="block text-gray-500 mb-1">Condition</span>
+        <select name="condition" class="input w-full">
+          <option value="">Any</option>
+          {% for val, label in CardCondition.choices %}
+            <option value="{{ val }}" {% if condition == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="text-xs">
+        <span class="block text-gray-500 mb-1">Finish</span>
+        <select name="finish" class="input w-full">
+          <option value="">Any</option>
+          {% for val, label in CardFinish.choices %}
+            <option value="{{ val }}" {% if finish == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="text-xs">
+        <span class="block text-gray-500 mb-1">Set</span>
+        <select name="set" class="input w-full">
+          <option value="">Any</option>
+          {% for s in active_sets %}
+            <option value="{{ s.code }}" {% if set_code == s.code %}selected{% endif %}>
+              {{ s.code|upper }} — {{ s.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="text-xs">
+        <span class="block text-gray-500 mb-1">Min price</span>
+        <input type="number" step="0.01" min="0" name="price_min"
+               value="{{ price_min }}" placeholder="0.00" class="input w-full">
+      </label>
+      <label class="text-xs">
+        <span class="block text-gray-500 mb-1">Max price</span>
+        <input type="number" step="0.01" min="0" name="price_max"
+               value="{{ price_max }}" placeholder="∞" class="input w-full">
+      </label>
+    </div>
+
+    {% if active_filters_count or q or listing_type or scope != 'all' or sort != 'newest' %}
+      <div class="text-xs">
+        <a href="{% url 'omenpath:listing-list' %}" class="text-void-500 hover:underline">
+          Clear all filters
+        </a>
+      </div>
+    {% endif %}
   </form>
 
   {% if not listings %}
