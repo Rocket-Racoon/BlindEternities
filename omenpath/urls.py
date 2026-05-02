@@ -13,6 +13,7 @@ urlpatterns = [
 
     path("trades/",                       views.TransactionInboxView.as_view(), name="transaction-inbox"),
     path("trades/new/",                   views.TradeProposeView.as_view(),     name="trade-propose"),
+    path("trades/export.csv",             views.transaction_export_csv,         name="transaction-export"),
     path("trades/search-tradable/",       views.tradable_search_json,           name="tradable-search"),
     path("trades/<uuid:pk>/",             views.TransactionDetailView.as_view(), name="transaction-detail"),
     path("trades/<uuid:pk>/counter/",     views.TradeCounterView.as_view(),      name="trade-counter"),

@@ -13,6 +13,25 @@
     </div>
   </div>
 
+  <details class="card p-3 mb-6 text-sm" {% if request.GET.since or request.GET.until %}open{% endif %}>
+    <summary class="cursor-pointer text-gray-600 dark:text-gray-300">
+      Export completed transactions (CSV)
+    </summary>
+    <form method="get" action="{% url 'omenpath:transaction-export' %}"
+          class="flex gap-2 flex-wrap items-end mt-3">
+      <label class="text-xs">
+        <span class="block text-gray-500 mb-1">Completed since</span>
+        <input type="date" name="since" value="{{ request.GET.since|default_if_none:'' }}" class="input">
+      </label>
+      <label class="text-xs">
+        <span class="block text-gray-500 mb-1">Completed until</span>
+        <input type="date" name="until" value="{{ request.GET.until|default_if_none:'' }}" class="input">
+      </label>
+      <button class="btn-primary text-sm">Download CSV</button>
+      <span class="text-xs text-gray-400">One row per card. Leave dates blank to export everything.</span>
+    </form>
+  </details>
+
   {% include "omenpath/partials/transaction_section.html" with title="Incoming proposals" txs=incoming show_actions=True %}
   {% include "omenpath/partials/transaction_section.html" with title="Counter-proposals waiting for you" txs=countered_for_me %}
   {% include "omenpath/partials/transaction_section.html" with title="My outgoing proposals" txs=outgoing %}

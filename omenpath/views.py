@@ -1,4 +1,6 @@
+import csv
 import json
+from datetime import datetime, time
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -6,9 +8,10 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
 from django.db.models import Q
-from django.http import HttpResponseBadRequest, JsonResponse
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.views.generic import (
     TemplateView, ListView, DetailView, CreateView, UpdateView, DeleteView,
@@ -589,6 +592,85 @@ def sale_propose(request, listing_pk):
         return redirect(listing.get_absolute_url())
     messages.success(request, "Offer sent.")
     return redirect(tx.get_absolute_url())
+
+
+def _parse_date_param(raw):
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.strptime(raw, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+@login_required
+def transaction_export_csv(request):
+    """
+    Stream a CSV of completed transactions for the current user.
+    Optional ?since=YYYY-MM-DD&until=YYYY-MM-DD filters on completed_at.
+    One row per TransactionItem, with direction relative to the user
+    (received vs given).
+    """
+    user = request.user
+    qs = (
+        Transaction.objects
+        .filter(status=TransactionStatus.COMPLETED)
+        .filter(Q(party_a=user) | Q(party_b=user))
+        .select_related("party_a", "party_b")
+        .prefetch_related("items__card_print__card", "items__card_print__cardset")
+        .order_by("completed_at")
+    )
+
+    since = _parse_date_param(request.GET.get("since"))
+    until = _parse_date_param(request.GET.get("until"))
+    tz = timezone.get_current_timezone()
+    if since:
+        qs = qs.filter(completed_at__gte=timezone.make_aware(datetime.combine(since, time.min), tz))
+    if until:
+        qs = qs.filter(completed_at__lt=timezone.make_aware(datetime.combine(until, time.max), tz))
+
+    today = timezone.localdate().isoformat()
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = (
+        f'attachment; filename="omenpath-completed-{user.username}-{today}.csv"'
+    )
+    writer = csv.writer(response)
+    writer.writerow([
+        "completed_at", "kind", "transaction_id", "counterparty", "direction",
+        "card_name", "set_code", "collector_number", "quantity",
+        "finish", "condition", "language",
+        "unit_value_usd", "line_value_usd", "sale_price_usd",
+    ])
+
+    for tx in qs:
+        counterparty = tx.other_party(user).username
+        sale_price = tx.price_agreed if tx.kind == "sale" else None
+        for item in tx.items.all():
+            # `direction` is from the user's POV: their side = "given", other side = "received".
+            user_is_a = (user == tx.party_a)
+            from_a = (item.side == "from_a")
+            given_by_user = (user_is_a and from_a) or ((not user_is_a) and (not from_a))
+            direction = "given" if given_by_user else "received"
+            cp = item.card_print
+            writer.writerow([
+                tx.completed_at.isoformat() if tx.completed_at else "",
+                tx.kind,
+                str(tx.pk),
+                counterparty,
+                direction,
+                cp.card.name,
+                (cp.cardset.code.upper() if cp.cardset else ""),
+                cp.collector_number,
+                item.quantity,
+                item.finish,
+                item.condition,
+                item.language,
+                f"{item.unit_value:.2f}" if item.unit_value is not None else "",
+                f"{item.line_value:.2f}" if item.line_value is not None else "",
+                f"{sale_price:.2f}" if sale_price is not None else "",
+            ])
+    return response
 
 
 @login_required
