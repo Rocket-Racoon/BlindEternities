@@ -1,0 +1,35 @@
+{% comment %}
+Print picker — clicking a print fires a `print-selected` Alpine event
+on the parent row, which updates `printPk` / `printLabel` / `printImage`.
+Inputs: deck, card, prints
+{% endcomment %}
+<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+  {% for print in prints %}
+  <button type="button"
+          @click="$dispatch('print-selected', {
+              pk:    '{{ print.pk }}',
+              label: '{{ print.cardset.code|upper }} #{{ print.collector_number }}',
+              image: '{{ print.image_normal }}',
+          })"
+          class="text-left p-1.5 rounded border border-gray-200 dark:border-void-700
+                 hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20
+                 transition-colors">
+    {% if print.image_small %}
+    <img src="{{ print.image_small }}"
+         alt="{{ print.cardset.code }} #{{ print.collector_number }}"
+         class="w-full rounded mb-1"
+         loading="lazy">
+    {% else %}
+    <div class="w-full h-20 bg-gray-100 dark:bg-void-800 rounded mb-1"></div>
+    {% endif %}
+    <div class="text-[10px] font-mono text-gray-700 dark:text-gray-300 truncate">
+      {{ print.cardset.code|upper }} · #{{ print.collector_number }}
+    </div>
+    <div class="text-[10px] text-gray-500 dark:text-gray-400 truncate">
+      {{ print.cardset.released_at|date:"Y" }}{% if print.promo %} · promo{% endif %}{% if print.digital %} · digital{% endif %}
+    </div>
+  </button>
+  {% empty %}
+  <div class="col-span-full text-xs text-gray-500 text-center py-3">No prints found.</div>
+  {% endfor %}
+</div>

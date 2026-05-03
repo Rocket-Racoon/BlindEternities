@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import suggest_views as suggest
 
 app_name = "tolarian"
 
@@ -49,6 +50,14 @@ urlpatterns = [
 
     # Deck cards
     path("decks/<uuid:pk>/add/",                views.DeckAddCardView.as_view(),      name="deck-add-card"),
+
+    # Suggest modal — tag-based recommendations
+    path("decks/<uuid:pk>/suggest/",                          suggest.DeckSuggestModalView.as_view(),   name="deck-suggest"),
+    path("decks/<uuid:pk>/suggest/results/",                  suggest.DeckSuggestResultsView.as_view(), name="deck-suggest-results"),
+    path("decks/<uuid:pk>/suggest/row/<uuid:card_pk>/",       suggest.DeckSuggestRowView.as_view(),     name="deck-suggest-row"),
+    path("decks/<uuid:pk>/suggest/prints/<uuid:card_pk>/",    suggest.DeckSuggestPrintsView.as_view(),  name="deck-suggest-prints"),
+    path("decks/<uuid:pk>/suggest/add/<uuid:card_pk>/",       suggest.DeckSuggestAddView.as_view(),     name="deck-suggest-add"),
+    path("decks/<uuid:pk>/suggest/dec/<uuid:card_pk>/",       suggest.DeckSuggestDecView.as_view(),     name="deck-suggest-dec"),
     path("deck-cards/<uuid:card_pk>/edit/",     views.DeckCardEditView.as_view(),     name="deck-card-edit"),
     path("deck-cards/<uuid:card_pk>/qty/",      views.DeckCardQtyView.as_view(),      name="deck-card-qty"),
     path("deck-cards/<uuid:card_pk>/delete/",   views.DeckCardDeleteView.as_view(),   name="deck-card-delete"),

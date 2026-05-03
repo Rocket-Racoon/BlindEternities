@@ -1,0 +1,23 @@
+{% comment %}
+Just the rows. Used as the HTMX swap target when filters change.
+Inputs: deck, suggestions, zones, auto_mode
+{% endcomment %}
+<div id="suggest-results">
+  {% if not suggestions %}
+    <div class="px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+      {% if auto_mode %}
+        No suggestions yet — your deck doesn't have enough tagged cards to seed
+        recommendations. Add a few cards or run <code>tag_cards</code> first.
+      {% else %}
+        No matches with the current filters. Try removing a tag or type filter.
+      {% endif %}
+    </div>
+  {% else %}
+    <div class="text-xs text-gray-500 dark:text-gray-400 px-3 py-2 border-b border-gray-100 dark:border-void-800">
+      {{ suggestions|length }} suggestion(s){% if auto_mode %} — auto from your deck's tags{% endif %}
+    </div>
+    {% for s in suggestions %}
+      {% include "tolarian/partials/suggest_row.html" with card=s.card default_print=s.default_print in_deck_qty=s.in_deck_qty in_deck_rows=s.in_deck_rows function_tags=s.function_tags theme_tags=s.theme_tags matched_tags=s.matched_tags %}
+    {% endfor %}
+  {% endif %}
+</div>

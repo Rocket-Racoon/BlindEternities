@@ -176,6 +176,14 @@
            class="px-2 py-1 text-[11px] font-medium text-gray-500 dark:text-gray-400
                   hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-void-800
                   rounded transition-colors">Validar</a>
+        <button type="button"
+                hx-get="{% url 'tolarian:deck-suggest' deck.pk %}"
+                hx-target="body"
+                hx-swap="beforeend"
+                class="px-2 py-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400
+                       hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20
+                       rounded transition-colors"
+                title="Sugerir cartas según tags del deck">Sugerir</button>
         {% if deck.format == 'commander' %}
         <a href="{% url 'conflux:evaluation-create' %}?deck={{ deck.pk }}"
            class="px-2 py-1 text-[11px] font-medium text-indigo-500 dark:text-indigo-400

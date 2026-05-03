@@ -1,0 +1,150 @@
+{% comment %}
+Single suggestion row.
+Inputs:
+  deck, card, default_print, in_deck_qty, in_deck_rows,
+  function_tags, theme_tags, matched_tags, zones
+{% endcomment %}
+<div id="suggest-row-{{ card.pk }}"
+     class="flex gap-3 px-3 py-3 border-b border-gray-100 dark:border-void-800 hover:bg-gray-50 dark:hover:bg-void-800/40"
+     x-data="{
+        printPk: '{{ default_print.pk|default:'' }}',
+        printLabel: '{% if default_print %}{{ default_print.cardset.code|upper }} #{{ default_print.collector_number }}{% else %}—{% endif %}',
+        printImage: '{% if default_print %}{{ default_print.image_normal }}{% endif %}',
+        showPrints: false,
+        showZones: false,
+     }">
+
+  {# Thumbnail #}
+  <div class="shrink-0 w-14 sm:w-16">
+    {% if default_print and default_print.image_normal %}
+    <img :src="printImage"
+         alt="{{ card.name }}"
+         class="rounded shadow-sm w-full"
+         loading="lazy">
+    {% else %}
+    <div class="w-14 sm:w-16 h-20 sm:h-24 rounded bg-gray-200 dark:bg-void-700 flex items-center justify-center text-[10px] text-gray-500">
+      no art
+    </div>
+    {% endif %}
+  </div>
+
+  {# Body #}
+  <div class="flex-1 min-w-0">
+    <div class="flex items-center gap-2 flex-wrap">
+      <a href="{% url 'multiverse:card-detail' card.pk %}"
+         class="font-medium text-gray-900 dark:text-gray-100 hover:underline truncate">
+        {{ card.name }}
+      </a>
+      {% if card.mana_cost %}
+        <span class="text-xs text-gray-500 dark:text-gray-400 font-mono">{{ card.mana_cost }}</span>
+      {% endif %}
+      {% if in_deck_qty %}
+        <span class="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200">
+          {{ in_deck_qty }} in deck
+        </span>
+      {% endif %}
+    </div>
+    <div class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ card.type_line }}</div>
+
+    {# Tag pills — matched ones highlighted #}
+    {% if function_tags or theme_tags %}
+    <div class="mt-1.5 flex flex-wrap gap-1">
+      {% for tag in function_tags %}
+      <span class="px-1.5 py-0.5 rounded text-[10px] font-mono
+        {% if tag in matched_tags %}bg-indigo-600 text-white
+        {% else %}bg-gray-100 text-gray-600 dark:bg-void-800 dark:text-gray-400{% endif %}">
+        {{ tag }}
+      </span>
+      {% endfor %}
+      {% for tag in theme_tags %}
+      <span class="px-1.5 py-0.5 rounded text-[10px]
+        {% if tag in matched_tags %}bg-emerald-600 text-white
+        {% else %}bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300{% endif %}">
+        {{ tag }}
+      </span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {# Print version row #}
+    <div class="mt-2 flex items-center gap-2 text-xs">
+      <span class="text-gray-500 dark:text-gray-400">Version:</span>
+      <span class="font-mono text-gray-700 dark:text-gray-300" x-text="printLabel"></span>
+      <button type="button"
+              @click="showPrints = !showPrints"
+              hx-get="{% url 'tolarian:deck-suggest-prints' deck.pk card.pk %}"
+              hx-target="#prints-panel-{{ card.pk }}"
+              hx-swap="innerHTML"
+              hx-trigger="click once"
+              class="text-indigo-600 dark:text-indigo-400 hover:underline">
+        change version
+      </button>
+    </div>
+
+    {# Print picker (lazy-loaded) #}
+    <div id="prints-panel-{{ card.pk }}"
+         x-show="showPrints" x-cloak
+         class="mt-2 max-h-48 overflow-y-auto border border-gray-200 dark:border-void-700 rounded p-2"
+         @print-selected.stop="
+             printPk = $event.detail.pk;
+             printLabel = $event.detail.label;
+             printImage = $event.detail.image;
+             showPrints = false;">
+      <div class="text-xs text-gray-400">Loading versions…</div>
+    </div>
+  </div>
+
+  {# Action column #}
+  <div class="shrink-0 flex flex-col items-end gap-1.5">
+    {# Quantity badge #}
+    <div class="text-xs font-mono text-gray-500 dark:text-gray-400">
+      x{{ in_deck_qty|default:"0" }}
+    </div>
+
+    {# + with zone picker #}
+    <div class="relative">
+      <button type="button"
+              @click="showZones = !showZones"
+              class="w-7 h-7 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold flex items-center justify-center"
+              title="Add to deck">
+        +
+      </button>
+      <div x-show="showZones" x-cloak
+           @click.outside="showZones = false"
+           class="absolute right-0 top-full mt-1 z-30 w-32 bg-white dark:bg-void-800
+                  border border-gray-200 dark:border-void-700 rounded shadow-lg py-1">
+        {% for zone_value, zone_label in zones %}
+        <form method="post"
+              hx-post="{% url 'tolarian:deck-suggest-add' deck.pk card.pk %}"
+              hx-target="#suggest-row-{{ card.pk }}"
+              hx-swap="outerHTML"
+              @htmx:after-request="showZones = false">
+          {% csrf_token %}
+          <input type="hidden" name="zone" value="{{ zone_value }}">
+          <input type="hidden" name="print" :value="printPk">
+          <button type="submit"
+                  class="w-full text-left px-3 py-1 text-xs hover:bg-gray-100 dark:hover:bg-void-700">
+            {{ zone_label }}
+          </button>
+        </form>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# − decrement (only when in deck) #}
+    {% if in_deck_qty %}
+    <form method="post"
+          hx-post="{% url 'tolarian:deck-suggest-dec' deck.pk card.pk %}"
+          hx-target="#suggest-row-{{ card.pk }}"
+          hx-swap="outerHTML">
+      {% csrf_token %}
+      <input type="hidden" name="print" :value="printPk">
+      <button type="submit"
+              class="w-7 h-7 rounded-full bg-gray-200 hover:bg-red-200 dark:bg-void-700 dark:hover:bg-red-900/40 text-gray-700 dark:text-gray-300 text-sm font-bold flex items-center justify-center"
+              title="Remove one copy">
+        −
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
