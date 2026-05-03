@@ -16,6 +16,7 @@ urlpatterns = [
     path("collection/",include("tolarian.urls",    namespace="tolarian")),
     path("stats/",     include("phyrexian.urls",   namespace="phyrexian")),
     path("market/",    include("omenpath.urls",   namespace="omenpath")),
+    path("conflux/",   include("conflux.urls",    namespace="conflux")),
 ]
 
 

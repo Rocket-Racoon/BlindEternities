@@ -58,6 +58,7 @@ LOCAL_APPS = [
     'tolarian',     # Collections & Decks
     'phyrexian',    # Game statistics
     'omenpath',     # Market & trading activity
+    'conflux',      # AI deck evaluation (Ollama)
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -198,3 +199,11 @@ CARDMARKET_APP_TOKEN            = env("CARDMARKET_APP_TOKEN",            default
 CARDMARKET_APP_SECRET           = env("CARDMARKET_APP_SECRET",           default="")
 CARDMARKET_ACCESS_TOKEN         = env("CARDMARKET_ACCESS_TOKEN",         default="")
 CARDMARKET_ACCESS_TOKEN_SECRET  = env("CARDMARKET_ACCESS_TOKEN_SECRET",  default="")
+
+
+# ──────────────────────────────────────────────
+# Conflux — Ollama (local LLM) for EDH deck evaluation
+# ──────────────────────────────────────────────
+OLLAMA_URL     = env("OLLAMA_URL",     default="http://localhost:11434")
+OLLAMA_MODEL   = env("OLLAMA_MODEL",   default="llama3.1")
+OLLAMA_TIMEOUT = env.int("OLLAMA_TIMEOUT", default=300)

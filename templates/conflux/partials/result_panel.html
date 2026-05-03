@@ -1,0 +1,187 @@
+{% load humanize %}
+<div id="result-panel"
+     {% if not evaluation.is_terminal %}
+       hx-get="{{ evaluation.get_absolute_url }}"
+       hx-trigger="load delay:2s"
+       hx-swap="outerHTML"
+     {% endif %}>
+
+  {% if evaluation.status == 'pending' or evaluation.status == 'running' %}
+    <div class="px-4 py-6 rounded-lg border border-dashed border-gray-300 dark:border-void-700 text-center">
+      <div class="animate-pulse text-gray-600 dark:text-gray-300">
+        {{ evaluation.get_status_display }} — querying {{ evaluation.model_name|default:"the model" }}…
+      </div>
+      <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">This page auto-refreshes every 2s.</p>
+    </div>
+
+  {% elif evaluation.status == 'failed' %}
+    <div class="px-4 py-4 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700">
+      <div class="font-medium text-red-700 dark:text-red-200">Evaluation failed</div>
+      <pre class="mt-2 text-xs text-red-700 dark:text-red-200 whitespace-pre-wrap">{{ evaluation.error }}</pre>
+    </div>
+
+  {% else %}
+    {# ─────────── Hero: final score + tier + bracket ─────────── #}
+    <div class="rounded-lg border border-gray-200 dark:border-void-700 p-6 bg-gradient-to-br from-indigo-50 to-white dark:from-indigo-900/20 dark:to-void-900">
+      <div class="grid md:grid-cols-3 gap-6 items-center">
+        <div class="text-center md:border-r md:border-gray-200 md:dark:border-void-700">
+          <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Final score</div>
+          <div class="text-5xl font-bold text-indigo-600 dark:text-indigo-300 mt-1">
+            {% if evaluation.final_score %}{{ evaluation.final_score }}{% else %}—{% endif %}
+            <span class="text-xl text-gray-400 dark:text-gray-500">/ 10</span>
+          </div>
+        </div>
+
+        <div class="text-center md:border-r md:border-gray-200 md:dark:border-void-700">
+          <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Honest tier</div>
+          {% if evaluation.honest_tier %}
+          <div class="mt-2 inline-block px-3 py-1 rounded-full text-sm font-semibold
+            {% if evaluation.honest_tier == 'cedh' %}bg-red-600 text-white
+            {% elif evaluation.honest_tier == 'high' %}bg-orange-500 text-white
+            {% elif evaluation.honest_tier == 'mid' %}bg-yellow-500 text-white
+            {% elif evaluation.honest_tier == 'casual' %}bg-green-500 text-white
+            {% else %}bg-gray-500 text-white{% endif %}">
+            {{ evaluation.get_honest_tier_display }}
+          </div>
+          {% else %}
+          <div class="mt-2 text-gray-400 dark:text-gray-500">—</div>
+          {% endif %}
+        </div>
+
+        <div class="text-center">
+          <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">WotC Bracket</div>
+          <div class="text-3xl font-semibold text-gray-900 dark:text-gray-100 mt-1">
+            {{ evaluation.bracket|default:"—" }}
+          </div>
+          <div class="text-xs text-gray-500 dark:text-gray-400">{{ evaluation.get_bracket_display }}</div>
+          {% if evaluation.bracket_user %}
+          <div class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+            You: <span class="font-medium">{{ evaluation.get_bracket_user_display }}</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ─────────── Intent + narrative + axes ─────────── #}
+    <div class="grid md:grid-cols-3 gap-4 mt-4">
+
+      <div class="md:col-span-1 space-y-4">
+        {# Intent #}
+        {% if evaluation.intent_label %}
+        <div class="rounded-lg border border-gray-200 dark:border-void-700 p-4 bg-white dark:bg-void-900">
+          <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">🎯 Intent</div>
+          <div class="text-lg font-semibold text-gray-900 dark:text-gray-100 mt-1 capitalize">
+            {{ evaluation.get_intent_label_display }}
+          </div>
+          {% if evaluation.intent_reason %}
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ evaluation.intent_reason }}</p>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        {# Honest Scale axes #}
+        <div class="rounded-lg border border-gray-200 dark:border-void-700 p-4 bg-white dark:bg-void-900">
+          <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-3">Honest Scale</div>
+          {% if evaluation.honest_scores %}
+            <ul class="space-y-3 text-sm">
+              {% for key, val in evaluation.honest_scores.items %}
+              <li>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="capitalize text-gray-700 dark:text-gray-300">{{ key|cut:"_" }}</span>
+                  <span class="font-mono text-xs text-gray-900 dark:text-gray-100 shrink-0">
+                    {% if val.score is not None %}{{ val.score }}/10{% else %}—{% endif %}
+                  </span>
+                </div>
+                {# 0–10 score bar #}
+                {% if val.score is not None %}
+                <div class="mt-1 h-1.5 rounded-full bg-gray-200 dark:bg-void-700 overflow-hidden">
+                  <div class="h-full bg-indigo-500 dark:bg-indigo-400"
+                       style="width: {{ val.score }}0%"></div>
+                </div>
+                {% endif %}
+                {% if val.reason %}
+                  <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-1">{{ val.reason }}</p>
+                {% endif %}
+              </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-sm text-gray-500 dark:text-gray-400">No scores returned.</p>
+          {% endif %}
+        </div>
+
+        {# Run metadata #}
+        <div class="rounded-lg border border-gray-200 dark:border-void-700 p-4 bg-white dark:bg-void-900 text-xs text-gray-500 dark:text-gray-400 space-y-1">
+          <div>Model: <span class="font-mono">{{ evaluation.model_name|default:"—" }}</span></div>
+          {% if evaluation.duration_ms %}<div>Took {{ evaluation.duration_ms|intcomma }} ms</div>{% endif %}
+          <div>Run {{ evaluation.created_at|date:"Y-m-d H:i" }}</div>
+        </div>
+      </div>
+
+      <div class="md:col-span-2 space-y-4">
+        {# Narrative #}
+        <div class="rounded-lg border border-gray-200 dark:border-void-700 p-4 bg-white dark:bg-void-900">
+          <h2 class="text-sm uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Analysis</h2>
+          {% if evaluation.narrative %}
+            <div class="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">{{ evaluation.narrative }}</div>
+          {% else %}
+            <p class="text-sm text-gray-500 dark:text-gray-400">The model returned no narrative.</p>
+          {% endif %}
+        </div>
+
+        {# Combos #}
+        {% if evaluation.combos %}
+        <div class="rounded-lg border border-gray-200 dark:border-void-700 p-4 bg-white dark:bg-void-900">
+          <h2 class="text-sm uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">🧨 Combos identificados</h2>
+          <ul class="space-y-2 text-sm">
+            {% for combo in evaluation.combos %}
+            <li class="flex items-start gap-2">
+              <span class="shrink-0 text-gray-400 dark:text-gray-500">•</span>
+              <div class="flex-1">
+                <div class="font-medium text-gray-900 dark:text-gray-100">
+                  {{ combo.pieces|join:" + " }}
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 flex flex-wrap gap-2 mt-0.5">
+                  {% if combo.type %}<span class="capitalize">type: {{ combo.type }}</span>{% endif %}
+                  {% if combo.interactable %}<span>interactable: {{ combo.interactable }}</span>{% endif %}
+                  {% if combo.resilient is not None %}<span>resilient: {{ combo.resilient|yesno }}</span>{% endif %}
+                </div>
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        {# Card tags — collapsed #}
+        {% if evaluation.card_tags %}
+        <details class="rounded-lg border border-gray-200 dark:border-void-700 bg-white dark:bg-void-900">
+          <summary class="px-4 py-2 text-sm cursor-pointer text-gray-600 dark:text-gray-300">
+            🔬 Clasificación de cartas ({{ evaluation.card_tags|length }})
+          </summary>
+          <ul class="px-4 pb-4 space-y-1 text-xs">
+            {% for entry in evaluation.card_tags %}
+            <li class="flex items-start gap-2">
+              <span class="text-gray-700 dark:text-gray-300 min-w-0 truncate">{{ entry.name }}</span>
+              <span class="text-gray-400 dark:text-gray-500">—</span>
+              <span class="flex flex-wrap gap-1">
+                {% for tag in entry.tags %}
+                <span class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-void-800 font-mono text-[10px]">{{ tag }}</span>
+                {% endfor %}
+              </span>
+            </li>
+            {% endfor %}
+          </ul>
+        </details>
+        {% endif %}
+
+        {# Decklist #}
+        <details class="rounded-lg border border-gray-200 dark:border-void-700 bg-white dark:bg-void-900">
+          <summary class="px-4 py-2 text-sm cursor-pointer text-gray-600 dark:text-gray-300">Decklist evaluado</summary>
+          <pre class="px-4 pb-4 text-xs font-mono whitespace-pre-wrap text-gray-700 dark:text-gray-200">{{ evaluation.decklist_text }}</pre>
+        </details>
+      </div>
+    </div>
+  {% endif %}
+</div>

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Conflux — Evaluations — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Conflux</h1>
+      <p class="text-sm text-gray-500 dark:text-gray-400">
+        AI-driven EDH deck evaluations using the Honest Scale rubric and the WotC Commander Bracket System.
+      </p>
+    </div>
+    <a href="{% url 'conflux:evaluation-create' %}" class="btn-primary">New evaluation</a>
+  </div>
+
+  {% if object_list %}
+  <ul class="divide-y divide-gray-200 dark:divide-void-700 border border-gray-200 dark:border-void-700 rounded-lg overflow-hidden">
+    {% for ev in object_list %}
+    <li class="bg-white dark:bg-void-900">
+      <a href="{{ ev.get_absolute_url }}"
+         class="block px-4 py-3 hover:bg-gray-50 dark:hover:bg-void-800 transition-colors">
+        <div class="flex items-center justify-between gap-4">
+          <div class="min-w-0">
+            <div class="font-medium text-gray-900 dark:text-gray-100 truncate">
+              {% if ev.deck %}{{ ev.deck.name }}{% else %}{{ ev.commander|default:"Pasted decklist" }}{% endif %}
+            </div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">
+              {{ ev.created_at|date:"Y-m-d H:i" }} · {{ ev.model_name|default:"—" }}
+            </div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            {% if ev.final_score %}
+            <span class="font-mono text-sm font-semibold text-indigo-600 dark:text-indigo-300">
+              {{ ev.final_score }}/10
+            </span>
+            {% endif %}
+            {% if ev.honest_tier %}
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium
+              {% if ev.honest_tier == 'cedh' %}bg-red-600 text-white
+              {% elif ev.honest_tier == 'high' %}bg-orange-500 text-white
+              {% elif ev.honest_tier == 'mid' %}bg-yellow-500 text-white
+              {% elif ev.honest_tier == 'casual' %}bg-green-500 text-white
+              {% else %}bg-gray-500 text-white{% endif %}">
+              {{ ev.get_honest_tier_display }}
+            </span>
+            {% endif %}
+            {% if ev.bracket %}
+            <span class="px-2 py-0.5 rounded-full text-xs bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200">
+              B{{ ev.bracket }}
+            </span>
+            {% endif %}
+            <span class="px-2 py-0.5 rounded-full text-xs
+              {% if ev.status == 'completed' %}bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200
+              {% elif ev.status == 'failed' %}bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200
+              {% else %}bg-gray-100 text-gray-700 dark:bg-void-700 dark:text-gray-300{% endif %}">
+              {{ ev.get_status_display }}
+            </span>
+          </div>
+        </div>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="text-center py-12 text-gray-500 dark:text-gray-400 border border-dashed border-gray-300 dark:border-void-700 rounded-lg">
+    No evaluations yet.
+    <a href="{% url 'conflux:evaluation-create' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Run one →</a>
+  </div>
+  {% endif %}
+
+  {% if is_paginated %}
+    {% include "partials/pagination.html" with page_obj=page_obj %}
+  {% endif %}
+
+</div>
+{% endblock %}

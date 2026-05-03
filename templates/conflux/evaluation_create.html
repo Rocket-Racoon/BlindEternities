@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}New evaluation — Conflux — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+  <div class="mb-6">
+    <a href="{% url 'conflux:evaluation-list' %}"
+       class="text-sm text-gray-500 dark:text-gray-400 hover:underline">← Back to evaluations</a>
+    <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">New deck evaluation</h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400">
+      Pick a saved Commander deck or paste a decklist. The local Ollama model scores it
+      against the Honest Scale and assigns a bracket.
+    </p>
+  </div>
+
+  <form method="post" class="space-y-5 bg-white dark:bg-void-900 border border-gray-200 dark:border-void-700 rounded-lg p-6">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="px-3 py-2 rounded-md bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 text-sm">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        Saved Commander deck
+      </label>
+      {{ form.deck }}
+      {% if form.deck.help_text %}
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ form.deck.help_text }}</p>
+      {% endif %}
+      {{ form.deck.errors }}
+    </div>
+
+    <div class="text-center text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">— or —</div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        Commander
+      </label>
+      {{ form.commander }}
+      {{ form.commander.errors }}
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        Decklist
+      </label>
+      {{ form.decklist_text }}
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+        Plaintext or MTG Arena format. Zone headers like <code>// Commander</code> are respected.
+      </p>
+      {{ form.decklist_text.errors }}
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        Your self-rated bracket
+      </label>
+      {{ form.bracket_user }}
+      {{ form.bracket_user.errors }}
+    </div>
+
+    <div class="flex justify-end gap-2 pt-2">
+      <a href="{% url 'conflux:evaluation-list' %}" class="px-4 py-2 text-sm rounded-md border border-gray-200 dark:border-void-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-void-800">
+        Cancel
+      </a>
+      <button type="submit" class="btn-primary">Evaluate</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

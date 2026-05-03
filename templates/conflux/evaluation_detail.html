@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Evaluation — Conflux — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+
+  <div class="mb-4 flex items-center justify-between">
+    <a href="{% url 'conflux:evaluation-list' %}"
+       class="text-sm text-gray-500 dark:text-gray-400 hover:underline">← Back to evaluations</a>
+    <form method="post" action="{% url 'conflux:evaluation-delete' evaluation.pk %}"
+          onsubmit="return confirm('Delete this evaluation?');">
+      {% csrf_token %}
+      <button type="submit" class="text-sm text-red-600 dark:text-red-400 hover:underline">Delete</button>
+    </form>
+  </div>
+
+  <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+    {% if evaluation.deck %}{{ evaluation.deck.name }}{% else %}{{ evaluation.commander|default:"Pasted decklist" }}{% endif %}
+  </h1>
+  {% if evaluation.commander and evaluation.deck %}
+    <p class="text-sm text-gray-500 dark:text-gray-400">{{ evaluation.commander }}</p>
+  {% endif %}
+
+  <div id="result-panel"
+       class="mt-6"
+       {% if not evaluation.is_terminal %}
+         hx-get="{{ evaluation.get_absolute_url }}"
+         hx-trigger="load delay:2s"
+         hx-swap="outerHTML"
+       {% endif %}>
+    {% include "conflux/partials/result_panel.html" %}
+  </div>
+
+</div>
+{% endblock %}
